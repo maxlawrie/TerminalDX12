@@ -1,23 +1,26 @@
 # TerminalDX12
 
-A modern terminal emulator for Windows with GPU-accelerated text rendering using DirectX 12.
+A GPU-accelerated terminal emulator for Windows using DirectX 12.
 
 ## Features
 
-- **GPU-Accelerated Rendering**: DirectX 12 instanced rendering with glyph atlases
-- **Modern Text Rendering**: FreeType and HarfBuzz for ligatures and complex scripts
-- **ConPTY Integration**: Native Windows pseudo console for shell processes
-- **Complete VT Emulation**: Full VT sequence support for modern terminal apps
-- **Tabs and Splits**: Tree-based pane management
-- **Custom Shaders**: Post-processing effects (CRT, blur, custom effects)
-- **Configurable**: JSON-based configuration for profiles, colors, and keybindings
+- **GPU-Accelerated Rendering** - DirectX 12 instanced rendering with glyph atlas
+- **VT100/ANSI Support** - Colors (16, 256, true color), bold, underline, inverse
+- **ConPTY Integration** - Native Windows pseudo console for shell processes
+- **Copy/Paste** - Mouse text selection with Ctrl+C/V clipboard support
+- **Scrollback Buffer** - 10,000 lines of history with mouse wheel scrolling
+- **Unicode Support** - Full UTF-8/UTF-32 character handling via FreeType
+
+## Screenshots
+
+The terminal renders text using a GPU-accelerated glyph atlas with proper color and attribute support.
 
 ## Requirements
 
 - Windows 10 1809 or later (for ConPTY support)
 - DirectX 12 capable GPU
-- Visual Studio 2022 or later (MSVC v143)
-- CMake 3.21 or later
+- Visual Studio 2022 or later
+- CMake 3.20+
 - vcpkg package manager
 
 ## Building
@@ -40,8 +43,7 @@ set VCPKG_ROOT=C:\path\to\vcpkg
 
 ```bash
 cd TerminalDX12
-mkdir build
-cd build
+mkdir build && cd build
 cmake .. -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake
 cmake --build . --config Release
 ```
@@ -52,120 +54,80 @@ cmake --build . --config Release
 bin\Release\TerminalDX12.exe
 ```
 
+## Usage
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+C | Copy selected text (or send SIGINT if nothing selected) |
+| Ctrl+V | Paste from clipboard |
+| Shift+Page Up | Scroll up in history |
+| Shift+Page Down | Scroll down in history |
+
+### Mouse
+
+| Action | Result |
+|--------|--------|
+| Click and drag | Select text |
+| Single click | Clear selection |
+| Mouse wheel | Scroll through buffer |
+
 ## Project Structure
 
 ```
 TerminalDX12/
 ├── include/          # Header files
-│   ├── core/        # Application, Window
-│   ├── pty/         # ConPTY integration
-│   ├── terminal/    # VT parser, screen buffer
-│   ├── rendering/   # DirectX 12 renderer
-│   └── ui/          # Tabs, splits, input
-├── src/             # Implementation files
-├── shaders/         # HLSL shaders
-├── resources/       # Fonts, icons
-└── tests/           # Unit and integration tests
+│   ├── core/         # Application, Window
+│   ├── pty/          # ConPTY integration
+│   ├── terminal/     # VT parser, screen buffer
+│   ├── rendering/    # DirectX 12 renderer
+│   └── ui/           # Input handling
+├── src/              # Implementation files
+├── shaders/          # HLSL shaders for text rendering
+└── tests/            # Python test suite with screenshots
 ```
 
 ## Architecture
 
 ### Rendering Pipeline
 
-1. **Glyph Atlas**: FreeType rasterizes glyphs into 2048x2048 texture
-2. **Text Shaping**: HarfBuzz converts text to glyph indices + positions
-3. **Instance Buffer**: Build per-glyph data for visible cells
-4. **GPU Rendering**: Single instanced draw call renders all glyphs
-5. **Post-Processing**: Optional custom shaders for effects
+1. **Glyph Atlas** - FreeType rasterizes glyphs into 2048x2048 RGBA texture
+2. **Instance Buffer** - Per-glyph position, UV, and color data
+3. **GPU Rendering** - Single instanced draw call renders all visible glyphs
+4. **Selection Highlight** - Blue overlay for selected text regions
 
 ### Terminal Emulation
 
-1. **ConPTY**: Native Windows pseudo console spawns shell processes
-2. **VT Parser**: State machine processes ANSI/VT sequences
-3. **Screen Buffer**: Grid of cells with text attributes
-4. **Dispatcher**: Translates VT commands to screen buffer operations
+1. **ConPTY** - Native Windows pseudo console spawns cmd.exe/powershell
+2. **VT Parser** - State machine processes ANSI/VT escape sequences
+3. **Screen Buffer** - 80x24 grid of cells with Unicode + attributes
+4. **Scrollback** - Circular buffer storing 10,000 lines of history
 
-## Configuration
+## Testing
 
-Create `config.json` in the application directory:
+The test suite uses Python with screenshot-based visual validation:
 
-```json
-{
-  "profiles": [
-    {
-      "name": "PowerShell",
-      "commandline": "pwsh.exe",
-      "font": {
-        "face": "Cascadia Code",
-        "size": 11
-      },
-      "colors": {
-        "foreground": "#CCCCCC",
-        "background": "#0C0C0C"
-      }
-    }
-  ],
-  "keybindings": [
-    {"command": "newTab", "keys": "ctrl+shift+t"},
-    {"command": "splitHorizontal", "keys": "ctrl+shift+d"}
-  ]
-}
+```bash
+cd C:\Temp\TerminalDX12Test
+python test_terminal.py
 ```
 
-## Development Roadmap
+**Requirements:** Python 3.x, Pillow, pywin32, numpy
 
-### Phase 1: MVP (Weeks 1-4) ✓ In Progress
-- [x] Project setup
-- [ ] Win32 window
-- [ ] DirectX 12 initialization
-- [ ] Basic glyph atlas
-- [ ] Simple text rendering
-- [ ] ConPTY integration
-- [ ] Basic VT parser
-- [ ] Screen buffer
+**Test Coverage:** 20 tests covering startup, keyboard input, colors, text attributes, scrollback, and more.
 
-### Phase 2: Full VT Support (Weeks 5-6)
-- [ ] Complete VT state machine
-- [ ] Color support
-- [ ] Text attributes
-- [ ] Scrollback
+## Dependencies (via vcpkg)
 
-### Phase 3: Advanced Rendering (Week 7)
-- [ ] HarfBuzz integration
-- [ ] Ligatures
-- [ ] Performance optimization
-
-### Phase 4: UI Layer (Weeks 8-9)
-- [ ] Tabs
-- [ ] Splits
-- [ ] Mouse input
-
-### Phase 5: Configuration (Week 10)
-- [ ] JSON config
-- [ ] Profiles
-- [ ] Keybindings
-
-### Phase 6: Custom Shaders (Week 11)
-- [ ] Post-processing pipeline
-- [ ] Shader loading
-- [ ] Hot reload
-
-### Phase 7: Polish (Week 12)
-- [ ] Performance profiling
-- [ ] Bug fixes
-- [ ] Documentation
-
-## Resources
-
-- [Windows Terminal](https://github.com/microsoft/terminal) - Reference implementation
-- [DirectX 12 Programming Guide](https://www.3dgep.com/learning-directx-12-1/)
-- [VT100 Parser Spec](https://vt100.net/emu/dec_ansi_parser)
-- [ConPTY Documentation](https://learn.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session)
+- directx-headers
+- freetype
+- spdlog
+- nlohmann-json
 
 ## License
 
-MIT License (to be added)
+MIT License
 
 ## Contributing
 
-This is a learning project. Contributions and suggestions are welcome!
+Contributions and suggestions are welcome!
