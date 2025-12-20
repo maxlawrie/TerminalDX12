@@ -80,6 +80,9 @@ public:
     // Upload atlas to GPU if dirty
     void UploadAtlasIfDirty();
 
+    // Preload ASCII glyphs to avoid race conditions during rendering
+    void PreloadASCIIGlyphs();
+
     // Get descriptor heap
     ID3D12DescriptorHeap* GetSRVHeap() const { return m_srvHeap.Get(); }
 

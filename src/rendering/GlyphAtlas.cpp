@@ -68,6 +68,9 @@ bool GlyphAtlas::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* com
     spdlog::info("GlyphAtlas initialized: {}x{}, font size: {}",
                  m_atlasWidth, m_atlasHeight, m_fontSize);
 
+    // Preload all ASCII printable glyphs at startup to avoid race conditions
+    PreloadASCIIGlyphs();
+
     return true;
 }
 
@@ -379,6 +382,27 @@ void GlyphAtlas::UploadAtlasIfDirty() {
 
     m_atlasDirty = false;
     spdlog::info("Atlas texture uploaded to GPU successfully!");
+}
+
+void GlyphAtlas::PreloadASCIIGlyphs() {
+    spdlog::info("Preloading ASCII glyphs (32-126)...");
+
+    int loaded = 0;
+    int failed = 0;
+
+    // Preload all printable ASCII characters
+    for (char32_t ch = 32; ch <= 126; ++ch) {
+        const GlyphInfo* glyph = GetGlyph(ch, false, false);
+        if (glyph) {
+            loaded++;
+        } else {
+            failed++;
+            spdlog::warn("Failed to preload glyph for char '{}' (U+{:04X})",
+                        static_cast<char>(ch), static_cast<uint32_t>(ch));
+        }
+    }
+
+    spdlog::info("Preloaded {} ASCII glyphs ({} failed)", loaded, failed);
 }
 
 } // namespace TerminalDX12::Rendering

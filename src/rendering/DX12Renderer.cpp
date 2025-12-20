@@ -6,8 +6,23 @@
 #include <spdlog/spdlog.h>
 #include <d3dcompiler.h>
 #include <fstream>
+#include <Windows.h>
 
 #pragma comment(lib, "d3d12.lib")
+
+namespace {
+    // Helper function to get the executable directory
+    std::string GetExecutableDirectory() {
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+        std::string path(buffer);
+        size_t lastSlash = path.find_last_of("\\/");
+        if (lastSlash != std::string::npos) {
+            return path.substr(0, lastSlash + 1);
+        }
+        return "";
+    }
+}
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -547,10 +562,17 @@ bool DX12Renderer::CreateTextPipelineState() {
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
 
+    // Get executable directory for shader paths
+    std::string exeDir = GetExecutableDirectory();
+    std::string vsPath = exeDir + "shaders\\GlyphVertex.cso";
+    std::string psPath = exeDir + "shaders\\GlyphPixel.cso";
+
+    spdlog::info("Loading shaders from: {}", exeDir);
+
     // Read vertex shader
-    std::ifstream vsFile("shaders/GlyphVertex.cso", std::ios::binary);
+    std::ifstream vsFile(vsPath, std::ios::binary);
     if (!vsFile.is_open()) {
-        spdlog::error("Failed to open GlyphVertex.cso");
+        spdlog::error("Failed to open vertex shader: {}", vsPath);
         return false;
     }
     vsFile.seekg(0, std::ios::end);
@@ -564,9 +586,9 @@ bool DX12Renderer::CreateTextPipelineState() {
     memcpy(vertexShader->GetBufferPointer(), vsData.data(), vsSize);
 
     // Read pixel shader
-    std::ifstream psFile("shaders/GlyphPixel.cso", std::ios::binary);
+    std::ifstream psFile(psPath, std::ios::binary);
     if (!psFile.is_open()) {
-        spdlog::error("Failed to open GlyphPixel.cso");
+        spdlog::error("Failed to open pixel shader: {}", psPath);
         return false;
     }
     psFile.seekg(0, std::ios::end);
@@ -621,7 +643,14 @@ bool DX12Renderer::CreateTextPipelineState() {
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
 
+    spdlog::info("Creating graphics pipeline state with VS size: {}, PS size: {}", vsSize, psSize);
+
     HRESULT hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_textPipelineState));
+    if (FAILED(hr)) {
+        spdlog::error("CreateGraphicsPipelineState failed with HRESULT: 0x{:08X}", static_cast<unsigned int>(hr));
+    } else {
+        spdlog::info("Graphics pipeline state created successfully");
+    }
     return SUCCEEDED(hr);
 }
 
