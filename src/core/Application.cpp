@@ -344,9 +344,10 @@ void Application::Render() {
 
             // Render underline if the cell has the underline attribute
             if (cell.attr.IsUnderline()) {
-                // Render underline as a thin horizontal line below the character
-                float underlineY = posY + lineHeight - 4;  // 4 pixels from bottom of cell
-                float underlineHeight = 2.0f;  // 2 pixels thick
+                // Render underline extending slightly below the cell for visibility
+                // This ensures underlined text is visually distinct (2-3 pixels taller)
+                float underlineY = posY + lineHeight - 1;  // Start near bottom of cell
+                float underlineHeight = 3.0f;  // 3 pixels thick, extends below cell
                 // Use same color as the text
                 m_renderer->RenderRect(posX, underlineY, static_cast<float>(charWidth),
                                        underlineHeight, r, g, b, 1.0f);
