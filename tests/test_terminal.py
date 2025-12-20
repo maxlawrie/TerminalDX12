@@ -52,6 +52,32 @@ class POINT(ctypes.Structure):
 TERMINAL_EXE = r"C:\Temp\TerminalDX12Test\TerminalDX12.exe"
 SCREENSHOT_DIR = Path(__file__).parent / "screenshots"
 SCREENSHOT_DIR.mkdir(exist_ok=True)
+LOG_FILE = Path(__file__).parent / "test_output.txt"
+
+class TeeOutput:
+    """Redirect stdout to both console and file"""
+    def __init__(self, log_path):
+        self.terminal = sys.stdout
+        self.log_file = open(log_path, 'w', encoding='utf-8')
+
+    def write(self, message):
+        # Write to file (UTF-8, handles all characters)
+        self.log_file.write(message)
+        self.log_file.flush()
+        # Write to terminal with fallback for encoding errors
+        try:
+            self.terminal.write(message)
+        except UnicodeEncodeError:
+            # Replace problematic characters for Windows console
+            safe_message = message.encode('ascii', 'replace').decode('ascii')
+            self.terminal.write(safe_message)
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+
+    def close(self):
+        self.log_file.close()
 
 class TerminalTester:
     def __init__(self):
@@ -372,6 +398,45 @@ class TerminalTester:
             except subprocess.TimeoutExpired:
                 self.process.kill()
 
+    def verify_log_contains(self, test_name, expected_markers):
+        """Verify that the log file contains expected content for a test.
+
+        Args:
+            test_name: Name of the test to look for
+            expected_markers: List of strings that should appear in the log
+
+        Returns:
+            (success, error_message) tuple
+        """
+        try:
+            # Flush stdout to ensure log is written
+            sys.stdout.flush()
+
+            # Read the log file
+            if not LOG_FILE.exists():
+                return False, f"Log file does not exist: {LOG_FILE}"
+
+            with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                log_content = f.read()
+
+            # Check that test name appears in log
+            if f"Running test: {test_name}" not in log_content:
+                return False, f"Test header 'Running test: {test_name}' not found in log"
+
+            # Check for expected markers
+            missing_markers = []
+            for marker in expected_markers:
+                if marker not in log_content:
+                    missing_markers.append(marker)
+
+            if missing_markers:
+                return False, f"Missing markers in log: {missing_markers}"
+
+            return True, None
+
+        except Exception as e:
+            return False, f"Error reading log file: {e}"
+
     def run_test(self, name, test_func):
         """Run a single test and record results"""
         print(f"\n{'='*60}")
@@ -379,12 +444,29 @@ class TerminalTester:
         print('='*60)
         try:
             result = test_func()
+
+            # Generate unique marker for this test result
+            result_symbol = "✓" if result else "✗"
+            result_marker = f"{result_symbol} {name}:"
+            print(f"{result_symbol} {name}: {'PASSED' if result else 'FAILED'}")
+
+            # Verify the test output was saved to log file
+            log_verified, log_error = self.verify_log_contains(name, [
+                f"Running test: {name}",
+                result_marker
+            ])
+
+            if not log_verified:
+                print(f"  LOG VERIFICATION FAILED: {log_error}")
+                result = False  # Fail test if log verification fails
+            else:
+                print(f"  Log verification: OK")
+
             self.test_results.append({
                 'name': name,
                 'passed': result,
-                'error': None
+                'error': None if result else log_error
             })
-            print(f"✓ {name}: {'PASSED' if result else 'FAILED'}")
             return result
         except Exception as e:
             print(f"✗ {name}: ERROR - {e}")
@@ -673,27 +755,98 @@ class TerminalTester:
         return text_pixels > 500
 
     def test_ansi_underline(self):
-        """Test 13: ANSI underline escape sequence - OCR verified"""
+        """Test 13: ANSI underline escape sequence - must show actual underline
+
+        This test MUST FAIL if underlines are not being rendered.
+        Strategy: Output NORMALTEXT and UNDERLINED on consecutive lines,
+        then compare their heights. They should be DIFFERENT if underlines work.
+        """
         self.send_keys("cls")
         self.send_keys("\n")
         time.sleep(0.5)
 
-        # Use PowerShell to output raw ANSI escape sequences
-        # ESC[4m = underline on, ESC[0m = reset
-        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[4mUNDERLINED TEXT${e}[0m Normal Text\\""'
-        self.send_keys(cmd)
+        # Output normal text then underlined text (consecutive lines)
+        self.send_keys('echo NORMALTEXT')
+        self.send_keys("\n")
+        time.sleep(0.3)
+        self.send_keys('Write-Host "$([char]27)[4mUNDERLINED$([char]27)[0m"')
         self.send_keys("\n")
         time.sleep(1.5)
 
         screenshot, filepath = self.take_screenshot("13_ansi_underline")
+        img_array = np.array(screenshot)
 
-        # OCR verification - must find both texts
-        passed, details = self.verify_ocr_text(screenshot, [
-            ("UNDERLINED TEXT", "underlined text"),
-            ("Normal Text", "normal text after reset"),
-        ])
-        print(details)
-        return passed
+        # Only look at WHITE/GRAY pixels (exclude green cursor and colored prompts)
+        white_mask = np.all(img_array[:, :, :3] > 150, axis=2)
+
+        # Find rows with white pixels
+        row_white_counts = []
+        for y in range(img_array.shape[0]):
+            white_cols = np.where(white_mask[y, :])[0]
+            row_white_counts.append((y, len(white_cols), white_cols))
+
+        # Group into text lines
+        text_lines = []
+        current_line = []
+        prev_y = -5
+
+        for y, count, cols in row_white_counts:
+            if count > 30:
+                if y - prev_y <= 3:
+                    current_line.append((y, count, cols))
+                else:
+                    if current_line:
+                        text_lines.append(current_line)
+                    current_line = [(y, count, cols)]
+                prev_y = y
+
+        if current_line:
+            text_lines.append(current_line)
+
+        # Filter to "full" text lines (height >= 10 pixels, typical text height)
+        # This excludes small artifacts
+        full_lines = []
+        for line in text_lines:
+            ys = [y for y, count, cols in line]
+            height = max(ys) - min(ys) + 1
+            if height >= 10:
+                full_lines.append((height, min(ys), max(ys)))
+
+        print(f"  Found {len(full_lines)} full text lines")
+        for height, min_y, max_y in full_lines:
+            print(f"    Height: {height} (rows {min_y}-{max_y})")
+
+        if len(full_lines) < 2:
+            print("  FAIL: Need at least 2 full text lines for comparison")
+            return False
+
+        # All "normal" text lines should have the same height (within 1 pixel)
+        # If underlines are rendered, ONE line would be taller
+        heights = [h for h, min_y, max_y in full_lines]
+        unique_heights = set(heights)
+
+        print(f"  Unique heights found: {sorted(unique_heights)}")
+
+        # Count how many lines have each height
+        from collections import Counter
+        height_counts = Counter(heights)
+        print(f"  Height distribution: {dict(height_counts)}")
+
+        # The most common height is the "normal" text height
+        most_common_height = height_counts.most_common(1)[0][0]
+
+        # If ALL lines have the same height (or within 1 pixel), NO underline is rendered
+        all_same = all(abs(h - most_common_height) <= 1 for h in heights)
+
+        if all_same:
+            print(f"  FAIL: No underline detected")
+            print(f"  All text lines have height ~{most_common_height} pixels")
+            print(f"  If underlines were rendered, the UNDERLINED line would be 2-3 pixels taller")
+            print(f"  The terminal is not rendering the ESC[4m underline escape sequence")
+            return False
+
+        print("  OK: Underline detected (one line has different height)")
+        return True
 
     def test_ansi_bold(self):
         """Test 14: ANSI bold escape sequence (ESC[1m)"""
@@ -805,8 +958,9 @@ class TerminalTester:
         self.send_keys("\n")
         time.sleep(0.5)
 
-        # Test various special characters - use ones OCR can recognize
-        self.send_keys('echo SPECIAL_TEST @#$%')
+        # Test various special characters using Write-Host with single quotes
+        # (single quotes prevent PowerShell variable expansion)
+        self.send_keys("Write-Host 'SPECIAL_TEST @#%^&'")
         self.send_keys("\n")
         time.sleep(1)
 
@@ -901,56 +1055,88 @@ class TerminalTester:
         return white_count > 500 and black_ratio > 0.90
 
     def test_underline_visible(self):
-        """Test 21: Underline is visually rendered below text"""
+        """Test 21: Underline is visually rendered below text
+
+        This test MUST FAIL if underlines are not actually being rendered.
+        Strategy: Output underlined text and normal text, compare heights.
+        """
         self.send_keys("cls")
         self.send_keys("\n")
         time.sleep(0.5)
 
-        # Output underlined text using ANSI escape sequences
-        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[4mUNDERLINE_TEST${e}[0m\\""'
-        self.send_keys(cmd)
+        # Output both normal and underlined text for comparison
+        self.send_keys('echo BASELINE')
+        self.send_keys("\n")
+        time.sleep(0.3)
+        self.send_keys('Write-Host "$([char]27)[4mUNDERLINED_TEXT$([char]27)[0m"')
         self.send_keys("\n")
         time.sleep(1.5)
 
         screenshot, filepath = self.take_screenshot("21_underline_visible")
-
         img_array = np.array(screenshot)
 
-        # Find the output line by looking for text pixels
-        # The underline should create additional pixels below the text baseline
-        row_height = 25
+        # Only look at WHITE/GRAY pixels (exclude green cursor and colored text)
+        white_mask = np.all(img_array[:, :, :3] > 150, axis=2)
 
-        # Analyze rows 2-4 (where the output should be)
-        # For each column with text, check if there are pixels extending below baseline
-        text_rows = img_array[30:80, :, :]  # Rows where output should appear
+        # Find rows with white pixels
+        row_white_data = []
+        for y in range(img_array.shape[0]):
+            white_cols = np.where(white_mask[y, :])[0]
+            row_white_data.append((y, len(white_cols), white_cols))
 
-        # Count non-black pixels row by row
-        row_pixel_counts = []
-        for y in range(text_rows.shape[0]):
-            non_black = np.any(text_rows[y, :, :3] > 30, axis=1)
-            row_pixel_counts.append(np.sum(non_black))
+        # Group consecutive rows into text lines
+        text_lines = []
+        current_line = []
+        prev_y = -5
 
-        # Find rows with significant text
-        text_row_indices = [i for i, count in enumerate(row_pixel_counts) if count > 100]
+        for y, count, cols in row_white_data:
+            if count > 30:
+                if y - prev_y <= 3:
+                    current_line.append((y, count, cols))
+                else:
+                    if current_line:
+                        text_lines.append(current_line)
+                    current_line = [(y, count, cols)]
+                prev_y = y
 
-        if len(text_row_indices) < 2:
-            print(f"  WARNING: Only found {len(text_row_indices)} rows with text")
-            # Still pass if we found underlined text in the image
-            non_black_total = np.sum(np.any(text_rows[:,:,:3] > 30, axis=2))
-            print(f"  Total text pixels in region: {non_black_total}")
-            return non_black_total > 500
+        if current_line:
+            text_lines.append(current_line)
 
-        # Check if there are pixels in a row below the main text row
-        # (this would indicate underline rendering)
-        main_text_row = text_row_indices[0]
-        underline_region = text_rows[main_text_row+15:main_text_row+25, :, :]
-        underline_pixels = np.sum(np.any(underline_region[:,:,:3] > 30, axis=2))
+        # Filter to full text lines (height >= 10)
+        full_lines = []
+        for line in text_lines:
+            ys = [y for y, count, cols in line]
+            height = max(ys) - min(ys) + 1
+            if height >= 10:
+                full_lines.append((height, min(ys), max(ys)))
 
-        print(f"  Main text row: {main_text_row}, Underline region pixels: {underline_pixels}")
-        print(f"  Text row indices: {text_row_indices[:5]}")
+        print(f"  Found {len(full_lines)} full text lines")
+        for height, min_y, max_y in full_lines:
+            print(f"    Height: {height} (rows {min_y}-{max_y})")
 
-        # Should have some pixels in the underline region
-        return underline_pixels > 50 or len(text_row_indices) >= 2
+        if len(full_lines) < 2:
+            print("  FAIL: Need at least 2 full text lines for comparison")
+            return False
+
+        # Check if all lines have the same height
+        heights = [h for h, min_y, max_y in full_lines]
+        from collections import Counter
+        height_counts = Counter(heights)
+        most_common_height = height_counts.most_common(1)[0][0]
+
+        print(f"  Height distribution: {dict(height_counts)}")
+
+        all_same = all(abs(h - most_common_height) <= 1 for h in heights)
+
+        if all_same:
+            print("  FAIL: No underline detected")
+            print(f"  All text lines have height ~{most_common_height} pixels")
+            print("  If underlines were rendered, the UNDERLINED_TEXT line would be taller")
+            print("  The terminal is not rendering the ESC[4m underline escape sequence")
+            return False
+
+        print("  OK: Underline detected (one line has different height)")
+        return True
 
     def test_cursor_position_accuracy(self):
         """Test 22: Cursor appears at correct position after text"""
@@ -1036,6 +1222,14 @@ class TerminalTester:
 
 def main():
     """Run all tests"""
+    # Set up logging to file and console
+    tee = TeeOutput(LOG_FILE)
+    sys.stdout = tee
+
+    print(f"TerminalDX12 Test Suite - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Log file: {LOG_FILE}")
+    print("=" * 60)
+
     tester = TerminalTester()
 
     try:
@@ -1093,6 +1287,7 @@ def main():
 
         print(f"\nResults: {passed}/{total} tests passed ({100*passed//total}%)")
         print(f"Screenshots saved to: {SCREENSHOT_DIR}")
+        print(f"Log file saved to: {LOG_FILE}")
 
         return passed == total
 
@@ -1104,6 +1299,10 @@ def main():
     finally:
         tester.cleanup()
         time.sleep(1)
+        # Close log file
+        sys.stdout = tee.terminal
+        tee.close()
+        print(f"Test output saved to: {LOG_FILE}")
 
 if __name__ == "__main__":
     success = main()

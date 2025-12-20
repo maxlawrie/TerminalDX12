@@ -5,6 +5,51 @@ $ErrorActionPreference = "Stop"
 
 $TerminalExe = "C:\Temp\TerminalDX12Test\TerminalDX12.exe"
 $TestResults = @()
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$LogFile = Join-Path $ScriptDir "test_basic_output.txt"
+
+# Start transcript to capture all output
+Start-Transcript -Path $LogFile -Force | Out-Null
+Write-Host "Log file: $LogFile"
+Write-Host "Started: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+
+function Verify-LogContains {
+    param(
+        [string]$TestName,
+        [string[]]$ExpectedMarkers
+    )
+
+    # Stop and restart transcript to flush content
+    Stop-Transcript | Out-Null
+    Start-Transcript -Path $LogFile -Append | Out-Null
+
+    # Read the log file
+    if (-not (Test-Path $LogFile)) {
+        Write-Host "  LOG VERIFICATION FAILED: Log file does not exist" -ForegroundColor Red
+        return $false
+    }
+
+    $logContent = Get-Content $LogFile -Raw -ErrorAction SilentlyContinue
+    if (-not $logContent) {
+        Write-Host "  LOG VERIFICATION FAILED: Log file is empty" -ForegroundColor Red
+        return $false
+    }
+
+    # Check for expected markers
+    $allFound = $true
+    foreach ($marker in $ExpectedMarkers) {
+        if ($logContent -notlike "*$marker*") {
+            Write-Host "  LOG VERIFICATION FAILED: Missing '$marker' in log" -ForegroundColor Red
+            $allFound = $false
+        }
+    }
+
+    if ($allFound) {
+        Write-Host "  Log verification: OK" -ForegroundColor Gray
+    }
+
+    return $allFound
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "TerminalDX12 Basic Test Suite" -ForegroundColor Cyan
@@ -16,12 +61,16 @@ function Test-TerminalExists {
 
     if (Test-Path $TerminalExe) {
         Write-Host " PASSED" -ForegroundColor Green
-        return $true
+        $testResult = $true
     } else {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "  Terminal not found at: $TerminalExe" -ForegroundColor Yellow
-        return $false
+        $testResult = $false
     }
+
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "TerminalExists" -ExpectedMarkers @("Test 1:", "terminal executable exists")
+    return ($testResult -and $logVerified)
 }
 
 function Test-DependenciesExist {
@@ -48,15 +97,19 @@ function Test-DependenciesExist {
 
     if ($allExist) {
         Write-Host " PASSED" -ForegroundColor Green
-        return $true
+        $testResult = $true
     } else {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "  Missing files:" -ForegroundColor Yellow
         foreach ($file in $missing) {
             Write-Host "    - $file" -ForegroundColor Yellow
         }
-        return $false
+        $testResult = $false
     }
+
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "DependenciesExist" -ExpectedMarkers @("Test 2:", "dependencies exist")
+    return ($testResult -and $logVerified)
 }
 
 function Test-TerminalLaunches {
@@ -77,17 +130,21 @@ function Test-TerminalLaunches {
             $process.Kill()
             $process.WaitForExit(2000)
 
-            return $true
+            $testResult = $true
         } else {
             Write-Host " FAILED" -ForegroundColor Red
             Write-Host "  Terminal exited with code: $($process.ExitCode)" -ForegroundColor Yellow
-            return $false
+            $testResult = $false
         }
     } catch {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "  Error: $_" -ForegroundColor Yellow
-        return $false
+        $testResult = $false
     }
+
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "TerminalLaunches" -ExpectedMarkers @("Test 3:", "terminal launches")
+    return ($testResult -and $logVerified)
 }
 
 function Test-WindowAppears {
@@ -115,11 +172,11 @@ function Test-WindowAppears {
 
         if ($hwnd -ne [IntPtr]::Zero) {
             Write-Host " PASSED" -ForegroundColor Green
-            $result = $true
+            $testResult = $true
         } else {
             Write-Host " FAILED" -ForegroundColor Red
             Write-Host "  Window not found with expected title" -ForegroundColor Yellow
-            $result = $false
+            $testResult = $false
         }
 
         # Clean up
@@ -127,8 +184,6 @@ function Test-WindowAppears {
             $process.Kill()
             $process.WaitForExit(2000)
         }
-
-        return $result
     } catch {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "  Error: $_" -ForegroundColor Yellow
@@ -140,8 +195,12 @@ function Test-WindowAppears {
             }
         } catch {}
 
-        return $false
+        $testResult = $false
     }
+
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "WindowAppears" -ExpectedMarkers @("Test 4:", "window appears")
+    return ($testResult -and $logVerified)
 }
 
 function Test-MultipleInstances {
@@ -157,10 +216,10 @@ function Test-MultipleInstances {
         # Check if both are running
         if ((-not $process1.HasExited) -and (-not $process2.HasExited)) {
             Write-Host " PASSED" -ForegroundColor Green
-            $result = $true
+            $testResult = $true
         } else {
             Write-Host " FAILED" -ForegroundColor Red
-            $result = $false
+            $testResult = $false
         }
 
         # Clean up
@@ -172,19 +231,21 @@ function Test-MultipleInstances {
             $process2.Kill()
             $process2.WaitForExit(2000)
         }
-
-        return $result
     } catch {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "  Error: $_" -ForegroundColor Yellow
-        return $false
+        $testResult = $false
     }
+
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "MultipleInstances" -ExpectedMarkers @("Test 5:", "multiple instances")
+    return ($testResult -and $logVerified)
 }
 
 function Test-QuickStartStop {
     Write-Host "Test 6: Testing quick start/stop cycles..." -NoNewline
 
-    $allPassed = $true
+    $testResult = $true
 
     for ($i = 1; $i -le 5; $i++) {
         try {
@@ -192,25 +253,27 @@ function Test-QuickStartStop {
             Start-Sleep -Milliseconds 500
 
             if ($process.HasExited) {
-                $allPassed = $false
+                $testResult = $false
                 break
             }
 
             $process.Kill()
             $process.WaitForExit(1000)
         } catch {
-            $allPassed = $false
+            $testResult = $false
             break
         }
     }
 
-    if ($allPassed) {
+    if ($testResult) {
         Write-Host " PASSED" -ForegroundColor Green
     } else {
         Write-Host " FAILED" -ForegroundColor Red
     }
 
-    return $allPassed
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "QuickStartStop" -ExpectedMarkers @("Test 6:", "quick start/stop")
+    return ($testResult -and $logVerified)
 }
 
 function Test-LongerSession {
@@ -226,22 +289,28 @@ function Test-LongerSession {
             if ($process.HasExited) {
                 Write-Host " FAILED" -ForegroundColor Red
                 Write-Host "  Terminal crashed after $i seconds (exit code: $($process.ExitCode))" -ForegroundColor Yellow
-                return $false
+                $testResult = $false
+                break
             }
         }
 
-        Write-Host " PASSED" -ForegroundColor Green
+        if (-not $process.HasExited) {
+            Write-Host " PASSED" -ForegroundColor Green
+            $testResult = $true
 
-        # Clean up
-        $process.Kill()
-        $process.WaitForExit(2000)
-
-        return $true
+            # Clean up
+            $process.Kill()
+            $process.WaitForExit(2000)
+        }
     } catch {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "  Error: $_" -ForegroundColor Yellow
-        return $false
+        $testResult = $false
     }
+
+    # Verify log output
+    $logVerified = Verify-LogContains -TestName "LongerSession" -ExpectedMarkers @("Test 7:", "longer session")
+    return ($testResult -and $logVerified)
 }
 
 # Run all tests
@@ -278,6 +347,11 @@ Write-Host "Results: $passed/$total tests passed ($([math]::Round(100 * $passed 
 Write-Host ""
 
 # Exit code
+Write-Host ""
+Write-Host "Ended: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+Write-Host "Log file saved to: $LogFile"
+Stop-Transcript | Out-Null
+
 if ($passed -eq $total) {
     Write-Host "All tests passed!" -ForegroundColor Green
     exit 0
