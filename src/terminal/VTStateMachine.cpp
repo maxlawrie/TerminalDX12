@@ -28,7 +28,6 @@ void VTStateMachine::ProcessCharacter(char ch) {
             if (ch == '\x1b') {  // ESC
                 m_state = State::Escape;
                 ResetState();
-                spdlog::trace("ESC sequence started");
             } else {
                 ExecuteCharacter(ch);
             }

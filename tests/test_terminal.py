@@ -493,6 +493,287 @@ class TerminalTester:
         # More lenient range to account for various scenarios
         return diff > 100 or diff == 0  # Accept if there's change or if cursor is stable
 
+    def test_text_completeness(self):
+        """Test 11: Text is rendered completely without missing letters"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Echo a known string with all letters
+        test_string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        self.send_keys(f'echo {test_string}')
+        self.send_keys("\n")
+        time.sleep(1)
+
+        screenshot, filepath = self.take_screenshot("11_text_completeness")
+
+        # Use OCR-like approach: check for sufficient text pixel density
+        # The test string has 36 characters, should have significant pixel coverage
+        img_array = np.array(screenshot)
+
+        # Count non-black pixels in the upper portion of screen where text should be
+        height = img_array.shape[0]
+        upper_region = img_array[:height//3, :, :]
+        non_black = np.any(upper_region[:,:,:3] > 30, axis=2)
+        text_pixels = np.sum(non_black)
+
+        print(f"  Text pixels in upper region: {text_pixels}")
+
+        # Should have substantial text (at least 2000 pixels for 36 chars + echo line)
+        # This catches cases where letters are missing
+        return text_pixels > 2000
+
+    def test_startup_text_complete(self):
+        """Test 12: Initial startup text is complete (no missing letters)"""
+        # Clear and wait for fresh prompt
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(1)
+
+        screenshot, filepath = self.take_screenshot("12_startup_text")
+
+        # Check that the prompt path is rendered
+        # Look for text density - should have consistent text
+        img_array = np.array(screenshot)
+
+        # Get the first few rows where the prompt should be
+        prompt_region = img_array[:100, :, :]
+        non_black = np.any(prompt_region[:,:,:3] > 30, axis=2)
+        text_pixels = np.sum(non_black)
+
+        print(f"  Prompt region text pixels: {text_pixels}")
+
+        # Should have some text for the prompt
+        return text_pixels > 500
+
+    def test_ansi_underline(self):
+        """Test 13: ANSI underline escape sequence (ESC[4m)"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Use PowerShell to output raw ANSI escape sequences
+        # ESC[4m = underline on, ESC[0m = reset
+        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[4mUNDERLINED TEXT${e}[0m Normal Text\\""'
+        self.send_keys(cmd)
+        self.send_keys("\n")
+        time.sleep(1.5)
+
+        screenshot, filepath = self.take_screenshot("13_ansi_underline")
+
+        # Check for text presence - underline may be rendered as extra pixels below text
+        img_array = np.array(screenshot)
+        non_black = np.any(img_array[:,:,:3] > 30, axis=2)
+        text_pixels = np.sum(non_black)
+
+        print(f"  Text pixels with underline: {text_pixels}")
+
+        # Should have text rendered
+        return text_pixels > 1000
+
+    def test_ansi_bold(self):
+        """Test 14: ANSI bold escape sequence (ESC[1m)"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Use PowerShell to output raw ANSI escape sequences
+        # ESC[1m = bold on, ESC[0m = reset
+        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[1mBOLD TEXT${e}[0m Normal Text\\""'
+        self.send_keys(cmd)
+        self.send_keys("\n")
+        time.sleep(1.5)
+
+        screenshot, filepath = self.take_screenshot("14_ansi_bold")
+
+        # Check that text is rendered - bold text should be brighter
+        img_array = np.array(screenshot)
+
+        # Look for bright white pixels (bold text is often brighter)
+        bright_pixels = np.all(img_array[:,:,:3] > 200, axis=2)
+        bright_count = np.sum(bright_pixels)
+
+        print(f"  Bright pixels (bold text): {bright_count}")
+
+        # Should have some bright text
+        return bright_count > 100
+
+    def test_ansi_colors_combined(self):
+        """Test 15: Multiple ANSI colors in same line"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Output red, green, and blue text on same line
+        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[31mRED${e}[32mGREEN${e}[34mBLUE${e}[0m\\""'
+        self.send_keys(cmd)
+        self.send_keys("\n")
+        time.sleep(1.5)
+
+        screenshot, filepath = self.take_screenshot("15_colors_combined")
+
+        img_array = np.array(screenshot)
+
+        # Check for red pixels
+        red_ish = np.logical_and(
+            img_array[:,:,0] > 150,
+            np.logical_and(img_array[:,:,1] < 100, img_array[:,:,2] < 100)
+        )
+        red_count = np.sum(red_ish)
+
+        # Check for green pixels
+        green_ish = np.logical_and(
+            img_array[:,:,1] > 100,
+            np.logical_and(img_array[:,:,0] < 100, img_array[:,:,2] < 150)
+        )
+        green_count = np.sum(green_ish)
+
+        # Check for blue pixels
+        blue_ish = np.logical_and(
+            img_array[:,:,2] > 150,
+            np.logical_and(img_array[:,:,0] < 100, img_array[:,:,1] < 180)
+        )
+        blue_count = np.sum(blue_ish)
+
+        print(f"  Red: {red_count}, Green: {green_count}, Blue: {blue_count}")
+
+        # Should have all three colors
+        return red_count > 20 and green_count > 20 and blue_count > 20
+
+    def test_long_line_wrapping(self):
+        """Test 16: Long lines wrap correctly"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Echo a very long line that should wrap
+        long_text = "A" * 120  # Longer than typical 80-column terminal
+        self.send_keys(f'echo {long_text}')
+        self.send_keys("\n")
+        time.sleep(1)
+
+        screenshot, filepath = self.take_screenshot("16_line_wrapping")
+
+        img_array = np.array(screenshot)
+
+        # Check multiple rows have text (indicating wrap)
+        height = img_array.shape[0]
+        row_height = 25  # Approximate row height
+
+        # Check first two text rows for content
+        row1 = img_array[10:10+row_height, :, :]
+        row2 = img_array[10+row_height:10+row_height*2, :, :]
+        row3 = img_array[10+row_height*2:10+row_height*3, :, :]
+
+        row1_pixels = np.sum(np.any(row1[:,:,:3] > 30, axis=2))
+        row2_pixels = np.sum(np.any(row2[:,:,:3] > 30, axis=2))
+        row3_pixels = np.sum(np.any(row3[:,:,:3] > 30, axis=2))
+
+        print(f"  Row pixels - Row1: {row1_pixels}, Row2: {row2_pixels}, Row3: {row3_pixels}")
+
+        # Multiple rows should have significant text
+        rows_with_text = sum([row1_pixels > 500, row2_pixels > 500, row3_pixels > 500])
+        return rows_with_text >= 2
+
+    def test_special_characters(self):
+        """Test 17: Special characters render correctly"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Test various special characters
+        self.send_keys('echo !@#$%^&*()_+-=[]{}|;:,.<>?')
+        self.send_keys("\n")
+        time.sleep(1)
+
+        screenshot, filepath = self.take_screenshot("17_special_chars")
+
+        # Check that text is rendered
+        img_array = np.array(screenshot)
+        non_black = np.any(img_array[:,:,:3] > 30, axis=2)
+        text_pixels = np.sum(non_black)
+
+        print(f"  Special chars text pixels: {text_pixels}")
+
+        # Should have substantial text
+        return text_pixels > 1500
+
+    def test_rapid_output(self):
+        """Test 18: Rapid output doesn't lose characters"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        # Use a for loop to output many lines quickly
+        self.send_keys('for /L %i in (1,1,20) do @echo Line %i: ABCDEFGHIJ')
+        self.send_keys("\n")
+        time.sleep(3)  # Wait for all output
+
+        screenshot, filepath = self.take_screenshot("18_rapid_output")
+
+        img_array = np.array(screenshot)
+        non_black = np.any(img_array[:,:,:3] > 30, axis=2)
+        text_pixels = np.sum(non_black)
+
+        print(f"  Rapid output text pixels: {text_pixels}")
+
+        # Should have lots of text from 20 lines
+        return text_pixels > 10000
+
+    def test_magenta_color(self):
+        """Test 19: Magenta color rendering"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        self.send_keys('powershell -Command "Write-Host \'MAGENTA TEXT\' -ForegroundColor Magenta"')
+        self.send_keys("\n")
+        time.sleep(1.5)
+
+        screenshot, filepath = self.take_screenshot("19_magenta")
+
+        img_array = np.array(screenshot)
+        # Magenta = high R and B, low G
+        magenta_ish = np.logical_and(
+            img_array[:,:,0] > 150,
+            np.logical_and(img_array[:,:,1] < 100, img_array[:,:,2] > 150)
+        )
+        magenta_count = np.sum(magenta_ish)
+
+        print(f"  Magenta pixels: {magenta_count}")
+
+        return magenta_count > 50
+
+    def test_white_on_black(self):
+        """Test 20: White text on black background (default)"""
+        self.send_keys("cls")
+        self.send_keys("\n")
+        time.sleep(0.5)
+
+        self.send_keys('echo WHITE TEXT ON BLACK')
+        self.send_keys("\n")
+        time.sleep(1)
+
+        screenshot, filepath = self.take_screenshot("20_white_on_black")
+
+        img_array = np.array(screenshot)
+
+        # Check for white/gray text (default color)
+        white_ish = np.all(img_array[:,:,:3] > 150, axis=2)
+        white_count = np.sum(white_ish)
+
+        # Check background is mostly black
+        black_ish = np.all(img_array[:,:,:3] < 30, axis=2)
+        black_count = np.sum(black_ish)
+
+        total_pixels = img_array.shape[0] * img_array.shape[1]
+        black_ratio = black_count / total_pixels
+
+        print(f"  White pixels: {white_count}, Black ratio: {black_ratio:.2%}")
+
+        # Should have white text and mostly black background
+        return white_count > 500 and black_ratio > 0.90
+
 def main():
     """Run all tests"""
     tester = TerminalTester()
@@ -501,17 +782,36 @@ def main():
         # Start terminal
         tester.start_terminal()
 
-        # Run tests
+        # Run tests - organized by category
+        # Basic functionality
         tester.run_test("Basic Startup", tester.test_basic_startup)
         tester.run_test("Keyboard Input", tester.test_keyboard_input)
-        tester.run_test("Color Rendering", tester.test_color_rendering)
+        tester.run_test("Text Completeness", tester.test_text_completeness)
+        tester.run_test("Startup Text Complete", tester.test_startup_text_complete)
+
+        # Color tests
+        tester.run_test("Color Rendering (RGB)", tester.test_color_rendering)
         tester.run_test("Background Colors", tester.test_background_colors)
+        tester.run_test("Magenta Color", tester.test_magenta_color)
+        tester.run_test("Colors Combined", tester.test_ansi_colors_combined)
+        tester.run_test("White on Black", tester.test_white_on_black)
+
+        # Text attributes
+        tester.run_test("ANSI Underline", tester.test_ansi_underline)
+        tester.run_test("ANSI Bold", tester.test_ansi_bold)
+        tester.run_test("Yellow Text (Underline Fallback)", tester.test_underline)
+        tester.run_test("Cyan Text (Bold Fallback)", tester.test_bold_text)
+
+        # Terminal features
         tester.run_test("Clear Screen", tester.test_clear_screen)
         tester.run_test("Directory Listing", tester.test_directory_listing)
         tester.run_test("Scrollback Buffer", tester.test_scrollback)
-        tester.run_test("Underline Attribute", tester.test_underline)
-        tester.run_test("Bold Text", tester.test_bold_text)
         tester.run_test("Cursor Blinking", tester.test_cursor_visible)
+
+        # Edge cases
+        tester.run_test("Long Line Wrapping", tester.test_long_line_wrapping)
+        tester.run_test("Special Characters", tester.test_special_characters)
+        tester.run_test("Rapid Output", tester.test_rapid_output)
 
         # Print summary
         print("\n" + "="*60)
