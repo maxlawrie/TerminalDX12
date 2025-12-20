@@ -100,8 +100,8 @@ bool Application::Initialize() {
     // Create VT parser
     m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
 
-    // Start cmd.exe (make this optional - continue even if it fails)
-    if (!m_terminal->Start(L"cmd.exe", termCols, termRows)) {
+    // Start PowerShell (make this optional - continue even if it fails)
+    if (!m_terminal->Start(L"powershell.exe", termCols, termRows)) {
         spdlog::warn("Failed to start terminal session - continuing without ConPTY");
         m_terminal.reset();  // Clear the terminal if it failed to start
     } else {
