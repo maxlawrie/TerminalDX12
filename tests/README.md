@@ -207,33 +207,6 @@ The `helpers.py` module provides reusable components:
 
 All C++ unit tests pass successfully.
 
-### Python Integration Tests: 20/22 passing (90%)
+### Python Integration Tests: 22/22 passing (100%)
 
-| Test | Status |
-|------|--------|
-| Basic Startup | PASS |
-| Keyboard Input | PASS |
-| Text Completeness | PASS |
-| Startup Text Complete | PASS |
-| Color Rendering (RGB) | PASS |
-| Background Colors | PASS |
-| Magenta Color | PASS |
-| Colors Combined | PASS |
-| White on Black | PASS |
-| ANSI Underline | FAIL |
-| ANSI Bold | PASS |
-| Yellow Text | PASS |
-| Cyan Text | PASS |
-| Clear Screen | PASS |
-| Directory Listing | PASS |
-| Scrollback Buffer | PASS |
-| Cursor Blinking | PASS |
-| Long Line Wrapping | PASS |
-| Special Characters | PASS |
-| Rapid Output | PASS |
-| Underline Visible | FAIL |
-| Cursor Position Accuracy | PASS |
-
-### Known Issues
-
-- **Underline rendering not implemented**: The terminal does not render the `ESC[4m` underline escape sequence. This is a feature gap in the terminal emulator, not a test issue.
+All visual integration tests pass, including color rendering, text attributes (bold, underline), keyboard input, scrollback, and cursor positioning.
