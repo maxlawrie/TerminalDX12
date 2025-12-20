@@ -6,7 +6,8 @@
     "directx-headers",
     "freetype",
     "spdlog",
-    "nlohmann-json"
+    "nlohmann-json",
+    "gtest"
   ],
   "builtin-baseline": "d2452281016c6d77b6ef199d599d9929eafe4807"
 }

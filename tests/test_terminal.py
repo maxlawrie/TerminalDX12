@@ -13,6 +13,7 @@ import io
 import base64
 import asyncio
 from pathlib import Path
+from typing import Callable, Optional, Tuple, List
 from PIL import Image, ImageGrab, ImageEnhance
 import win32gui
 import win32con
@@ -21,6 +22,9 @@ import win32process
 import ctypes
 from ctypes import wintypes
 import numpy as np
+
+# Import configuration
+from config import TestConfig, VGAColors
 
 # OCR imports
 try:
@@ -48,11 +52,135 @@ class POINT(ctypes.Structure):
         ('y', ctypes.c_long)
     ]
 
-# Test configuration
-TERMINAL_EXE = r"C:\Temp\TerminalDX12Test\TerminalDX12.exe"
-SCREENSHOT_DIR = Path(__file__).parent / "screenshots"
+# Use configuration (with backward compatibility)
+TERMINAL_EXE = TestConfig.TERMINAL_EXE
+SCREENSHOT_DIR = TestConfig.SCREENSHOT_DIR
 SCREENSHOT_DIR.mkdir(exist_ok=True)
-LOG_FILE = Path(__file__).parent / "test_output.txt"
+LOG_FILE = TestConfig.LOG_FILE
+
+
+# ============================================================================
+# Reliability Helpers
+# ============================================================================
+
+def wait_for_condition(
+    condition_fn: Callable[[], bool],
+    timeout: float = None,
+    poll_interval: float = None,
+    description: str = "condition"
+) -> bool:
+    """
+    Poll until condition is true or timeout.
+
+    Args:
+        condition_fn: Function that returns True when condition is met
+        timeout: Maximum time to wait (uses config default if None)
+        poll_interval: Time between checks (uses config default if None)
+        description: Description for logging
+
+    Returns:
+        True if condition was met, False if timeout
+    """
+    timeout = timeout or TestConfig.MAX_WAIT
+    poll_interval = poll_interval or TestConfig.POLL_INTERVAL
+
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            if condition_fn():
+                return True
+        except Exception:
+            pass  # Ignore errors during polling
+        time.sleep(poll_interval)
+
+    print(f"  Warning: Timeout waiting for {description}")
+    return False
+
+
+def wait_for_stable_screen(
+    get_screenshot_fn: Callable[[], Image.Image],
+    stability_time: float = None,
+    max_wait: float = None,
+    change_threshold: int = None
+) -> Optional[Image.Image]:
+    """
+    Wait until screen content is stable (no changes).
+
+    Args:
+        get_screenshot_fn: Function that returns a screenshot
+        stability_time: Time screen must be stable
+        max_wait: Maximum time to wait
+        change_threshold: Pixel difference threshold to consider change
+
+    Returns:
+        Stable screenshot or last screenshot if timeout
+    """
+    stability_time = stability_time or TestConfig.STABILITY_TIME
+    max_wait = max_wait or TestConfig.MAX_WAIT
+    change_threshold = change_threshold or TestConfig.SCREEN_CHANGE_THRESHOLD
+
+    prev_screenshot = None
+    stable_since = None
+    start = time.time()
+
+    while time.time() - start < max_wait:
+        screenshot = get_screenshot_fn()
+
+        if prev_screenshot is not None:
+            # Calculate difference between frames
+            diff = np.sum(np.abs(
+                np.array(screenshot).astype(np.int16) -
+                np.array(prev_screenshot).astype(np.int16)
+            ))
+
+            if diff < change_threshold:
+                if stable_since is None:
+                    stable_since = time.time()
+                elif time.time() - stable_since >= stability_time:
+                    return screenshot
+            else:
+                stable_since = None
+
+        prev_screenshot = screenshot
+        time.sleep(TestConfig.POLL_INTERVAL)
+
+    return prev_screenshot or get_screenshot_fn()
+
+
+def wait_for_text_presence(
+    get_screenshot_fn: Callable[[], Image.Image],
+    min_pixels: int = None,
+    timeout: float = None
+) -> Tuple[bool, Optional[Image.Image]]:
+    """
+    Wait until text is present in screenshot.
+
+    Args:
+        get_screenshot_fn: Function that returns a screenshot
+        min_pixels: Minimum non-black pixels to consider text present
+        timeout: Maximum time to wait
+
+    Returns:
+        (success, screenshot) tuple
+    """
+    min_pixels = min_pixels or TestConfig.MIN_TEXT_PIXELS
+    timeout = timeout or TestConfig.MAX_WAIT
+
+    start = time.time()
+    screenshot = None
+
+    while time.time() - start < timeout:
+        screenshot = get_screenshot_fn()
+        img_array = np.array(screenshot)
+        non_black = np.any(img_array[:, :, :3] > 30, axis=2)
+        text_pixel_count = np.sum(non_black)
+
+        if text_pixel_count >= min_pixels:
+            return True, screenshot
+
+        time.sleep(TestConfig.POLL_INTERVAL)
+
+    return False, screenshot
 
 class TeeOutput:
     """Redirect stdout to both console and file"""
@@ -84,6 +212,60 @@ class TerminalTester:
         self.process = None
         self.hwnd = None
         self.test_results = []
+
+    def _get_raw_screenshot(self) -> Image.Image:
+        """Get raw screenshot of client area (internal helper)."""
+        client_rect = self.get_client_rect_screen()
+        return ImageGrab.grab(bbox=client_rect)
+
+    def wait_and_screenshot(self, name: str, wait_stable: bool = True) -> Tuple[Image.Image, Path]:
+        """
+        Wait for screen to stabilize and take screenshot.
+
+        This is the preferred method for taking screenshots as it ensures
+        the screen has finished updating before capture.
+
+        Args:
+            name: Screenshot name
+            wait_stable: If True, wait for screen to stabilize first
+
+        Returns:
+            (screenshot, filepath) tuple
+        """
+        if wait_stable:
+            screenshot = wait_for_stable_screen(self._get_raw_screenshot)
+        else:
+            screenshot = self._get_raw_screenshot()
+
+        return self._save_screenshot(screenshot, name)
+
+    def _save_screenshot(self, screenshot: Image.Image, name: str) -> Tuple[Image.Image, Path]:
+        """Save screenshot to disk with compression."""
+        # Save original (full resolution PNG)
+        filepath_original = SCREENSHOT_DIR / f"{name}_original.png"
+        screenshot.save(filepath_original)
+        print(f"Original screenshot saved: {filepath_original} ({screenshot.size[0]}x{screenshot.size[1]})")
+
+        # Resize if larger than max_size while maintaining aspect ratio
+        max_size = TestConfig.MAX_SCREENSHOT_SIZE
+        width, height = screenshot.size
+        if width > max_size or height > max_size:
+            ratio = min(max_size / width, max_size / height)
+            new_size = (int(width * ratio), int(height * ratio))
+            compressed = screenshot.resize(new_size, Image.Resampling.LANCZOS)
+        else:
+            compressed = screenshot.copy()
+
+        # Save as JPEG with good quality for smaller file size
+        filepath_compressed = SCREENSHOT_DIR / f"{name}.jpg"
+        compressed.save(filepath_compressed, "JPEG", quality=TestConfig.JPEG_QUALITY, optimize=True)
+
+        # Get file sizes for comparison
+        original_size = filepath_original.stat().st_size
+        compressed_size = filepath_compressed.stat().st_size
+        print(f"Compressed screenshot saved: {filepath_compressed} ({compressed.size[0]}x{compressed.size[1]}, {compressed_size//1024}KB vs {original_size//1024}KB original)")
+
+        return screenshot, filepath_compressed
 
     def start_terminal(self):
         """Launch the terminal application maximized"""
@@ -157,10 +339,19 @@ class TerminalTester:
             time.sleep(0.1)
         return None
 
-    def send_keys(self, text, delay=0.05):
-        """Send keyboard input to the terminal"""
+    def send_keys(self, text: str, delay: float = None, wait_after: bool = False) -> None:
+        """
+        Send keyboard input to the terminal.
+
+        Args:
+            text: Text to type (supports \\n for Enter)
+            delay: Delay between keystrokes (uses config default if None)
+            wait_after: If True, wait for screen to stabilize after typing
+        """
         if not self.hwnd:
             raise Exception("Terminal not started")
+
+        delay = delay or TestConfig.KEY_DELAY
 
         try:
             win32gui.SetForegroundWindow(self.hwnd)
@@ -191,6 +382,23 @@ class TerminalTester:
                         win32api.keybd_event(win32con.VK_SHIFT, 0, win32con.KEYEVENTF_KEYUP, 0)
 
             time.sleep(delay)
+
+        if wait_after:
+            # Wait for screen to stabilize after typing
+            wait_for_stable_screen(self._get_raw_screenshot)
+
+    def send_command(self, command: str, wait_for_output: bool = True) -> None:
+        """
+        Send a command and press Enter.
+
+        Args:
+            command: Command to type
+            wait_for_output: If True, wait for screen to stabilize after command
+        """
+        self.send_keys(command)
+        self.send_keys("\n")
+        if wait_for_output:
+            wait_for_stable_screen(self._get_raw_screenshot)
 
     def get_client_rect_screen(self):
         """Get the client area rectangle in screen coordinates (excludes title bar and borders)"""

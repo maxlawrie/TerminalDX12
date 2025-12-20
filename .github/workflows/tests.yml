@@ -1,0 +1,45 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  cpp-unit-tests:
+    name: C++ Unit Tests
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'a34c873a9717a888f58dc05571dde15c5886e1c5'
+
+    - name: Install dependencies
+      run: |
+        vcpkg install gtest:x64-windows
+        vcpkg install spdlog:x64-windows
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Run C++ Unit Tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release
+
+  # Python visual tests require a GUI and cannot run in CI
+  # They are intended for local development only
+  #
+  # To run Python tests locally:
+  #   cd tests
+  #   pip install -r requirements.txt
+  #   pytest test_terminal.py -v --isolated
