@@ -18,6 +18,10 @@ Application* Application::s_instance = nullptr;
 Application::Application()
     : m_running(false)
     , m_minimized(false)
+    , m_selectionStart{0, 0}
+    , m_selectionEnd{0, 0}
+    , m_selecting(false)
+    , m_hasSelection(false)
 {
     s_instance = this;
 }
@@ -59,9 +63,17 @@ bool Application::Initialize() {
         OnKey(key, isDown);
     };
 
-    // Mouse wheel handler for scrollback
+    // Mouse handlers
     m_window->OnMouseWheel = [this](int delta) {
         OnMouseWheel(delta);
+    };
+
+    m_window->OnMouseButton = [this](int x, int y, int button, bool down) {
+        OnMouseButton(x, y, button, down);
+    };
+
+    m_window->OnMouseMove = [this](int x, int y) {
+        OnMouseMove(x, y);
     };
 
     // Create DirectX 12 renderer
@@ -216,7 +228,35 @@ void Application::Render() {
     m_screenBuffer->GetCursorPos(cursorX, cursorY);
     bool cursorVisible = m_screenBuffer->IsCursorVisible();
 
+    // Calculate normalized selection bounds for rendering
+    int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
+    if (m_hasSelection) {
+        selStartY = std::min(m_selectionStart.y, m_selectionEnd.y);
+        selEndY = std::max(m_selectionStart.y, m_selectionEnd.y);
+        if (m_selectionStart.y < m_selectionEnd.y ||
+            (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
+            selStartX = m_selectionStart.x;
+            selEndX = m_selectionEnd.x;
+        } else {
+            selStartX = m_selectionEnd.x;
+            selEndX = m_selectionStart.x;
+        }
+    }
+
     for (int y = 0; y < rows; ++y) {
+        // Selection highlight pass (render blue highlight for selected text)
+        if (m_hasSelection && y >= selStartY && y <= selEndY) {
+            int rowSelStart = (y == selStartY) ? selStartX : 0;
+            int rowSelEnd = (y == selEndY) ? selEndX : cols - 1;
+
+            for (int x = rowSelStart; x <= rowSelEnd; ++x) {
+                float posX = static_cast<float>(startX + x * charWidth);
+                float posY = static_cast<float>(startY + y * lineHeight);
+                // Render blue selection highlight using block character
+                m_renderer->RenderText("\xE2\x96\x88", posX, posY, 0.2f, 0.4f, 0.8f, 0.5f);
+            }
+        }
+
         // First pass: Render backgrounds for non-default colors
         for (int x = 0; x < cols; ) {
             const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
@@ -406,7 +446,28 @@ void Application::OnChar(wchar_t ch) {
 }
 
 void Application::OnKey(UINT key, bool isDown) {
-    if (!m_terminal || !m_terminal->IsRunning() || !isDown) {
+    if (!isDown) {
+        return;
+    }
+
+    // Handle Ctrl+C/V for copy/paste
+    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+        if (key == 'C') {
+            if (m_hasSelection) {
+                CopySelectionToClipboard();
+            } else if (m_terminal && m_terminal->IsRunning()) {
+                // Send SIGINT (Ctrl+C) to terminal
+                m_terminal->WriteInput("\x03", 1);
+            }
+            return;
+        }
+        if (key == 'V') {
+            PasteFromClipboard();
+            return;
+        }
+    }
+
+    if (!m_terminal || !m_terminal->IsRunning()) {
         return;
     }
 
@@ -497,6 +558,232 @@ void Application::OnMouseWheel(int delta) {
     newOffset = std::max(0, newOffset);
 
     m_screenBuffer->SetScrollOffset(newOffset);
+}
+
+Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
+    // Terminal layout constants (same as in Render())
+    const int startX = 10;
+    const int startY = 10;
+    const int charWidth = 10;
+    const int lineHeight = 25;
+
+    CellPos pos;
+    pos.x = (pixelX - startX) / charWidth;
+    pos.y = (pixelY - startY) / lineHeight;
+
+    // Clamp to valid range
+    if (m_screenBuffer) {
+        pos.x = std::max(0, std::min(pos.x, m_screenBuffer->GetCols() - 1));
+        pos.y = std::max(0, std::min(pos.y, m_screenBuffer->GetRows() - 1));
+    }
+
+    return pos;
+}
+
+void Application::OnMouseButton(int x, int y, int button, bool down) {
+    // Only handle left mouse button for selection
+    if (button != 0) {
+        return;
+    }
+
+    CellPos cellPos = ScreenToCell(x, y);
+
+    if (down) {
+        // Start selection
+        m_selectionStart = cellPos;
+        m_selectionEnd = cellPos;
+        m_selecting = true;
+        m_hasSelection = false;  // Will be set true when we have a range
+    } else {
+        // End selection
+        m_selecting = false;
+
+        // Check if we actually selected something (not just a click)
+        if (m_selectionStart.x != m_selectionEnd.x || m_selectionStart.y != m_selectionEnd.y) {
+            m_hasSelection = true;
+        } else {
+            // Single click - clear selection
+            m_hasSelection = false;
+        }
+    }
+}
+
+void Application::OnMouseMove(int x, int y) {
+    if (!m_selecting) {
+        return;
+    }
+
+    CellPos cellPos = ScreenToCell(x, y);
+    m_selectionEnd = cellPos;
+
+    // Mark as having selection if we've moved from start
+    if (m_selectionStart.x != m_selectionEnd.x || m_selectionStart.y != m_selectionEnd.y) {
+        m_hasSelection = true;
+    }
+}
+
+void Application::ClearSelection() {
+    m_hasSelection = false;
+    m_selecting = false;
+    m_selectionStart = {0, 0};
+    m_selectionEnd = {0, 0};
+}
+
+std::string Application::GetSelectedText() const {
+    if (!m_hasSelection || !m_screenBuffer) {
+        return "";
+    }
+
+    // Normalize selection (ensure start <= end)
+    int startY = std::min(m_selectionStart.y, m_selectionEnd.y);
+    int endY = std::max(m_selectionStart.y, m_selectionEnd.y);
+    int startX, endX;
+
+    if (m_selectionStart.y < m_selectionEnd.y ||
+        (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
+        startX = m_selectionStart.x;
+        endX = m_selectionEnd.x;
+    } else {
+        startX = m_selectionEnd.x;
+        endX = m_selectionStart.x;
+    }
+
+    std::u32string text;
+    int cols = m_screenBuffer->GetCols();
+
+    for (int y = startY; y <= endY; ++y) {
+        int rowStartX = (y == startY) ? startX : 0;
+        int rowEndX = (y == endY) ? endX : cols - 1;
+
+        for (int x = rowStartX; x <= rowEndX; ++x) {
+            const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
+            text += cell.ch;
+        }
+
+        // Add newline between rows (but not after last row)
+        if (y < endY) {
+            // Trim trailing spaces from line before adding newline
+            while (!text.empty() && text.back() == U' ') {
+                text.pop_back();
+            }
+            text += U'\n';
+        }
+    }
+
+    // Trim trailing spaces from last line
+    while (!text.empty() && text.back() == U' ') {
+        text.pop_back();
+    }
+
+    // Convert to UTF-8
+    std::string utf8;
+    for (char32_t ch : text) {
+        if (ch < 0x80) {
+            utf8 += static_cast<char>(ch);
+        } else if (ch < 0x800) {
+            utf8 += static_cast<char>(0xC0 | (ch >> 6));
+            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
+        } else if (ch < 0x10000) {
+            utf8 += static_cast<char>(0xE0 | (ch >> 12));
+            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
+            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
+        } else {
+            utf8 += static_cast<char>(0xF0 | (ch >> 18));
+            utf8 += static_cast<char>(0x80 | ((ch >> 12) & 0x3F));
+            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
+            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
+        }
+    }
+
+    return utf8;
+}
+
+void Application::CopySelectionToClipboard() {
+    if (!m_hasSelection || !m_window) {
+        return;
+    }
+
+    std::string text = GetSelectedText();
+    if (text.empty()) {
+        return;
+    }
+
+    // Convert UTF-8 to wide string for clipboard
+    int wideLen = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, nullptr, 0);
+    if (wideLen <= 0) {
+        return;
+    }
+
+    HWND hwnd = m_window->GetHandle();
+
+    if (!OpenClipboard(hwnd)) {
+        spdlog::error("Failed to open clipboard");
+        return;
+    }
+
+    EmptyClipboard();
+
+    // Allocate global memory for clipboard
+    HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, wideLen * sizeof(wchar_t));
+    if (!hGlobal) {
+        CloseClipboard();
+        spdlog::error("Failed to allocate clipboard memory");
+        return;
+    }
+
+    wchar_t* pGlobal = static_cast<wchar_t*>(GlobalLock(hGlobal));
+    if (pGlobal) {
+        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, pGlobal, wideLen);
+        GlobalUnlock(hGlobal);
+        SetClipboardData(CF_UNICODETEXT, hGlobal);
+        spdlog::info("Copied {} characters to clipboard", text.length());
+    }
+
+    CloseClipboard();
+
+    // Clear selection after copy
+    ClearSelection();
+}
+
+void Application::PasteFromClipboard() {
+    if (!m_terminal || !m_terminal->IsRunning() || !m_window) {
+        return;
+    }
+
+    HWND hwnd = m_window->GetHandle();
+
+    if (!OpenClipboard(hwnd)) {
+        spdlog::error("Failed to open clipboard");
+        return;
+    }
+
+    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+    if (!hData) {
+        CloseClipboard();
+        return;
+    }
+
+    const wchar_t* pData = static_cast<const wchar_t*>(GlobalLock(hData));
+    if (pData) {
+        // Convert wide string to UTF-8
+        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, pData, -1, nullptr, 0, nullptr, nullptr);
+        if (utf8Len > 0) {
+            std::string utf8(utf8Len, '\0');
+            WideCharToMultiByte(CP_UTF8, 0, pData, -1, &utf8[0], utf8Len, nullptr, nullptr);
+
+            // Remove null terminator
+            if (!utf8.empty() && utf8.back() == '\0') {
+                utf8.pop_back();
+            }
+
+            // Send to terminal
+            m_terminal->WriteInput(utf8.c_str(), utf8.length());
+            spdlog::info("Pasted {} characters from clipboard", utf8.length());
+        }
+        GlobalUnlock(hData);
+    }
+
+    CloseClipboard();
 }
 
 } // namespace Core

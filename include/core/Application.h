@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <Windows.h>
 
 namespace TerminalDX12 {
@@ -35,9 +36,19 @@ private:
     void OnChar(wchar_t ch);
     void OnKey(UINT key, bool isDown);
     void OnMouseWheel(int delta);
+    void OnMouseButton(int x, int y, int button, bool down);
+    void OnMouseMove(int x, int y);
     bool ProcessMessages();
     void Update(float deltaTime);
     void Render();
+
+    // Selection helpers
+    struct CellPos { int x, y; };
+    CellPos ScreenToCell(int pixelX, int pixelY) const;
+    std::string GetSelectedText() const;
+    void CopySelectionToClipboard();
+    void PasteFromClipboard();
+    void ClearSelection();
 
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
@@ -47,6 +58,12 @@ private:
 
     bool m_running;
     bool m_minimized;
+
+    // Selection state
+    CellPos m_selectionStart;
+    CellPos m_selectionEnd;
+    bool m_selecting;      // Currently dragging to select
+    bool m_hasSelection;   // Valid selection exists
 
     static Application* s_instance;
 };
