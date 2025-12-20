@@ -212,6 +212,52 @@ void TextRenderer::RenderCharAtCell(const std::string& ch, float x, float y, con
     }
 }
 
+void TextRenderer::RenderRect(float x, float y, float width, float height,
+                               float r, float g, float b, float a) {
+    if (!m_atlas) {
+        return;
+    }
+
+    // Use the full block character █ (U+2588) for solid rectangles
+    const GlyphInfo* solid = m_atlas->GetGlyph(U'\u2588');  // Full block █
+    if (!solid) {
+        // Fallback to solid white pixel if block char not available
+        solid = m_atlas->GetSolidGlyph();
+        if (!solid) {
+            return;
+        }
+    }
+
+    // Create instance data for the rectangle
+    GlyphInstance instance;
+
+    // Position (top-left corner)
+    instance.position.x = x;
+    instance.position.y = y;
+
+    // Size of the rectangle
+    instance.size.x = width;
+    instance.size.y = height;
+
+    // UV coordinates point to the solid white pixel
+    // The pixel shader will sample this white pixel and multiply by color
+    instance.uvMin.x = solid->u0;
+    instance.uvMin.y = solid->v0;
+    instance.uvMax.x = solid->u1;
+    instance.uvMax.y = solid->v1;
+
+    // Color (with alpha)
+    instance.color.x = r;
+    instance.color.y = g;
+    instance.color.z = b;
+    instance.color.w = a;
+
+    // Add to instance list
+    if (m_instances.size() < MAX_INSTANCES) {
+        m_instances.push_back(instance);
+    }
+}
+
 void TextRenderer::SetScreenSize(int width, int height) {
     m_screenWidth = width;
     m_screenHeight = height;

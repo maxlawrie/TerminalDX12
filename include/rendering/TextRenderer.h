@@ -36,6 +36,9 @@ public:
     // Render single character at exact cell position (for terminal grid rendering)
     void RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color);
 
+    // Render a solid rectangle (for underlines, cursors, selection highlights, etc.)
+    void RenderRect(float x, float y, float width, float height, float r, float g, float b, float a = 1.0f);
+
     // Clear the instance buffer
     void Clear();
 

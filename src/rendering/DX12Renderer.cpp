@@ -675,6 +675,12 @@ void DX12Renderer::RenderChar(const std::string& ch, float x, float y, float r, 
     }
 }
 
+void DX12Renderer::RenderRect(float x, float y, float width, float height, float r, float g, float b, float a) {
+    if (m_textRenderer) {
+        m_textRenderer->RenderRect(x, y, width, height, r, g, b, a);
+    }
+}
+
 void DX12Renderer::ClearText() {
     if (m_textRenderer) {
         m_textRenderer->Clear();

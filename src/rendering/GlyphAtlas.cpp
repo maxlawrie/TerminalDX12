@@ -387,6 +387,38 @@ void GlyphAtlas::UploadAtlasIfDirty() {
 void GlyphAtlas::PreloadASCIIGlyphs() {
     spdlog::info("Preloading ASCII glyphs (32-126)...");
 
+    // First, create a solid white pixel at (0,0) for underlines/rectangles
+    // This reserves the first pixel in the atlas for solid color rendering
+    if (m_atlasBuffer) {
+        // Write a 1x1 white pixel at position (0,0)
+        uint8_t* pixel = m_atlasBuffer.get();
+        pixel[0] = 255;  // R
+        pixel[1] = 255;  // G
+        pixel[2] = 255;  // B
+        pixel[3] = 255;  // A
+
+        // Initialize the solid glyph info
+        m_solidGlyph.u0 = 0.0f;
+        m_solidGlyph.v0 = 0.0f;
+        m_solidGlyph.u1 = 1.0f / static_cast<float>(m_atlasWidth);
+        m_solidGlyph.v1 = 1.0f / static_cast<float>(m_atlasHeight);
+        m_solidGlyph.width = 1;
+        m_solidGlyph.height = 1;
+        m_solidGlyph.bearingX = 0;
+        m_solidGlyph.bearingY = 0;
+        m_solidGlyph.advance = 1;
+        m_solidGlyph.atlasX = 0;
+        m_solidGlyph.atlasY = 0;
+
+        // Make sure the atlas packer doesn't overwrite our solid pixel
+        if (m_currentX == 0 && m_currentY == 0) {
+            m_currentX = 2;  // Start packing after our solid pixel
+        }
+
+        m_atlasDirty = true;
+        spdlog::info("Created solid white pixel for underline rendering");
+    }
+
     int loaded = 0;
     int failed = 0;
 
@@ -402,7 +434,25 @@ void GlyphAtlas::PreloadASCIIGlyphs() {
         }
     }
 
-    spdlog::info("Preloaded {} ASCII glyphs ({} failed)", loaded, failed);
+    // Preload block drawing characters needed for rendering
+    const char32_t blockChars[] = {
+        U'\u2588',  // █ Full block - used for solid rectangles/underlines
+        U'\u2591',  // ░ Light shade
+        U'\u2592',  // ▒ Medium shade
+        U'\u2593',  // ▓ Dark shade
+    };
+    for (char32_t ch : blockChars) {
+        const GlyphInfo* glyph = GetGlyph(ch, false, false);
+        if (glyph) {
+            loaded++;
+            spdlog::info("Preloaded block character U+{:04X}", static_cast<uint32_t>(ch));
+        } else {
+            failed++;
+            spdlog::warn("Failed to preload block char U+{:04X}", static_cast<uint32_t>(ch));
+        }
+    }
+
+    spdlog::info("Preloaded {} glyphs total ({} failed)", loaded, failed);
 }
 
 } // namespace TerminalDX12::Rendering

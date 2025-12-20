@@ -83,6 +83,9 @@ public:
     // Preload ASCII glyphs to avoid race conditions during rendering
     void PreloadASCIIGlyphs();
 
+    // Get solid white pixel glyph for rectangles/underlines
+    const GlyphInfo* GetSolidGlyph() const { return &m_solidGlyph; }
+
     // Get descriptor heap
     ID3D12DescriptorHeap* GetSRVHeap() const { return m_srvHeap.Get(); }
 
@@ -130,6 +133,9 @@ private:
     // Atlas CPU-side buffer for updates
     std::unique_ptr<uint8_t[]> m_atlasBuffer;
     bool m_atlasDirty;
+
+    // Solid white pixel glyph for rectangles/underlines
+    GlyphInfo m_solidGlyph;
 };
 
 } // namespace TerminalDX12::Rendering

@@ -342,11 +342,14 @@ void Application::Render() {
             // Render single character at exact grid position
             m_renderer->RenderChar(utf8Char, posX, posY, r, g, b, 1.0f);
 
-            // Render underline if needed (position below text baseline)
+            // Render underline if the cell has the underline attribute
             if (cell.attr.IsUnderline()) {
-                // Render underline as a thin line below the character
-                float underlineY = posY + fontSize + 2;  // Position below baseline
-                m_renderer->RenderChar("_", posX, underlineY, r, g, b, 1.0f);
+                // Render underline as a thin horizontal line below the character
+                float underlineY = posY + lineHeight - 4;  // 4 pixels from bottom of cell
+                float underlineHeight = 2.0f;  // 2 pixels thick
+                // Use same color as the text
+                m_renderer->RenderRect(posX, underlineY, static_cast<float>(charWidth),
+                                       underlineHeight, r, g, b, 1.0f);
             }
         }
     }
