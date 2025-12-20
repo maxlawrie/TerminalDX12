@@ -164,6 +164,54 @@ void TextRenderer::RenderText(const std::u32string& text, float x, float y, cons
     }
 }
 
+void TextRenderer::RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color) {
+    if (!m_atlas) {
+        return;
+    }
+
+    // Convert UTF-8 to UTF-32
+    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
+    std::u32string utf32Text = converter.from_bytes(ch);
+    if (utf32Text.empty()) {
+        return;
+    }
+
+    char32_t codepoint = utf32Text[0];
+
+    // Get glyph from atlas
+    const GlyphInfo* glyph = m_atlas->GetGlyph(codepoint);
+    if (!glyph) {
+        return;
+    }
+
+    // Create instance data
+    GlyphInstance instance;
+
+    // Position at exact cell location
+    // The cell position x,y is the top-left of the cell
+    // We need to position the glyph within the cell accounting for bearing
+    instance.position.x = x + glyph->bearingX;
+    instance.position.y = y - glyph->bearingY + m_atlas->GetFontSize();
+
+    // Size
+    instance.size.x = static_cast<float>(glyph->width);
+    instance.size.y = static_cast<float>(glyph->height);
+
+    // UV coordinates
+    instance.uvMin.x = glyph->u0;
+    instance.uvMin.y = glyph->v0;
+    instance.uvMax.x = glyph->u1;
+    instance.uvMax.y = glyph->v1;
+
+    // Color
+    instance.color = color;
+
+    // Add to instance list
+    if (m_instances.size() < MAX_INSTANCES) {
+        m_instances.push_back(instance);
+    }
+}
+
 void TextRenderer::SetScreenSize(int width, int height) {
     m_screenWidth = width;
     m_screenHeight = height;

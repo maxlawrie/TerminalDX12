@@ -36,6 +36,7 @@ public:
 
     // Text rendering
     void RenderText(const std::string& text, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f);
+    void RenderChar(const std::string& ch, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f);
     void ClearText();
 
     ID3D12Device* GetDevice() { return m_device.Get(); }

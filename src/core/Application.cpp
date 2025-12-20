@@ -297,61 +297,23 @@ void Application::Render() {
             x += runLength;
         }
 
-        // Second pass: Render foreground text with colors
-        int x = 0;
-        while (x < cols) {
+        // Second pass: Render foreground text character by character for precise grid alignment
+        for (int x = 0; x < cols; ++x) {
             const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
 
-            // Skip spaces at the start
-            if (cell.ch == U' ') {
-                x++;
+            // Skip spaces
+            if (cell.ch == U' ' || cell.ch == U'\0') {
                 continue;
             }
-
-            // Build run of characters with same color
-            std::u32string run;
-            auto currentAttr = cell.attr;
-            int runStart = x;
-
-            while (x < cols) {
-                const auto& nextCell = m_screenBuffer->GetCellWithScrollback(x, y);
-
-                // Check if attributes match (same foreground color)
-                if (nextCell.attr.foreground != currentAttr.foreground ||
-                    nextCell.attr.background != currentAttr.background ||
-                    nextCell.attr.flags != currentAttr.flags) {
-                    break;
-                }
-
-                run += nextCell.ch;
-                x++;
-
-                // Stop at spaces unless they're in the middle of text
-                if (nextCell.ch == U' ' && x < cols - 1) {
-                    const auto& peek = m_screenBuffer->GetCellWithScrollback(x, y);
-                    if (peek.ch == U' ') {
-                        break;
-                    }
-                }
-            }
-
-            // Skip if run is empty or only spaces
-            if (run.empty() || run.find_first_not_of(U' ') == std::u32string::npos) {
-                continue;
-            }
-
-            // Convert to UTF-8 for rendering
-            std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
-            std::string utf8Text = converter.to_bytes(run);
 
             // Get color from palette
-            uint8_t fgIndex = currentAttr.foreground % 16;
+            uint8_t fgIndex = cell.attr.foreground % 16;
             const float* fgColor = colorPalette[fgIndex];
 
             // Handle inverse attribute
             float r, g, b;
-            if (currentAttr.IsInverse()) {
-                uint8_t bgIndex = currentAttr.background % 16;
+            if (cell.attr.IsInverse()) {
+                uint8_t bgIndex = cell.attr.background % 16;
                 const float* bgColor = colorPalette[bgIndex];
                 r = bgColor[0];
                 g = bgColor[1];
@@ -363,26 +325,28 @@ void Application::Render() {
             }
 
             // Apply bold by brightening colors
-            if (currentAttr.IsBold() && fgIndex < 8) {
+            if (cell.attr.IsBold() && fgIndex < 8) {
                 r = std::min(1.0f, r + 0.2f);
                 g = std::min(1.0f, g + 0.2f);
                 b = std::min(1.0f, b + 0.2f);
             }
 
-            // Render the run
-            float posX = static_cast<float>(startX + runStart * charWidth);
+            // Calculate exact grid position for this character
+            float posX = static_cast<float>(startX + x * charWidth);
             float posY = static_cast<float>(startY + y * lineHeight);
-            m_renderer->RenderText(utf8Text, posX, posY, r, g, b, 1.0f);
 
-            // Render underline if needed
-            if (currentAttr.IsUnderline()) {
-                // Render underline using lower line character ▁ (U+2581)
-                std::string underline;
-                int textLength = static_cast<int>(run.length());
-                for (int i = 0; i < textLength; i++) {
-                    underline += "\xE2\x96\x81";  // UTF-8 for ▁ (lower 1/8 block)
-                }
-                m_renderer->RenderText(underline, posX, posY, r, g, b, 1.0f);
+            // Convert single character to UTF-8
+            std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
+            std::string utf8Char = converter.to_bytes(std::u32string(1, cell.ch));
+
+            // Render single character at exact grid position
+            m_renderer->RenderChar(utf8Char, posX, posY, r, g, b, 1.0f);
+
+            // Render underline if needed (position below text baseline)
+            if (cell.attr.IsUnderline()) {
+                // Render underline as a thin line below the character
+                float underlineY = posY + fontSize + 2;  // Position below baseline
+                m_renderer->RenderChar("_", posX, underlineY, r, g, b, 1.0f);
             }
         }
     }

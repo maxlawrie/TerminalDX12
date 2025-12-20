@@ -33,6 +33,9 @@ public:
     void RenderText(const std::string& text, float x, float y, const XMFLOAT4& color);
     void RenderText(const std::u32string& text, float x, float y, const XMFLOAT4& color);
 
+    // Render single character at exact cell position (for terminal grid rendering)
+    void RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color);
+
     // Clear the instance buffer
     void Clear();
 

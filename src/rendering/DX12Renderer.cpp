@@ -668,6 +668,13 @@ void DX12Renderer::RenderText(const std::string& text, float x, float y, float r
     }
 }
 
+void DX12Renderer::RenderChar(const std::string& ch, float x, float y, float r, float g, float b, float a) {
+    if (m_textRenderer) {
+        DirectX::XMFLOAT4 color(r, g, b, a);
+        m_textRenderer->RenderCharAtCell(ch, x, y, color);
+    }
+}
+
 void DX12Renderer::ClearText() {
     if (m_textRenderer) {
         m_textRenderer->Clear();
