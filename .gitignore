@@ -1,0 +1,72 @@
+# Build directories
+build/
+out/
+bin/
+lib/
+cmake-build-*/
+
+# IDE files
+.vs/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# vcpkg
+vcpkg_installed/
+
+# Compiled shaders
+*.cso
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+
+# Visual Studio
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# Compiled Object files
+*.obj
+*.o
+*.lo
+*.slo
+*.ko
+*.elf
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lai
+*.so
+*.dll
+*.dylib
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db

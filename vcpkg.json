@@ -1,0 +1,12 @@
+{
+  "name": "terminaldx12",
+  "version": "0.1.0",
+  "description": "Modern terminal emulator with DirectX 12 GPU-accelerated rendering",
+  "dependencies": [
+    "directx-headers",
+    "freetype",
+    "spdlog",
+    "nlohmann-json"
+  ],
+  "builtin-baseline": "d2452281016c6d77b6ef199d599d9929eafe4807"
+}

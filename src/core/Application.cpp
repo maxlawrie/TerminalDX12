@@ -1,0 +1,503 @@
+#include "core/Application.h"
+#include "core/Window.h"
+#include "rendering/DX12Renderer.h"
+#include "pty/ConPtySession.h"
+#include "terminal/ScreenBuffer.h"
+#include "terminal/VTStateMachine.h"
+#include <chrono>
+#include <spdlog/spdlog.h>
+#include <string>
+#include <locale>
+#include <codecvt>
+
+namespace TerminalDX12 {
+namespace Core {
+
+Application* Application::s_instance = nullptr;
+
+Application::Application()
+    : m_running(false)
+    , m_minimized(false)
+{
+    s_instance = this;
+}
+
+Application::~Application() {
+    Shutdown();
+    s_instance = nullptr;
+}
+
+bool Application::Initialize() {
+    // Create window
+    m_window = std::make_unique<Window>();
+
+    WindowDesc windowDesc;
+    windowDesc.width = 1280;
+    windowDesc.height = 720;
+    windowDesc.title = L"TerminalDX12 - GPU-Accelerated Terminal Emulator";
+    windowDesc.resizable = true;
+
+    if (!m_window->Create(windowDesc)) {
+        return false;
+    }
+
+    // Setup window callbacks
+    m_window->OnResize = [this](int width, int height) {
+        OnWindowResize(width, height);
+    };
+
+    m_window->OnClose = [this]() {
+        OnWindowClose();
+    };
+
+    // Keyboard input handlers
+    m_window->OnCharEvent = [this](wchar_t ch) {
+        OnChar(ch);
+    };
+
+    m_window->OnKeyEvent = [this](UINT key, bool isDown) {
+        OnKey(key, isDown);
+    };
+
+    // Mouse wheel handler for scrollback
+    m_window->OnMouseWheel = [this](int delta) {
+        OnMouseWheel(delta);
+    };
+
+    // Create DirectX 12 renderer
+    m_renderer = std::make_unique<Rendering::DX12Renderer>();
+    if (!m_renderer->Initialize(m_window.get())) {
+        return false;
+    }
+
+    // Create terminal session
+    m_terminal = std::make_unique<Pty::ConPtySession>();
+
+    // Set output callback
+    m_terminal->SetOutputCallback([this](const char* data, size_t size) {
+        OnTerminalOutput(data, size);
+    });
+
+    // Calculate terminal size (80x24 columns/rows for now - will be dynamic later)
+    int termCols = 80;
+    int termRows = 24;
+
+    // Create screen buffer
+    m_screenBuffer = std::make_unique<Terminal::ScreenBuffer>(termCols, termRows);
+
+    // Create VT parser
+    m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
+
+    // Start cmd.exe (make this optional - continue even if it fails)
+    if (!m_terminal->Start(L"cmd.exe", termCols, termRows)) {
+        spdlog::warn("Failed to start terminal session - continuing without ConPTY");
+        m_terminal.reset();  // Clear the terminal if it failed to start
+    } else {
+        spdlog::info("Terminal session started successfully");
+    }
+
+    m_window->Show();
+    m_running = true;
+
+    return true;
+}
+
+void Application::Shutdown() {
+    if (m_terminal) {
+        m_terminal->Stop();
+        m_terminal.reset();
+    }
+
+    if (m_renderer) {
+        m_renderer->Shutdown();
+        m_renderer.reset();
+    }
+
+    m_window.reset();
+}
+
+int Application::Run() {
+    using Clock = std::chrono::high_resolution_clock;
+    auto lastTime = Clock::now();
+
+    spdlog::info("Application::Run() - entering main loop");
+
+    while (m_running) {
+        // Process Windows messages
+        if (!ProcessMessages()) {
+            spdlog::info("ProcessMessages returned false, exiting loop");
+            break;
+        }
+
+        // Calculate delta time
+        auto currentTime = Clock::now();
+        float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+        lastTime = currentTime;
+
+        // Update
+        Update(deltaTime);
+
+        // Render
+        if (!m_minimized) {
+            Render();
+        }
+    }
+
+    return 0;
+}
+
+bool Application::ProcessMessages() {
+    MSG msg = {};
+
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+        if (msg.message == WM_QUIT) {
+            m_running = false;
+            return false;
+        }
+
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    return true;
+}
+
+void Application::Update(float deltaTime) {
+    // TODO: Update terminal state, process input, etc.
+    (void)deltaTime; // Suppress unused parameter warning
+}
+
+void Application::Render() {
+    if (!m_renderer || !m_screenBuffer) {
+        return;
+    }
+
+    static int frameCount = 0;
+    if (frameCount < 5) {
+        spdlog::info("Render() called - frame {}", frameCount);
+    }
+    frameCount++;
+
+    m_renderer->BeginFrame();
+    m_renderer->ClearText();
+
+    // VT100/ANSI color palette (16 colors)
+    static const float colorPalette[16][3] = {
+        {0.0f, 0.0f, 0.0f},      // 0: Black
+        {0.8f, 0.0f, 0.0f},      // 1: Red
+        {0.0f, 0.8f, 0.0f},      // 2: Green
+        {0.8f, 0.8f, 0.0f},      // 3: Yellow
+        {0.0f, 0.0f, 0.8f},      // 4: Blue
+        {0.8f, 0.0f, 0.8f},      // 5: Magenta
+        {0.0f, 0.8f, 0.8f},      // 6: Cyan
+        {0.8f, 0.8f, 0.8f},      // 7: White
+        {0.5f, 0.5f, 0.5f},      // 8: Bright Black (Gray)
+        {1.0f, 0.0f, 0.0f},      // 9: Bright Red
+        {0.0f, 1.0f, 0.0f},      // 10: Bright Green
+        {1.0f, 1.0f, 0.0f},      // 11: Bright Yellow
+        {0.0f, 0.0f, 1.0f},      // 12: Bright Blue
+        {1.0f, 0.0f, 1.0f},      // 13: Bright Magenta
+        {0.0f, 1.0f, 1.0f},      // 14: Bright Cyan
+        {1.0f, 1.0f, 1.0f}       // 15: Bright White
+    };
+
+    // Render screen buffer contents
+    const int fontSize = 16;  // Should match the font size used by renderer
+    const int lineHeight = 25;  // Should match the line height from GlyphAtlas
+    const int charWidth = 10;   // Approximate width for monospace font
+    const int startX = 10;
+    const int startY = 10;
+
+    int rows = m_screenBuffer->GetRows();
+    int cols = m_screenBuffer->GetCols();
+
+    // Get cursor position for rendering
+    int cursorX, cursorY;
+    m_screenBuffer->GetCursorPos(cursorX, cursorY);
+    bool cursorVisible = m_screenBuffer->IsCursorVisible();
+
+    for (int y = 0; y < rows; ++y) {
+        // First pass: Render backgrounds for non-default colors
+        for (int x = 0; x < cols; ) {
+            const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
+            uint8_t bgIndex = cell.attr.IsInverse() ? cell.attr.foreground % 16 : cell.attr.background % 16;
+
+            // Skip default background (black) unless inverse
+            if (bgIndex == 0 && !cell.attr.IsInverse()) {
+                x++;
+                continue;
+            }
+
+            // Find run of same background color
+            int runStart = x;
+            int runLength = 1;
+
+            while (x + runLength < cols) {
+                const auto& nextCell = m_screenBuffer->GetCellWithScrollback(x + runLength, y);
+                uint8_t nextBg = nextCell.attr.IsInverse() ? nextCell.attr.foreground % 16 : nextCell.attr.background % 16;
+
+                if (nextBg != bgIndex) {
+                    break;
+                }
+                runLength++;
+            }
+
+            // Render background using space characters (simpler than block chars)
+            std::string spaces(runLength, ' ');
+            const float* bgColor = colorPalette[bgIndex];
+            float posX = static_cast<float>(startX + runStart * charWidth);
+            float posY = static_cast<float>(startY + y * lineHeight);
+
+            // Render with background color - we'll use inverse rendering
+            // Render colored blocks behind text
+            for (int i = 0; i < runLength; i++) {
+                m_renderer->RenderText("\xE2\x96\x88", posX + i * charWidth, posY, bgColor[0], bgColor[1], bgColor[2], 1.0f);
+            }
+
+            x += runLength;
+        }
+
+        // Second pass: Render foreground text with colors
+        int x = 0;
+        while (x < cols) {
+            const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
+
+            // Skip spaces at the start
+            if (cell.ch == U' ') {
+                x++;
+                continue;
+            }
+
+            // Build run of characters with same color
+            std::u32string run;
+            auto currentAttr = cell.attr;
+            int runStart = x;
+
+            while (x < cols) {
+                const auto& nextCell = m_screenBuffer->GetCellWithScrollback(x, y);
+
+                // Check if attributes match (same foreground color)
+                if (nextCell.attr.foreground != currentAttr.foreground ||
+                    nextCell.attr.background != currentAttr.background ||
+                    nextCell.attr.flags != currentAttr.flags) {
+                    break;
+                }
+
+                run += nextCell.ch;
+                x++;
+
+                // Stop at spaces unless they're in the middle of text
+                if (nextCell.ch == U' ' && x < cols - 1) {
+                    const auto& peek = m_screenBuffer->GetCellWithScrollback(x, y);
+                    if (peek.ch == U' ') {
+                        break;
+                    }
+                }
+            }
+
+            // Skip if run is empty or only spaces
+            if (run.empty() || run.find_first_not_of(U' ') == std::u32string::npos) {
+                continue;
+            }
+
+            // Convert to UTF-8 for rendering
+            std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
+            std::string utf8Text = converter.to_bytes(run);
+
+            // Get color from palette
+            uint8_t fgIndex = currentAttr.foreground % 16;
+            const float* fgColor = colorPalette[fgIndex];
+
+            // Handle inverse attribute
+            float r, g, b;
+            if (currentAttr.IsInverse()) {
+                uint8_t bgIndex = currentAttr.background % 16;
+                const float* bgColor = colorPalette[bgIndex];
+                r = bgColor[0];
+                g = bgColor[1];
+                b = bgColor[2];
+            } else {
+                r = fgColor[0];
+                g = fgColor[1];
+                b = fgColor[2];
+            }
+
+            // Apply bold by brightening colors
+            if (currentAttr.IsBold() && fgIndex < 8) {
+                r = std::min(1.0f, r + 0.2f);
+                g = std::min(1.0f, g + 0.2f);
+                b = std::min(1.0f, b + 0.2f);
+            }
+
+            // Render the run
+            float posX = static_cast<float>(startX + runStart * charWidth);
+            float posY = static_cast<float>(startY + y * lineHeight);
+            m_renderer->RenderText(utf8Text, posX, posY, r, g, b, 1.0f);
+
+            // Render underline if needed
+            if (currentAttr.IsUnderline()) {
+                // Render underline using lower line character ▁ (U+2581)
+                std::string underline;
+                int textLength = static_cast<int>(run.length());
+                for (int i = 0; i < textLength; i++) {
+                    underline += "\xE2\x96\x81";  // UTF-8 for ▁ (lower 1/8 block)
+                }
+                m_renderer->RenderText(underline, posX, posY, r, g, b, 1.0f);
+            }
+        }
+    }
+
+    // Render blinking cursor (only when not scrolled back)
+    int scrollOffset = m_screenBuffer->GetScrollOffset();
+    if (cursorVisible && scrollOffset == 0 && cursorY >= 0 && cursorY < rows && cursorX >= 0 && cursorX < cols) {
+        // Calculate blink state (blink every 500ms)
+        static auto startTime = std::chrono::steady_clock::now();
+        auto currentTime = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+        bool showCursor = (elapsed / 500) % 2 == 0;
+
+        if (showCursor) {
+            // Render cursor as a block character
+            float cursorPosX = static_cast<float>(startX + cursorX * charWidth);
+            float cursorPosY = static_cast<float>(startY + cursorY * lineHeight);
+
+            // Render underscore or block cursor
+            m_renderer->RenderText("_", cursorPosX, cursorPosY, 0.0f, 1.0f, 0.0f, 1.0f);  // Green cursor
+        }
+    }
+
+    m_renderer->EndFrame();
+    m_renderer->Present();
+}
+
+void Application::OnWindowResize(int width, int height) {
+    m_minimized = (width == 0 || height == 0);
+
+    if (!m_minimized && m_renderer) {
+        m_renderer->Resize(width, height);
+    }
+}
+
+void Application::OnWindowClose() {
+    m_running = false;
+}
+
+void Application::OnTerminalOutput(const char* data, size_t size) {
+    if (!m_vtParser) {
+        return;
+    }
+
+    // Parse VT100/ANSI sequences and update screen buffer
+    m_vtParser->ProcessInput(data, size);
+}
+
+void Application::OnChar(wchar_t ch) {
+    if (!m_terminal || !m_terminal->IsRunning()) {
+        return;
+    }
+
+    // Convert wchar_t to UTF-8 for ConPTY
+    char utf8[4] = {0};
+    int len = WideCharToMultiByte(CP_UTF8, 0, &ch, 1, utf8, sizeof(utf8), nullptr, nullptr);
+
+    if (len > 0) {
+        m_terminal->WriteInput(utf8, len);
+    }
+}
+
+void Application::OnKey(UINT key, bool isDown) {
+    if (!m_terminal || !m_terminal->IsRunning() || !isDown) {
+        return;
+    }
+
+    // Handle special keys
+    const char* sequence = nullptr;
+
+    switch (key) {
+        case VK_RETURN:
+            sequence = "\r";
+            break;
+        case VK_BACK:
+            sequence = "\b";
+            break;
+        case VK_TAB:
+            sequence = "\t";
+            break;
+        case VK_ESCAPE:
+            sequence = "\x1b";
+            break;
+        case VK_UP:
+            sequence = "\x1b[A";
+            break;
+        case VK_DOWN:
+            sequence = "\x1b[B";
+            break;
+        case VK_RIGHT:
+            sequence = "\x1b[C";
+            break;
+        case VK_LEFT:
+            sequence = "\x1b[D";
+            break;
+        case VK_HOME:
+            sequence = "\x1b[H";
+            break;
+        case VK_END:
+            sequence = "\x1b[F";
+            break;
+        case VK_PRIOR:  // Page Up
+            sequence = "\x1b[5~";
+            break;
+        case VK_NEXT:   // Page Down
+            sequence = "\x1b[6~";
+            break;
+        case VK_INSERT:
+            sequence = "\x1b[2~";
+            break;
+        case VK_DELETE:
+            sequence = "\x1b[3~";
+            break;
+    }
+
+    // Handle scrollback navigation
+    if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+        // Shift is pressed - handle scrollback
+        if (key == VK_PRIOR) {  // Shift+Page Up
+            int currentOffset = m_screenBuffer->GetScrollOffset();
+            m_screenBuffer->SetScrollOffset(currentOffset + m_screenBuffer->GetRows());
+            return;
+        } else if (key == VK_NEXT) {  // Shift+Page Down
+            int currentOffset = m_screenBuffer->GetScrollOffset();
+            m_screenBuffer->SetScrollOffset(std::max(0, currentOffset - m_screenBuffer->GetRows()));
+            return;
+        }
+    }
+
+    if (sequence) {
+        m_terminal->WriteInput(sequence);
+    }
+}
+
+void Application::OnMouseWheel(int delta) {
+    if (!m_screenBuffer) {
+        return;
+    }
+
+    // Mouse wheel delta is in units of WHEEL_DELTA (120)
+    // Positive delta = scroll up (view older content)
+    // Negative delta = scroll down (view newer content)
+
+    // Scroll by 3 lines per wheel notch
+    const int linesPerNotch = 3;
+    int scrollLines = (delta / WHEEL_DELTA) * linesPerNotch;
+
+    int currentOffset = m_screenBuffer->GetScrollOffset();
+    int newOffset = currentOffset + scrollLines;
+
+    // Clamp to valid range
+    newOffset = std::max(0, newOffset);
+
+    m_screenBuffer->SetScrollOffset(newOffset);
+}
+
+} // namespace Core
+} // namespace TerminalDX12
