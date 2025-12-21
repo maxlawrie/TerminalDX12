@@ -102,6 +102,13 @@ bool Application::Initialize(const std::wstring& shell) {
     // Create VT parser
     m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
 
+    // Wire up response callback for device queries (CPR, DA, etc.)
+    m_vtParser->SetResponseCallback([this](const std::string& response) {
+        if (m_terminal && m_terminal->IsRunning()) {
+            m_terminal->WriteInput(response.c_str(), response.size());
+        }
+    });
+
     // Start PowerShell (make this optional - continue even if it fails)
     if (!m_terminal->Start(m_shellCommand, termCols, termRows)) {
         spdlog::warn("Failed to start terminal session - continuing without ConPTY");

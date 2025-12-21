@@ -140,6 +140,24 @@ void VTStateMachine::HandleEscapeSequence(char ch) {
             m_state = State::Ground;
             break;
 
+        case '7':  // DECSC - Save cursor
+            m_savedCursor.x = m_screenBuffer->GetCursorX();
+            m_savedCursor.y = m_screenBuffer->GetCursorY();
+            m_savedCursor.attr = m_screenBuffer->GetCurrentAttributes();
+            m_savedCursor.autoWrap = m_autoWrap;
+            m_savedCursor.valid = true;
+            m_state = State::Ground;
+            break;
+
+        case '8':  // DECRC - Restore cursor
+            if (m_savedCursor.valid) {
+                m_screenBuffer->SetCursorPos(m_savedCursor.x, m_savedCursor.y);
+                m_screenBuffer->SetCurrentAttributes(m_savedCursor.attr);
+                m_autoWrap = m_savedCursor.autoWrap;
+            }
+            m_state = State::Ground;
+            break;
+
         default:
             // Unknown escape sequence, ignore
             m_state = State::Ground;
@@ -170,6 +188,10 @@ void VTStateMachine::HandleCSI() {
         case 'l': HandleMode(); break;
         case 'r': HandleSetScrollingRegion(); break;        // DECSTBM
         case 'n': HandleDeviceStatusReport(); break;        // DSR
+        case 's': HandleCursorSave(); break;                // SCP
+        case 'u': HandleCursorRestore(); break;             // RCP
+        case 'S': HandleScrollUp(); break;                  // SU
+        case 'T': HandleScrollDown(); break;                // SD
         default:
             // Unhandled CSI sequence - silently ignore
             break;
@@ -300,12 +322,33 @@ void VTStateMachine::HandleDeleteLine() {
 
 void VTStateMachine::HandleSetScrollingRegion() {
     // ESC[t;br - Set scrolling region from line t to line b
-    // For now, just ignore (full-screen scrolling)
+    int top = GetParam(0, 1) - 1;     // Convert to 0-indexed
+    int bottom = GetParam(1, 0);
+    
+    if (bottom == 0) {
+        bottom = m_screenBuffer->GetRows() - 1;
+    } else {
+        bottom = bottom - 1;  // Convert to 0-indexed
+    }
+    
+    m_screenBuffer->SetScrollRegion(top, bottom);
+    m_screenBuffer->SetCursorPos(0, 0);  // DECSTBM homes cursor
 }
 
 void VTStateMachine::HandleDeviceStatusReport() {
     // ESC[n - Various device status queries
-    // For now, just ignore
+    int param = GetParam(0, 0);
+    
+    if (param == 5) {
+        // Device status - report OK
+        SendResponse("[0n");
+    } else if (param == 6) {
+        // Cursor position report (CPR)
+        int x = m_screenBuffer->GetCursorX();
+        int y = m_screenBuffer->GetCursorY();
+        std::string response = "[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "R";
+        SendResponse(response);
+    }
 }
 
 void VTStateMachine::HandleEraseInDisplay() {
@@ -386,6 +429,10 @@ void VTStateMachine::HandleSGR() {
                 attr.flags |= CellAttributes::FLAG_BOLD;
                 break;
 
+            case 2:  // Dim/Faint
+                attr.flags |= CellAttributes::FLAG_DIM;
+                break;
+
             case 3:  // Italic
                 attr.flags |= CellAttributes::FLAG_ITALIC;
                 break;
@@ -398,8 +445,12 @@ void VTStateMachine::HandleSGR() {
                 attr.flags |= CellAttributes::FLAG_INVERSE;
                 break;
 
-            case 22:  // Not bold
-                attr.flags &= ~CellAttributes::FLAG_BOLD;
+            case 9:  // Strikethrough
+                attr.flags |= CellAttributes::FLAG_STRIKETHROUGH;
+                break;
+
+            case 22:  // Not bold/dim - clears both
+                attr.flags &= ~(CellAttributes::FLAG_BOLD | CellAttributes::FLAG_DIM);
                 break;
 
             case 23:  // Not italic
@@ -412,6 +463,10 @@ void VTStateMachine::HandleSGR() {
 
             case 27:  // Not inverse
                 attr.flags &= ~CellAttributes::FLAG_INVERSE;
+                break;
+
+            case 29:  // Not strikethrough
+                attr.flags &= ~CellAttributes::FLAG_STRIKETHROUGH;
                 break;
 
             // Foreground colors (30-37 for standard, 90-97 for bright)
@@ -456,20 +511,11 @@ void VTStateMachine::HandleSGR() {
                         }
                         i += 2;  // Skip the 5 and N parameters
                     } else if (m_params[i + 1] == 2 && i + 4 < m_params.size()) {
-                        // True color mode: 38;2;R;G;B - map to closest 16-color
-                        int r = m_params[i + 2];
-                        int g = m_params[i + 3];
-                        int b = m_params[i + 4];
-                        // Map to standard colors based on channel values
-                        bool bright = (r > 127 || g > 127 || b > 127);
-                        if (r > g && r > b) attr.foreground = bright ? 9 : 1;       // Red
-                        else if (g > r && g > b) attr.foreground = bright ? 10 : 2; // Green
-                        else if (b > r && b > g) attr.foreground = bright ? 12 : 4; // Blue
-                        else if (r > 200 && g > 200 && b < 100) attr.foreground = bright ? 11 : 3; // Yellow
-                        else if (r > 200 && b > 200 && g < 100) attr.foreground = bright ? 13 : 5; // Magenta
-                        else if (g > 200 && b > 200 && r < 100) attr.foreground = bright ? 14 : 6; // Cyan
-                        else if (r + g + b < 128) attr.foreground = 0;              // Black
-                        else attr.foreground = bright ? 15 : 7;                      // White/Gray
+                        // True color mode: 38;2;R;G;B - store actual RGB
+                        attr.SetForegroundRGB(
+                            static_cast<uint8_t>(m_params[i + 2]),
+                            static_cast<uint8_t>(m_params[i + 3]),
+                            static_cast<uint8_t>(m_params[i + 4]));
                         i += 4;  // Skip the 2, R, G, B parameters
                     }
                 }
@@ -512,18 +558,11 @@ void VTStateMachine::HandleSGR() {
                         }
                         i += 2;
                     } else if (m_params[i + 1] == 2 && i + 4 < m_params.size()) {
-                        int r = m_params[i + 2];
-                        int g = m_params[i + 3];
-                        int b = m_params[i + 4];
-                        bool bright = (r > 127 || g > 127 || b > 127);
-                        if (r > g && r > b) attr.background = bright ? 9 : 1;
-                        else if (g > r && g > b) attr.background = bright ? 10 : 2;
-                        else if (b > r && b > g) attr.background = bright ? 12 : 4;
-                        else if (r > 200 && g > 200 && b < 100) attr.background = bright ? 11 : 3;
-                        else if (r > 200 && b > 200 && g < 100) attr.background = bright ? 13 : 5;
-                        else if (g > 200 && b > 200 && r < 100) attr.background = bright ? 14 : 6;
-                        else if (r + g + b < 128) attr.background = 0;
-                        else attr.background = bright ? 15 : 7;
+                        // True color mode: 48;2;R;G;B - store actual RGB
+                        attr.SetBackgroundRGB(
+                            static_cast<uint8_t>(m_params[i + 2]),
+                            static_cast<uint8_t>(m_params[i + 3]),
+                            static_cast<uint8_t>(m_params[i + 4]));
                         i += 4;
                     }
                 }
@@ -543,13 +582,50 @@ void VTStateMachine::HandleSGR() {
 }
 
 void VTStateMachine::HandleDeviceAttributes() {
-    // Terminal identification - we could send a response here
-    // For now, just ignore
+    // CSI c or CSI 0 c - Primary Device Attributes
+    // Respond as VT100 with Advanced Video Option
+    SendResponse("[?1;2c");
 }
 
 void VTStateMachine::HandleMode() {
-    // Set/Reset mode sequences
-    // For now, just ignore
+    // CSI ? Ps h (set) or CSI ? Ps l (reset) - Private modes
+    bool set = (m_finalChar == 'h');
+    
+    for (int mode : m_params) {
+        if (m_intermediateChar == '?') {
+            // Private modes (DEC)
+            switch (mode) {
+                case 1:  // DECCKM - Application cursor keys
+                    m_applicationCursorKeys = set;
+                    spdlog::debug("DECCKM: Application cursor keys {}", set ? "enabled" : "disabled");
+                    break;
+                    
+                case 7:  // DECAWM - Auto-wrap mode
+                    m_autoWrap = set;
+                    spdlog::debug("DECAWM: Auto-wrap {}", set ? "enabled" : "disabled");
+                    break;
+                    
+                case 25:  // DECTCEM - Cursor visible
+                    m_screenBuffer->SetCursorVisible(set);
+                    spdlog::debug("DECTCEM: Cursor {}", set ? "visible" : "hidden");
+                    break;
+                    
+                case 1049:  // Alternate screen buffer
+                    m_screenBuffer->UseAlternativeBuffer(set);
+                    spdlog::debug("Alt screen buffer {}", set ? "enabled" : "disabled");
+                    break;
+                    
+                case 2004:  // Bracketed paste mode
+                    m_bracketedPaste = set;
+                    spdlog::debug("Bracketed paste mode {}", set ? "enabled" : "disabled");
+                    break;
+                    
+                default:
+                    spdlog::debug("Unknown private mode: {}", mode);
+                    break;
+            }
+        }
+    }
 }
 
 void VTStateMachine::HandleOSC() {
@@ -601,6 +677,39 @@ void VTStateMachine::ResetState() {
 void VTStateMachine::Clear() {
     m_state = State::Ground;
     ResetState();
+}
+
+
+void VTStateMachine::HandleCursorSave() {
+    // CSI s - Save cursor position (SCP)
+    m_savedCursorCSI.x = m_screenBuffer->GetCursorX();
+    m_savedCursorCSI.y = m_screenBuffer->GetCursorY();
+    m_savedCursorCSI.valid = true;
+}
+
+void VTStateMachine::HandleCursorRestore() {
+    // CSI u - Restore cursor position (RCP)
+    if (m_savedCursorCSI.valid) {
+        m_screenBuffer->SetCursorPos(m_savedCursorCSI.x, m_savedCursorCSI.y);
+    }
+}
+
+void VTStateMachine::HandleScrollUp() {
+    // CSI n S - Scroll up n lines within scroll region
+    int count = GetParam(0, 1);
+    m_screenBuffer->ScrollRegionUp(count);
+}
+
+void VTStateMachine::HandleScrollDown() {
+    // CSI n T - Scroll down n lines within scroll region
+    int count = GetParam(0, 1);
+    m_screenBuffer->ScrollRegionDown(count);
+}
+
+void VTStateMachine::SendResponse(const std::string& response) {
+    if (m_responseCallback) {
+        m_responseCallback(response);
+    }
 }
 
 } // namespace TerminalDX12::Terminal

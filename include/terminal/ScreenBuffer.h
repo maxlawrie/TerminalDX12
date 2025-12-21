@@ -8,26 +8,65 @@ namespace TerminalDX12::Terminal {
 
 // Cell attributes (SGR - Select Graphic Rendition)
 struct CellAttributes {
-    uint8_t foreground;      // Foreground color (0-255)
-    uint8_t background;      // Background color (0-255)
+    uint8_t foreground;      // Foreground color (0-255 palette index)
+    uint8_t background;      // Background color (0-255 palette index)
     uint8_t flags;           // Bold, underline, etc.
 
+    // True color RGB (used when FLAG_TRUECOLOR_FG/BG is set)
+    uint8_t fgR, fgG, fgB;   // Foreground RGB
+    uint8_t bgR, bgG, bgB;   // Background RGB
+
     // Flags
-    static constexpr uint8_t FLAG_BOLD      = 0x01;
-    static constexpr uint8_t FLAG_ITALIC    = 0x02;
-    static constexpr uint8_t FLAG_UNDERLINE = 0x04;
-    static constexpr uint8_t FLAG_INVERSE   = 0x08;
+    static constexpr uint8_t FLAG_BOLD          = 0x01;
+    static constexpr uint8_t FLAG_ITALIC        = 0x02;
+    static constexpr uint8_t FLAG_UNDERLINE     = 0x04;
+    static constexpr uint8_t FLAG_INVERSE       = 0x08;
+    static constexpr uint8_t FLAG_DIM           = 0x10;  // SGR 2 - Dim/Faint
+    static constexpr uint8_t FLAG_STRIKETHROUGH = 0x20;  // SGR 9 - Strikethrough
+    static constexpr uint8_t FLAG_TRUECOLOR_FG  = 0x40;  // Use fgR/fgG/fgB instead of palette
+    static constexpr uint8_t FLAG_TRUECOLOR_BG  = 0x80;  // Use bgR/bgG/bgB instead of palette
 
     CellAttributes()
         : foreground(7)      // White
         , background(0)      // Black
         , flags(0)
+        , fgR(0), fgG(0), fgB(0)
+        , bgR(0), bgG(0), bgB(0)
     {}
 
+    // Attribute queries
     bool IsBold() const { return (flags & FLAG_BOLD) != 0; }
     bool IsItalic() const { return (flags & FLAG_ITALIC) != 0; }
     bool IsUnderline() const { return (flags & FLAG_UNDERLINE) != 0; }
     bool IsInverse() const { return (flags & FLAG_INVERSE) != 0; }
+    bool IsDim() const { return (flags & FLAG_DIM) != 0; }
+    bool IsStrikethrough() const { return (flags & FLAG_STRIKETHROUGH) != 0; }
+    bool UsesTrueColorFg() const { return (flags & FLAG_TRUECOLOR_FG) != 0; }
+    bool UsesTrueColorBg() const { return (flags & FLAG_TRUECOLOR_BG) != 0; }
+
+    // Set foreground to true RGB color
+    void SetForegroundRGB(uint8_t r, uint8_t g, uint8_t b) {
+        fgR = r; fgG = g; fgB = b;
+        flags |= FLAG_TRUECOLOR_FG;
+    }
+
+    // Set background to true RGB color
+    void SetBackgroundRGB(uint8_t r, uint8_t g, uint8_t b) {
+        bgR = r; bgG = g; bgB = b;
+        flags |= FLAG_TRUECOLOR_BG;
+    }
+
+    // Set foreground to palette color (clears true color flag)
+    void SetForegroundPalette(uint8_t index) {
+        foreground = index;
+        flags &= ~FLAG_TRUECOLOR_FG;
+    }
+
+    // Set background to palette color (clears true color flag)
+    void SetBackgroundPalette(uint8_t index) {
+        background = index;
+        flags &= ~FLAG_TRUECOLOR_BG;
+    }
 };
 
 // Single cell in the terminal grid
@@ -69,6 +108,14 @@ public:
     void ScrollToBottom();
     int GetScrollOffset() const { return m_scrollOffset; }
     void SetScrollOffset(int offset);
+
+    // Scroll region support (DECSTBM)
+    void SetScrollRegion(int top, int bottom);
+    void ResetScrollRegion();
+    int GetScrollRegionTop() const { return m_scrollTop; }
+    int GetScrollRegionBottom() const;
+    void ScrollRegionUp(int lines = 1);
+    void ScrollRegionDown(int lines = 1);
 
     // Clearing
     void Clear();
@@ -116,6 +163,10 @@ private:
     int m_scrollbackLines;                // Max scrollback lines
     int m_scrollbackUsed;                 // Current scrollback usage
     int m_scrollOffset;                   // Scrollback view offset
+
+    // Scroll region (for DECSTBM)
+    int m_scrollTop;                      // Top of scroll region (0-indexed)
+    int m_scrollBottom;                   // Bottom of scroll region (-1 = use m_rows - 1)
 
     // Alternative buffer (no scrollback)
     std::vector<Cell> m_altBuffer;

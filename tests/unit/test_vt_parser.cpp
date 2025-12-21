@@ -553,16 +553,23 @@ TEST_F(VTStateMachineTest, SGR256ColorBackground) {
 TEST_F(VTStateMachineTest, SGRTrueColorForeground) {
     ProcessString(CSI("38;2;255;0;0", 'm'));  // Pure red
 
-    // Should map to red (1 or 9)
-    uint8_t fg = buffer->GetCurrentAttributes().foreground;
-    EXPECT_TRUE(fg == 1 || fg == 9);
+    // Should store true RGB values and set flag
+    auto attr = buffer->GetCurrentAttributes();
+    EXPECT_TRUE(attr.UsesTrueColorFg());
+    EXPECT_EQ(attr.fgR, 255);
+    EXPECT_EQ(attr.fgG, 0);
+    EXPECT_EQ(attr.fgB, 0);
 }
 
 TEST_F(VTStateMachineTest, SGRTrueColorBackground) {
     ProcessString(CSI("48;2;0;255;0", 'm'));  // Pure green
 
-    uint8_t bg = buffer->GetCurrentAttributes().background;
-    EXPECT_TRUE(bg == 2 || bg == 10);
+    // Should store true RGB values and set flag
+    auto attr = buffer->GetCurrentAttributes();
+    EXPECT_TRUE(attr.UsesTrueColorBg());
+    EXPECT_EQ(attr.bgR, 0);
+    EXPECT_EQ(attr.bgG, 255);
+    EXPECT_EQ(attr.bgB, 0);
 }
 
 // ============================================================================

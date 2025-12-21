@@ -10,6 +10,8 @@ ScreenBuffer::ScreenBuffer(int cols, int rows, int scrollbackLines)
     , m_scrollbackLines(scrollbackLines)
     , m_scrollbackUsed(0)
     , m_scrollOffset(0)
+    , m_scrollTop(0)
+    , m_scrollBottom(-1)
     , m_useAltBuffer(false)
     , m_cursorX(0)
     , m_cursorY(0)
@@ -336,5 +338,74 @@ void ScreenBuffer::Backspace() {
         m_dirty = true;
     }
 }
+// Scroll region methods
+void ScreenBuffer::SetScrollRegion(int top, int bottom) {
+    // Validate bounds
+    if (top < 0 || top >= m_rows || bottom < top || bottom >= m_rows) {
+        ResetScrollRegion();
+        return;
+    }
+    m_scrollTop = top;
+    m_scrollBottom = bottom;
+    spdlog::debug("Set scroll region: {} to {}", top, bottom);
+}
+
+void ScreenBuffer::ResetScrollRegion() {
+    m_scrollTop = 0;
+    m_scrollBottom = -1;  // -1 means use m_rows - 1
+}
+
+int ScreenBuffer::GetScrollRegionBottom() const {
+    return (m_scrollBottom < 0) ? m_rows - 1 : m_scrollBottom;
+}
+
+void ScreenBuffer::ScrollRegionUp(int lines) {
+    if (lines <= 0) return;
+
+    int bottom = GetScrollRegionBottom();
+    int regionHeight = bottom - m_scrollTop + 1;
+    lines = std::min(lines, regionHeight);
+
+    // Move lines up within the region
+    for (int y = m_scrollTop; y <= bottom - lines; ++y) {
+        for (int x = 0; x < m_cols; ++x) {
+            m_buffer[CellIndex(x, y)] = m_buffer[CellIndex(x, y + lines)];
+        }
+    }
+
+    // Clear the bottom lines of the region
+    for (int y = bottom - lines + 1; y <= bottom; ++y) {
+        for (int x = 0; x < m_cols; ++x) {
+            m_buffer[CellIndex(x, y)] = Cell();
+        }
+    }
+
+    m_dirty = true;
+}
+
+void ScreenBuffer::ScrollRegionDown(int lines) {
+    if (lines <= 0) return;
+
+    int bottom = GetScrollRegionBottom();
+    int regionHeight = bottom - m_scrollTop + 1;
+    lines = std::min(lines, regionHeight);
+
+    // Move lines down within the region
+    for (int y = bottom; y >= m_scrollTop + lines; --y) {
+        for (int x = 0; x < m_cols; ++x) {
+            m_buffer[CellIndex(x, y)] = m_buffer[CellIndex(x, y - lines)];
+        }
+    }
+
+    // Clear the top lines of the region
+    for (int y = m_scrollTop; y < m_scrollTop + lines; ++y) {
+        for (int x = 0; x < m_cols; ++x) {
+            m_buffer[CellIndex(x, y)] = Cell();
+        }
+    }
+
+    m_dirty = true;
+}
+
 
 } // namespace TerminalDX12::Terminal

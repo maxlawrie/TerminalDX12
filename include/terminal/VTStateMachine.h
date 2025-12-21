@@ -4,10 +4,19 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include "ScreenBuffer.h"
 
 namespace TerminalDX12::Terminal {
 
-class ScreenBuffer;
+// Saved cursor state for DECSC/DECRC
+struct SavedCursorState {
+    int x = 0;
+    int y = 0;
+    CellAttributes attr;
+    bool originMode = false;
+    bool autoWrap = true;
+    bool valid = false;
+};
 
 // VT100/ANSI escape sequence parser
 class VTStateMachine {
@@ -17,6 +26,16 @@ public:
 
     // Process input data
     void ProcessInput(const char* data, size_t size);
+
+    // Response callback for device queries (CPR, DA, etc.)
+    void SetResponseCallback(std::function<void(const std::string&)> callback) {
+        m_responseCallback = callback;
+    }
+
+    // Mode accessors
+    bool IsApplicationCursorKeysEnabled() const { return m_applicationCursorKeys; }
+    bool IsAutoWrapEnabled() const { return m_autoWrap; }
+    bool IsBracketedPasteEnabled() const { return m_bracketedPaste; }
 
 private:
     enum class State {
@@ -54,11 +73,16 @@ private:
     void HandleMode();               // Set/Reset mode
     void HandleSetScrollingRegion(); // DECSTBM - ESC[#;#r
     void HandleDeviceStatusReport(); // DSR - ESC[#n
-    void HandleOSC();                // OSC - ESC]#;...BEL (Operating System Command)
+    void HandleOSC();                // OSC - ESC]#;...BEL
+    void HandleCursorSave();         // CSI s - Save cursor position
+    void HandleCursorRestore();      // CSI u - Restore cursor position
+    void HandleScrollUp();           // CSI n S - Scroll up
+    void HandleScrollDown();         // CSI n T - Scroll down
 
     // Utility
     int GetParam(size_t index, int defaultValue = 0) const;
     void ResetState();
+    void SendResponse(const std::string& response);
 
     ScreenBuffer* m_screenBuffer;
     State m_state;
@@ -68,6 +92,18 @@ private:
     std::vector<int> m_params;
     std::string m_paramBuffer;
     std::string m_oscBuffer;         // Buffer for OSC sequences
+
+    // Response callback
+    std::function<void(const std::string&)> m_responseCallback;
+
+    // Saved cursor states
+    SavedCursorState m_savedCursor;      // For DECSC/DECRC (ESC 7 / ESC 8)
+    SavedCursorState m_savedCursorCSI;   // For CSI s / CSI u
+
+    // Terminal modes
+    bool m_applicationCursorKeys = false;  // DECCKM (mode 1)
+    bool m_autoWrap = true;                // DECAWM (mode 7)
+    bool m_bracketedPaste = false;         // Mode 2004
 };
 
 } // namespace TerminalDX12::Terminal
