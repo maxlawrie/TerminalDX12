@@ -163,8 +163,16 @@ void ConPtySession::Stop() {
     spdlog::info("Stopping ConPTY session");
     m_running = false;
 
-    // Close pipe handles to unblock reading threads
+    // First close the pseudoconsole - this signals the child process to exit
+    // and causes ReadFile to return cleanly
+    if (m_hPC != INVALID_HANDLE_VALUE) {
+        ClosePseudoConsole(m_hPC);
+        m_hPC = INVALID_HANDLE_VALUE;
+    }
+
+    // Now close pipe handles to unblock any remaining reads
     if (m_hPipeOut != INVALID_HANDLE_VALUE) {
+        CancelIoEx(m_hPipeOut, nullptr);
         CloseHandle(m_hPipeOut);
         m_hPipeOut = INVALID_HANDLE_VALUE;
     }
@@ -193,12 +201,6 @@ void ConPtySession::Stop() {
     if (m_hThread != INVALID_HANDLE_VALUE) {
         CloseHandle(m_hThread);
         m_hThread = INVALID_HANDLE_VALUE;
-    }
-
-    // Close pseudoconsole
-    if (m_hPC != INVALID_HANDLE_VALUE) {
-        ClosePseudoConsole(m_hPC);
-        m_hPC = INVALID_HANDLE_VALUE;
     }
 }
 

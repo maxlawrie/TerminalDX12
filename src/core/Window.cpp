@@ -140,7 +140,9 @@ LRESULT Window::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (OnClose) {
                 OnClose();
             }
-            DestroyWindow(hwnd);
+            // Don't call DestroyWindow here - let Application::Shutdown() handle
+            // cleanup in the correct order (DX12 resources before window)
+            PostQuitMessage(0);
             return 0;
 
         case WM_DESTROY:
