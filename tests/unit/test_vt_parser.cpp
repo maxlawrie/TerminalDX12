@@ -711,5 +711,218 @@ TEST_F(VTStateMachineTest, AttributesPersistAcrossCursorMove) {
     EXPECT_EQ(buffer->GetCell(4, 4).attr.foreground, 1);  // Still red
 }
 
+
+// ============================================================================
+// SGR Dim and Strikethrough Tests (Phase 1 VT Compatibility)
+// ============================================================================
+
+TEST_F(VTStateMachineTest, SGRDim) {
+    ProcessString(CSI("2", 'm'));  // Dim
+    ProcessString("A");
+
+    EXPECT_TRUE(buffer->GetCell(0, 0).attr.IsDim());
+}
+
+TEST_F(VTStateMachineTest, SGRStrikethrough) {
+    ProcessString(CSI("9", 'm'));  // Strikethrough
+    ProcessString("A");
+
+    EXPECT_TRUE(buffer->GetCell(0, 0).attr.IsStrikethrough());
+}
+
+TEST_F(VTStateMachineTest, SGR22ClearsBoldAndDim) {
+    ProcessString(CSI("1;2", 'm'));  // Bold and Dim
+    ProcessString("A");
+    EXPECT_TRUE(buffer->GetCell(0, 0).attr.IsBold());
+    EXPECT_TRUE(buffer->GetCell(0, 0).attr.IsDim());
+
+    ProcessString(CSI("22", 'm'));  // Clear bold/dim
+    ProcessString("B");
+    EXPECT_FALSE(buffer->GetCell(1, 0).attr.IsBold());
+    EXPECT_FALSE(buffer->GetCell(1, 0).attr.IsDim());
+}
+
+TEST_F(VTStateMachineTest, SGR29ClearsStrikethrough) {
+    ProcessString(CSI("9", 'm'));  // Strikethrough
+    ProcessString("A");
+    EXPECT_TRUE(buffer->GetCell(0, 0).attr.IsStrikethrough());
+
+    ProcessString(CSI("29", 'm'));  // Clear strikethrough
+    ProcessString("B");
+    EXPECT_FALSE(buffer->GetCell(1, 0).attr.IsStrikethrough());
+}
+
+// ============================================================================
+// Cursor Save/Restore Tests (DECSC/DECRC and CSI s/u)
+// ============================================================================
+
+TEST_F(VTStateMachineTest, DECSCAndDECRC) {
+    ProcessString(CSI("5;10", 'H'));  // Row 5, Col 10
+    ProcessString(CSI("31;1", 'm'));  // Red, Bold
+    ProcessString(ESC("7"));          // DECSC - Save cursor
+
+    ProcessString(CSI("1;1", 'H'));   // Move away
+    ProcessString(CSI("0", 'm'));     // Reset attributes
+
+    ProcessString(ESC("8"));          // DECRC - Restore cursor
+
+    int x, y;
+    buffer->GetCursorPos(x, y);
+    EXPECT_EQ(x, 9);   // 0-indexed
+    EXPECT_EQ(y, 4);
+}
+
+TEST_F(VTStateMachineTest, CSISaveRestoreCursor) {
+    ProcessString(CSI("10;20", 'H'));  // Row 10, Col 20
+    ProcessString(CSI("", 's'));       // Save
+
+    ProcessString(CSI("1;1", 'H'));    // Move away
+
+    ProcessString(CSI("", 'u'));       // Restore
+
+    int x, y;
+    buffer->GetCursorPos(x, y);
+    EXPECT_EQ(x, 19);
+    EXPECT_EQ(y, 9);
+}
+
+// ============================================================================
+// Scroll Region Tests (DECSTBM)
+// ============================================================================
+
+TEST_F(VTStateMachineTest, DECSTBMSetsScrollRegion) {
+    ProcessString(CSI("5;20", 'r'));  // Set scroll region
+
+    EXPECT_EQ(buffer->GetScrollRegionTop(), 4);
+    EXPECT_EQ(buffer->GetScrollRegionBottom(), 19);
+}
+
+TEST_F(VTStateMachineTest, DECSTBMHomesCursor) {
+    ProcessString(CSI("10;10", 'H'));
+    ProcessString(CSI("5;20", 'r'));
+
+    int x, y;
+    buffer->GetCursorPos(x, y);
+    EXPECT_EQ(x, 0);
+    EXPECT_EQ(y, 0);
+}
+
+// ============================================================================
+// Private Mode Tests
+// ============================================================================
+
+TEST_F(VTStateMachineTest, DECCKMApplicationCursorKeys) {
+    EXPECT_FALSE(parser->IsApplicationCursorKeysEnabled());
+
+    ProcessString(CSI("?1", 'h'));
+    EXPECT_TRUE(parser->IsApplicationCursorKeysEnabled());
+
+    ProcessString(CSI("?1", 'l'));
+    EXPECT_FALSE(parser->IsApplicationCursorKeysEnabled());
+}
+
+TEST_F(VTStateMachineTest, DECAWMAutoWrap) {
+    EXPECT_TRUE(parser->IsAutoWrapEnabled());
+
+    ProcessString(CSI("?7", 'l'));
+    EXPECT_FALSE(parser->IsAutoWrapEnabled());
+
+    ProcessString(CSI("?7", 'h'));
+    EXPECT_TRUE(parser->IsAutoWrapEnabled());
+}
+
+TEST_F(VTStateMachineTest, DECTCEMCursorVisibility) {
+    EXPECT_TRUE(buffer->IsCursorVisible());
+
+    ProcessString(CSI("?25", 'l'));
+    EXPECT_FALSE(buffer->IsCursorVisible());
+
+    ProcessString(CSI("?25", 'h'));
+    EXPECT_TRUE(buffer->IsCursorVisible());
+}
+
+TEST_F(VTStateMachineTest, BracketedPasteMode) {
+    EXPECT_FALSE(parser->IsBracketedPasteEnabled());
+
+    ProcessString(CSI("?2004", 'h'));
+    EXPECT_TRUE(parser->IsBracketedPasteEnabled());
+
+    ProcessString(CSI("?2004", 'l'));
+    EXPECT_FALSE(parser->IsBracketedPasteEnabled());
+}
+
+TEST_F(VTStateMachineTest, AlternateScreenBuffer) {
+    EXPECT_FALSE(buffer->IsUsingAlternativeBuffer());
+
+    ProcessString(CSI("?1049", 'h'));
+    EXPECT_TRUE(buffer->IsUsingAlternativeBuffer());
+
+    ProcessString(CSI("?1049", 'l'));
+    EXPECT_FALSE(buffer->IsUsingAlternativeBuffer());
+}
+
+// ============================================================================
+// Device Status Report Tests
+// ============================================================================
+
+TEST_F(VTStateMachineTest, DeviceAttributesResponse) {
+    std::string response;
+    parser->SetResponseCallback([&response](const std::string& r) {
+        response = r;
+    });
+
+    ProcessString(CSI("", 'c'));
+    EXPECT_EQ(response, "[?1;2c");
+}
+
+TEST_F(VTStateMachineTest, CursorPositionReport) {
+    std::string response;
+    parser->SetResponseCallback([&response](const std::string& r) {
+        response = r;
+    });
+
+    ProcessString(CSI("5;10", 'H'));
+    ProcessString(CSI("6", 'n'));
+
+    EXPECT_EQ(response, "[5;10R");
+}
+
+TEST_F(VTStateMachineTest, DeviceStatusOK) {
+    std::string response;
+    parser->SetResponseCallback([&response](const std::string& r) {
+        response = r;
+    });
+
+    ProcessString(CSI("5", 'n'));
+    EXPECT_EQ(response, "[0n");
+}
+
+// ============================================================================
+// Combined Feature Tests
+// ============================================================================
+
+TEST_F(VTStateMachineTest, TrueColorWithDim) {
+    ProcessString(CSI("2;38;2;255;128;64", 'm'));
+    ProcessString("A");
+
+    auto attr = buffer->GetCell(0, 0).attr;
+    EXPECT_TRUE(attr.IsDim());
+    EXPECT_TRUE(attr.UsesTrueColorFg());
+    EXPECT_EQ(attr.fgR, 255);
+    EXPECT_EQ(attr.fgG, 128);
+    EXPECT_EQ(attr.fgB, 64);
+}
+
+TEST_F(VTStateMachineTest, MultipleAttributesCombined) {
+    ProcessString(CSI("1;2;4;9", 'm'));
+    ProcessString("A");
+
+    auto attr = buffer->GetCell(0, 0).attr;
+    EXPECT_TRUE(attr.IsBold());
+    EXPECT_TRUE(attr.IsDim());
+    EXPECT_TRUE(attr.IsUnderline());
+    EXPECT_TRUE(attr.IsStrikethrough());
+}
+
 } // namespace Tests
 } // namespace TerminalDX12::Terminal
