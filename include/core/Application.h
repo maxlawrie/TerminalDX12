@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <chrono>
 #include <Windows.h>
 
 namespace TerminalDX12 {
@@ -54,6 +55,18 @@ private:
     void PasteFromClipboard();
     void ClearSelection();
 
+    // Mouse reporting helpers
+    void SendMouseEvent(int x, int y, int button, bool pressed, bool motion);
+    bool ShouldReportMouse() const;
+
+    // Word/line selection helpers
+    void SelectWord(int cellX, int cellY);
+    void SelectLine(int cellY);
+    bool IsWordChar(char32_t ch) const;
+
+    // Context menu
+    void ShowContextMenu(int x, int y);
+
     std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
@@ -70,6 +83,13 @@ private:
     CellPos m_selectionEnd;
     bool m_selecting;      // Currently dragging to select
     bool m_hasSelection;   // Valid selection exists
+
+    // Mouse click tracking for double/triple click
+    std::chrono::steady_clock::time_point m_lastClickTime;
+    CellPos m_lastClickPos;
+    int m_clickCount;              // 1=single, 2=double, 3=triple
+    int m_lastMouseButton;         // Last button pressed (for mouse reporting)
+    bool m_mouseButtonDown;        // Is a button currently pressed
 
     static Application* s_instance;
 };

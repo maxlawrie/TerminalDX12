@@ -924,5 +924,78 @@ TEST_F(VTStateMachineTest, MultipleAttributesCombined) {
     EXPECT_TRUE(attr.IsStrikethrough());
 }
 
+// ============================================================================
+// Mouse Mode Tests
+// ============================================================================
+
+TEST_F(VTStateMachineTest, MouseModeX10Enable) {
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::None);
+    ProcessString(CSI("?1000", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::X10);
+}
+
+TEST_F(VTStateMachineTest, MouseModeX10Disable) {
+    ProcessString(CSI("?1000", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::X10);
+    ProcessString(CSI("?1000", 'l'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::None);
+}
+
+TEST_F(VTStateMachineTest, MouseModeNormalEnable) {
+    ProcessString(CSI("?1002", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::Normal);
+}
+
+TEST_F(VTStateMachineTest, MouseModeAllEnable) {
+    ProcessString(CSI("?1003", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::All);
+}
+
+TEST_F(VTStateMachineTest, SGRMouseModeEnable) {
+    EXPECT_FALSE(parser->IsSGRMouseModeEnabled());
+    ProcessString(CSI("?1006", 'h'));
+    EXPECT_TRUE(parser->IsSGRMouseModeEnabled());
+}
+
+TEST_F(VTStateMachineTest, SGRMouseModeDisable) {
+    ProcessString(CSI("?1006", 'h'));
+    EXPECT_TRUE(parser->IsSGRMouseModeEnabled());
+    ProcessString(CSI("?1006", 'l'));
+    EXPECT_FALSE(parser->IsSGRMouseModeEnabled());
+}
+
+TEST_F(VTStateMachineTest, MouseModeOverride) {
+    // Enable X10
+    ProcessString(CSI("?1000", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::X10);
+
+    // Enable Normal - should override X10
+    ProcessString(CSI("?1002", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::Normal);
+
+    // Enable All - should override Normal
+    ProcessString(CSI("?1003", 'h'));
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::All);
+}
+
+TEST_F(VTStateMachineTest, MouseModeWithSGR) {
+    // Enable both mouse tracking and SGR format
+    ProcessString(CSI("?1000", 'h'));
+    ProcessString(CSI("?1006", 'h'));
+    
+    EXPECT_EQ(parser->GetMouseMode(), VTStateMachine::MouseMode::X10);
+    EXPECT_TRUE(parser->IsSGRMouseModeEnabled());
+}
+
+TEST_F(VTStateMachineTest, IsMouseReportingEnabled) {
+    EXPECT_FALSE(parser->IsMouseReportingEnabled());
+    
+    ProcessString(CSI("?1000", 'h'));
+    EXPECT_TRUE(parser->IsMouseReportingEnabled());
+    
+    ProcessString(CSI("?1000", 'l'));
+    EXPECT_FALSE(parser->IsMouseReportingEnabled());
+}
+
 } // namespace Tests
 } // namespace TerminalDX12::Terminal

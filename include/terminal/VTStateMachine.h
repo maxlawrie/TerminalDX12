@@ -32,10 +32,23 @@ public:
         m_responseCallback = callback;
     }
 
+    // Mouse mode enum
+    enum class MouseMode {
+        None,           // No mouse reporting
+        X10,            // Mode 1000 - Button press only
+        Normal,         // Mode 1002 - Button press/release + motion while pressed
+        All,            // Mode 1003 - All motion
+    };
+
     // Mode accessors
     bool IsApplicationCursorKeysEnabled() const { return m_applicationCursorKeys; }
     bool IsAutoWrapEnabled() const { return m_autoWrap; }
     bool IsBracketedPasteEnabled() const { return m_bracketedPaste; }
+    
+    // Mouse mode accessors
+    MouseMode GetMouseMode() const { return m_mouseMode; }
+    bool IsMouseReportingEnabled() const { return m_mouseMode != MouseMode::None; }
+    bool IsSGRMouseModeEnabled() const { return m_sgrMouseMode; }
 
 private:
     enum class State {
@@ -104,6 +117,10 @@ private:
     bool m_applicationCursorKeys = false;  // DECCKM (mode 1)
     bool m_autoWrap = true;                // DECAWM (mode 7)
     bool m_bracketedPaste = false;         // Mode 2004
+    
+    // Mouse modes
+    MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode
+    bool m_sgrMouseMode = false;              // Mode 1006 - SGR extended format
 };
 
 } // namespace TerminalDX12::Terminal

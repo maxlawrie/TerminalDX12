@@ -619,7 +619,28 @@ void VTStateMachine::HandleMode() {
                     m_bracketedPaste = set;
                     spdlog::debug("Bracketed paste mode {}", set ? "enabled" : "disabled");
                     break;
-                    
+
+                // Mouse tracking modes
+                case 1000:  // X10 Mouse - Button press only
+                    m_mouseMode = set ? MouseMode::X10 : MouseMode::None;
+                    spdlog::debug("Mouse X10 mode {}", set ? "enabled" : "disabled");
+                    break;
+
+                case 1002:  // Normal Mouse Tracking - Button + motion while pressed
+                    m_mouseMode = set ? MouseMode::Normal : MouseMode::None;
+                    spdlog::debug("Mouse normal tracking {}", set ? "enabled" : "disabled");
+                    break;
+
+                case 1003:  // All Mouse Tracking - All motion
+                    m_mouseMode = set ? MouseMode::All : MouseMode::None;
+                    spdlog::debug("Mouse all motion tracking {}", set ? "enabled" : "disabled");
+                    break;
+
+                case 1006:  // SGR Extended Mouse Mode
+                    m_sgrMouseMode = set;
+                    spdlog::debug("SGR mouse mode {}", set ? "enabled" : "disabled");
+                    break;
+
                 default:
                     spdlog::debug("Unknown private mode: {}", mode);
                     break;

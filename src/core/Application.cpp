@@ -23,6 +23,11 @@ Application::Application()
     , m_selectionEnd{0, 0}
     , m_selecting(false)
     , m_hasSelection(false)
+    , m_lastClickTime{}
+    , m_lastClickPos{0, 0}
+    , m_clickCount(0)
+    , m_lastMouseButton(-1)
+    , m_mouseButtonDown(false)
 {
     s_instance = this;
 }
@@ -425,9 +430,9 @@ void Application::OnChar(wchar_t ch) {
     // Skip control characters that are handled by OnKey via WM_KEYDOWN
     // These would otherwise be sent twice (once by WM_KEYDOWN, once by WM_CHAR)
     if (ch == L'\b' ||   // Backspace - handled by VK_BACK
-        ch == L'\t' ||   // Tab - handled by VK_TAB
+        ch == L'	' ||   // Tab - handled by VK_TAB
         ch == L'\r' ||   // Enter - handled by VK_RETURN
-        ch == L'\x1b') { // Escape - handled by VK_ESCAPE
+        ch == L'') { // Escape - handled by VK_ESCAPE
         return;
     }
 
@@ -455,7 +460,7 @@ void Application::SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown, 
 
     // Format: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
     char buf[64];
-    int len = snprintf(buf, sizeof(buf), "\x1b[%u;%u;%u;%u;%u;1_",
+    int len = snprintf(buf, sizeof(buf), "[%u;%u;%u;%u;%u;1_",
                        vk,
                        scanCode,
                        static_cast<unsigned>(unicodeChar),
@@ -523,10 +528,10 @@ void Application::OnKey(UINT key, bool isDown) {
             SendWin32InputKey(VK_RETURN, L'\r', true, controlState);
             return;
         case VK_TAB:
-            SendWin32InputKey(VK_TAB, L'\t', true, controlState);
+            SendWin32InputKey(VK_TAB, L'	', true, controlState);
             return;
         case VK_ESCAPE:
-            SendWin32InputKey(VK_ESCAPE, L'\x1b', true, controlState);
+            SendWin32InputKey(VK_ESCAPE, L'', true, controlState);
             return;
         case VK_UP:
             SendWin32InputKey(VK_UP, 0, true, controlState);
@@ -604,39 +609,98 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
 }
 
 void Application::OnMouseButton(int x, int y, int button, bool down) {
+    CellPos cellPos = ScreenToCell(x, y);
+
+    // Right-click context menu
+    if (button == 1 && down) {
+        ShowContextMenu(x, y);
+        return;
+    }
+
+    // Report mouse to application if mouse mode is enabled
+    if (ShouldReportMouse()) {
+        SendMouseEvent(cellPos.x, cellPos.y, button, down, false);
+        m_mouseButtonDown = down;
+        m_lastMouseButton = button;
+        return;
+    }
+
     // Only handle left mouse button for selection
     if (button != 0) {
         return;
     }
 
-    CellPos cellPos = ScreenToCell(x, y);
-
     if (down) {
-        // Start selection
-        m_selectionStart = cellPos;
-        m_selectionEnd = cellPos;
-        m_selecting = true;
-        m_hasSelection = false;  // Will be set true when we have a range
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastClickTime).count();
+
+        // Check for double/triple click (within 500ms and same position)
+        if (elapsed < 500 && cellPos.x == m_lastClickPos.x && cellPos.y == m_lastClickPos.y) {
+            m_clickCount++;
+            if (m_clickCount > 3) m_clickCount = 1;
+        } else {
+            m_clickCount = 1;
+        }
+
+        m_lastClickTime = now;
+        m_lastClickPos = cellPos;
+
+        // Handle click type
+        if (m_clickCount == 3) {
+            // Triple-click: select entire line
+            SelectLine(cellPos.y);
+            m_selecting = false;
+        } else if (m_clickCount == 2) {
+            // Double-click: select word
+            SelectWord(cellPos.x, cellPos.y);
+            m_selecting = false;
+        } else {
+            // Single-click: start drag selection
+            // Check for Shift+Click to extend selection
+            if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && m_hasSelection) {
+                // Extend selection to this position
+                m_selectionEnd = cellPos;
+                m_hasSelection = true;
+            } else {
+                // Start new selection
+                m_selectionStart = cellPos;
+                m_selectionEnd = cellPos;
+                m_hasSelection = false;
+            }
+            m_selecting = true;
+        }
+        m_mouseButtonDown = true;
     } else {
-        // End selection
+        // Button release
         m_selecting = false;
+        m_mouseButtonDown = false;
 
         // Check if we actually selected something (not just a click)
         if (m_selectionStart.x != m_selectionEnd.x || m_selectionStart.y != m_selectionEnd.y) {
             m_hasSelection = true;
-        } else {
-            // Single click - clear selection
-            m_hasSelection = false;
         }
     }
 }
 
 void Application::OnMouseMove(int x, int y) {
+    CellPos cellPos = ScreenToCell(x, y);
+
+    // Report mouse motion if application wants it
+    if (ShouldReportMouse() && m_vtParser) {
+        auto mouseMode = m_vtParser->GetMouseMode();
+        // Mode 1003 (All) reports all motion
+        // Mode 1002 (Normal) reports motion only while button pressed
+        if (mouseMode == Terminal::VTStateMachine::MouseMode::All ||
+            (mouseMode == Terminal::VTStateMachine::MouseMode::Normal && m_mouseButtonDown)) {
+            SendMouseEvent(cellPos.x, cellPos.y, m_lastMouseButton, true, true);
+        }
+        return;
+    }
+
     if (!m_selecting) {
         return;
     }
 
-    CellPos cellPos = ScreenToCell(x, y);
     m_selectionEnd = cellPos;
 
     // Mark as having selection if we've moved from start
@@ -807,6 +871,173 @@ void Application::PasteFromClipboard() {
     }
 
     CloseClipboard();
+}
+
+bool Application::ShouldReportMouse() const {
+    return m_vtParser && m_vtParser->IsMouseReportingEnabled();
+}
+
+void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool motion) {
+    if (!m_terminal || !m_terminal->IsRunning() || !m_vtParser) {
+        return;
+    }
+
+    // Convert to 1-based coordinates for terminal
+    int col = x + 1;
+    int row = y + 1;
+
+    // Build mouse event sequence
+    char buf[64];
+    int len = 0;
+
+    if (m_vtParser->IsSGRMouseModeEnabled()) {
+        // SGR Extended Mouse Mode (1006): CSI < Cb ; Cx ; Cy M/m
+        // Button encoding: 0=left, 1=middle, 2=right, 32+button for motion
+        int cb = button;
+        if (motion) cb += 32;
+
+        char terminator = pressed ? 'M' : 'm';
+        len = snprintf(buf, sizeof(buf), "[<%d;%d;%d%c", cb, col, row, terminator);
+    } else {
+        // X10/Normal Mouse Mode: CSI M Cb Cx Cy (encoded as Cb+32, Cx+32, Cy+32)
+        // Only for press events in X10 mode
+        if (!pressed && m_vtParser->GetMouseMode() == Terminal::VTStateMachine::MouseMode::X10) {
+            return;
+        }
+
+        int cb = button;
+        if (motion) cb += 32;
+        if (!pressed) cb += 3;  // Release is encoded as button 3
+
+        // Coordinates are encoded with +32 offset, clamped to 223 (255-32)
+        int cx = std::min(col + 32, 255);
+        int cy = std::min(row + 32, 255);
+        cb += 32;
+
+        len = snprintf(buf, sizeof(buf), "[M%c%c%c", cb, cx, cy);
+    }
+
+    if (len > 0 && len < (int)sizeof(buf)) {
+        m_terminal->WriteInput(buf, len);
+    }
+}
+
+bool Application::IsWordChar(char32_t ch) const {
+    // Word characters: alphanumeric, underscore, and some extended chars
+    if (ch >= U'a' && ch <= U'z') return true;
+    if (ch >= U'A' && ch <= U'Z') return true;
+    if (ch >= U'0' && ch <= U'9') return true;
+    if (ch == U'_' || ch == U'-') return true;
+    // Allow URL-like characters for URL selection
+    if (ch == U'/' || ch == U':' || ch == U'.' || ch == U'@' ||
+        ch == U'?' || ch == U'=' || ch == U'&' || ch == U'%' ||
+        ch == U'+' || ch == U'#' || ch == U'~') return true;
+    return false;
+}
+
+void Application::SelectWord(int cellX, int cellY) {
+    if (!m_screenBuffer) return;
+
+    int cols = m_screenBuffer->GetCols();
+
+    // Get character at click position
+    const auto& cell = m_screenBuffer->GetCellWithScrollback(cellX, cellY);
+    
+    // If clicking on whitespace, don't select anything
+    if (cell.ch == U' ' || cell.ch == 0) {
+        ClearSelection();
+        return;
+    }
+
+    // Find word boundaries
+    int startX = cellX;
+    int endX = cellX;
+
+    // Scan left
+    while (startX > 0) {
+        const auto& prevCell = m_screenBuffer->GetCellWithScrollback(startX - 1, cellY);
+        if (!IsWordChar(prevCell.ch)) break;
+        startX--;
+    }
+
+    // Scan right
+    while (endX < cols - 1) {
+        const auto& nextCell = m_screenBuffer->GetCellWithScrollback(endX + 1, cellY);
+        if (!IsWordChar(nextCell.ch)) break;
+        endX++;
+    }
+
+    // Set selection
+    m_selectionStart = {startX, cellY};
+    m_selectionEnd = {endX, cellY};
+    m_hasSelection = (startX != endX);
+}
+
+void Application::SelectLine(int cellY) {
+    if (!m_screenBuffer) return;
+
+    int cols = m_screenBuffer->GetCols();
+
+    // Select entire line
+    m_selectionStart = {0, cellY};
+    m_selectionEnd = {cols - 1, cellY};
+    m_hasSelection = true;
+}
+
+void Application::ShowContextMenu(int x, int y) {
+    if (!m_window) return;
+
+    HWND hwnd = m_window->GetHandle();
+    HMENU hMenu = CreatePopupMenu();
+    if (!hMenu) return;
+
+    // Menu item IDs
+    constexpr UINT ID_COPY = 1;
+    constexpr UINT ID_PASTE = 2;
+    constexpr UINT ID_SELECT_ALL = 3;
+
+    // Add menu items
+    UINT copyFlags = MF_STRING | (m_hasSelection ? 0 : MF_GRAYED);
+    AppendMenuW(hMenu, copyFlags, ID_COPY, L"Copy	Ctrl+C");
+
+    // Check if clipboard has text
+    bool hasClipboardText = false;
+    if (OpenClipboard(hwnd)) {
+        hasClipboardText = (GetClipboardData(CF_UNICODETEXT) != nullptr);
+        CloseClipboard();
+    }
+    UINT pasteFlags = MF_STRING | (hasClipboardText ? 0 : MF_GRAYED);
+    AppendMenuW(hMenu, pasteFlags, ID_PASTE, L"Paste	Ctrl+V");
+
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(hMenu, MF_STRING, ID_SELECT_ALL, L"Select All");
+
+    // Get screen coordinates
+    POINT pt = {x, y};
+    ClientToScreen(hwnd, &pt);
+
+    // Show menu and get selection
+    UINT cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                              pt.x, pt.y, 0, hwnd, nullptr);
+
+    DestroyMenu(hMenu);
+
+    // Handle selection
+    switch (cmd) {
+        case ID_COPY:
+            CopySelectionToClipboard();
+            break;
+        case ID_PASTE:
+            PasteFromClipboard();
+            break;
+        case ID_SELECT_ALL:
+            if (m_screenBuffer) {
+                m_selectionStart = {0, 0};
+                m_selectionEnd = {m_screenBuffer->GetCols() - 1, m_screenBuffer->GetRows() - 1};
+                m_hasSelection = true;
+            }
+            break;
+    }
 }
 
 } // namespace Core
