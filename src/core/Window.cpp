@@ -140,6 +140,7 @@ LRESULT Window::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (OnClose) {
                 OnClose();
             }
+            DestroyWindow(hwnd);
             return 0;
 
         case WM_DESTROY:
