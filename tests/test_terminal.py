@@ -1064,7 +1064,7 @@ class TerminalTester:
 
         # Use PowerShell to output raw ANSI escape sequences
         # ESC[1m = bold on, ESC[0m = reset
-        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[1mBOLD TEXT${e}[0m Normal Text\\""'
+        cmd = "Write-Host ($([char]27) + '[1mBOLD TEXT' + [char]27 + '[0m Normal Text')"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(1.5)
@@ -1090,7 +1090,7 @@ class TerminalTester:
         time.sleep(0.5)
 
         # Output red, green, and blue text on same line
-        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"${e}[31mRED${e}[32mGREEN${e}[34mBLUE${e}[0m\\""'
+        cmd = "Write-Host ($([char]27) + '[31mRED' + [char]27 + '[32mGREEN' + [char]27 + '[34mBLUE' + [char]27 + '[0m')"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(1.5)

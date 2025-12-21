@@ -170,25 +170,25 @@ class Phase5Tester(TerminalTester):
 
         # Send OSC 133 A (prompt start) sequence via PowerShell
         # ESC ] 133 ; A BEL
-        cmd = 'powershell -Command "$e = [char]27; $bel = [char]7; Write-Host -NoNewline \\"${e}]133;A${bel}\\""'
+        cmd = "Write-Host -NoNewline ($([char]27) + ']133;A' + [char]7)"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(0.5)
 
         # Send OSC 133 B (prompt end/input start)
-        cmd = 'powershell -Command "$e = [char]27; $bel = [char]7; Write-Host -NoNewline \\"${e}]133;B${bel}\\""'
+        cmd = "Write-Host -NoNewline ($([char]27) + ']133;B' + [char]7)"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(0.5)
 
         # Send OSC 133 C (command start)
-        cmd = 'powershell -Command "$e = [char]27; $bel = [char]7; Write-Host -NoNewline \\"${e}]133;C${bel}\\""'
+        cmd = "Write-Host -NoNewline ($([char]27) + ']133;C' + [char]7)"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(0.5)
 
         # Send OSC 133 D (command end with exit code)
-        cmd = 'powershell -Command "$e = [char]27; $bel = [char]7; Write-Host -NoNewline \\"${e}]133;D;0${bel}\\""'
+        cmd = "Write-Host -NoNewline ($([char]27) + ']133;D;0' + [char]7)"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(0.5)
@@ -375,7 +375,7 @@ class Phase5Tester(TerminalTester):
 
         # Output normal text and dim text using ANSI escape
         # ESC[2m = dim, ESC[0m = reset
-        cmd = 'powershell -Command "$e = [char]27; Write-Host \\"NORMAL ${e}[2mDIM TEXT${e}[0m NORMAL\\""'
+        cmd = "Write-Host ('NORMAL ' + [char]27 + '[2mDIM TEXT' + [char]27 + '[0m NORMAL')"
         self.send_keys(cmd)
         self.send_keys("\n")
         time.sleep(1)
