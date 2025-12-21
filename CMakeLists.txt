@@ -53,6 +53,7 @@ set(TERMINAL_SOURCES
 
 set(UI_SOURCES
     src/ui/InputHandler.cpp
+    src/ui/Tab.cpp
     src/ui/TabManager.cpp
 )
 

@@ -2,6 +2,8 @@
 #include "core/Config.h"
 #include "core/Window.h"
 #include "rendering/DX12Renderer.h"
+#include "ui/TabManager.h"
+#include "ui/Tab.h"
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"
@@ -10,6 +12,7 @@
 #include <string>
 #include <locale>
 #include <codecvt>
+#include <shellapi.h>
 
 namespace TerminalDX12 {
 namespace Core {
@@ -103,36 +106,18 @@ bool Application::Initialize(const std::wstring& shell) {
         return false;
     }
 
-    // Create terminal session
-    m_terminal = std::make_unique<Pty::ConPtySession>();
-
-    // Set output callback
-    m_terminal->SetOutputCallback([this](const char* data, size_t size) {
-        OnTerminalOutput(data, size);
-    });
+    // Create tab manager
+    m_tabManager = std::make_unique<UI::TabManager>();
 
     // Calculate terminal size (80x24 columns/rows for now - will be dynamic later)
     int termCols = 80;
     int termRows = 24;
-
-    // Create screen buffer with configured scrollback
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
-    m_screenBuffer = std::make_unique<Terminal::ScreenBuffer>(termCols, termRows, scrollbackLines);
 
-    // Create VT parser
-    m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
-
-    // Wire up response callback for device queries (CPR, DA, etc.)
-    m_vtParser->SetResponseCallback([this](const std::string& response) {
-        if (m_terminal && m_terminal->IsRunning()) {
-            m_terminal->WriteInput(response.c_str(), response.size());
-        }
-    });
-
-    // Start PowerShell (make this optional - continue even if it fails)
-    if (!m_terminal->Start(m_shellCommand, termCols, termRows)) {
-        spdlog::warn("Failed to start terminal session - continuing without ConPTY");
-        m_terminal.reset();  // Clear the terminal if it failed to start
+    // Create initial tab
+    UI::Tab* initialTab = m_tabManager->CreateTab(m_shellCommand, termCols, termRows, scrollbackLines);
+    if (!initialTab) {
+        spdlog::warn("Failed to start initial terminal session - continuing without ConPTY");
     } else {
         spdlog::info("Terminal session started successfully");
     }
@@ -144,10 +129,8 @@ bool Application::Initialize(const std::wstring& shell) {
 }
 
 void Application::Shutdown() {
-    if (m_terminal) {
-        m_terminal->Stop();
-        m_terminal.reset();
-    }
+    // Tab manager will stop all terminal sessions
+    m_tabManager.reset();
 
     if (m_renderer) {
         m_renderer->Shutdown();
@@ -155,6 +138,31 @@ void Application::Shutdown() {
     }
 
     m_window.reset();
+}
+
+// Helper accessors for active tab's components
+Terminal::ScreenBuffer* Application::GetActiveScreenBuffer() {
+    if (m_tabManager) {
+        UI::Tab* tab = m_tabManager->GetActiveTab();
+        if (tab) return tab->GetScreenBuffer();
+    }
+    return nullptr;
+}
+
+Terminal::VTStateMachine* Application::GetActiveVTParser() {
+    if (m_tabManager) {
+        UI::Tab* tab = m_tabManager->GetActiveTab();
+        if (tab) return tab->GetVTParser();
+    }
+    return nullptr;
+}
+
+Pty::ConPtySession* Application::GetActiveTerminal() {
+    if (m_tabManager) {
+        UI::Tab* tab = m_tabManager->GetActiveTab();
+        if (tab) return tab->GetTerminal();
+    }
+    return nullptr;
 }
 
 int Application::Run() {
@@ -209,7 +217,8 @@ void Application::Update(float deltaTime) {
 }
 
 void Application::Render() {
-    if (!m_renderer || !m_screenBuffer) {
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    if (!m_renderer || !screenBuffer) {
         return;
     }
 
@@ -241,15 +250,75 @@ void Application::Render() {
     const int lineHeight = 25;  // Should match the line height from GlyphAtlas
     const int charWidth = 10;   // Approximate width for monospace font
     const int startX = 10;
-    const int startY = 10;
+    const int tabBarHeight = 30;  // Height reserved for tab bar
 
-    int rows = m_screenBuffer->GetRows();
-    int cols = m_screenBuffer->GetCols();
+    // Render tab bar if multiple tabs exist
+    int startY = 10;
+    if (m_tabManager && m_tabManager->GetTabCount() > 1) {
+        startY = tabBarHeight + 5;  // Offset terminal below tab bar
+
+        // Render tab bar background (dark gray)
+        m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(tabBarHeight),
+                               0.15f, 0.15f, 0.15f, 1.0f);
+
+        // Render each tab
+        float tabX = 5.0f;
+        int activeIndex = m_tabManager->GetActiveTabIndex();
+        const auto& tabs = m_tabManager->GetTabs();
+
+        for (size_t i = 0; i < tabs.size(); ++i) {
+            const auto& tab = tabs[i];
+            bool isActive = (static_cast<int>(i) == activeIndex);
+
+            // Tab background
+            float bgR = isActive ? 0.3f : 0.2f;
+            float bgG = isActive ? 0.3f : 0.2f;
+            float bgB = isActive ? 0.35f : 0.2f;
+
+            // Get tab title (convert wstring to UTF-8)
+            std::wstring wTitle = tab->GetTitle();
+            std::string title;
+            for (wchar_t wc : wTitle) {
+                if (wc < 128) title += static_cast<char>(wc);
+                else title += '?';
+            }
+            if (title.length() > 15) {
+                title = title.substr(0, 12) + "...";
+            }
+
+            float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
+
+            // Render tab background
+            m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(tabBarHeight - 6),
+                                   bgR, bgG, bgB, 1.0f);
+
+            // Activity indicator (orange dot if tab has activity and isn't active)
+            if (!isActive && tab->HasActivity()) {
+                m_renderer->RenderText("\xE2\x97\x8F", tabX + 5.0f, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
+            }
+
+            // Render tab title
+            float textX = tabX + 15.0f + (!isActive && tab->HasActivity() ? 10.0f : 0.0f);
+            float textR = isActive ? 1.0f : 0.7f;
+            float textG = isActive ? 1.0f : 0.7f;
+            float textB = isActive ? 1.0f : 0.7f;
+            m_renderer->RenderText(title.c_str(), textX, 8.0f, textR, textG, textB, 1.0f);
+
+            // Tab separator
+            m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(tabBarHeight - 10),
+                                   0.4f, 0.4f, 0.4f, 1.0f);
+
+            tabX += tabWidth + 5.0f;
+        }
+    }
+
+    int rows = screenBuffer->GetRows();
+    int cols = screenBuffer->GetCols();
 
     // Get cursor position for rendering
     int cursorX, cursorY;
-    m_screenBuffer->GetCursorPos(cursorX, cursorY);
-    bool cursorVisible = m_screenBuffer->IsCursorVisible();
+    screenBuffer->GetCursorPos(cursorX, cursorY);
+    bool cursorVisible = screenBuffer->IsCursorVisible();
 
     // Calculate normalized selection bounds for rendering
     int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
@@ -282,7 +351,7 @@ void Application::Render() {
 
         // First pass: Render backgrounds for non-default colors
         for (int x = 0; x < cols; ) {
-            const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
+            const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
             uint8_t bgIndex = cell.attr.IsInverse() ? cell.attr.foreground % 16 : cell.attr.background % 16;
 
             // Skip default background (black) unless inverse
@@ -296,7 +365,7 @@ void Application::Render() {
             int runLength = 1;
 
             while (x + runLength < cols) {
-                const auto& nextCell = m_screenBuffer->GetCellWithScrollback(x + runLength, y);
+                const auto& nextCell = screenBuffer->GetCellWithScrollback(x + runLength, y);
                 uint8_t nextBg = nextCell.attr.IsInverse() ? nextCell.attr.foreground % 16 : nextCell.attr.background % 16;
 
                 if (nextBg != bgIndex) {
@@ -322,7 +391,7 @@ void Application::Render() {
 
         // Second pass: Render foreground text character by character for precise grid alignment
         for (int x = 0; x < cols; ++x) {
-            const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
+            const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
 
             // Skip spaces
             if (cell.ch == U' ' || cell.ch == U'\0') {
@@ -379,7 +448,7 @@ void Application::Render() {
     }
 
     // Render blinking cursor (only when not scrolled back)
-    int scrollOffset = m_screenBuffer->GetScrollOffset();
+    int scrollOffset = screenBuffer->GetScrollOffset();
     if (cursorVisible && scrollOffset == 0 && cursorY >= 0 && cursorY < rows && cursorX >= 0 && cursorX < cols) {
         // Calculate blink state (blink every 500ms)
         static auto startTime = std::chrono::steady_clock::now();
@@ -394,6 +463,65 @@ void Application::Render() {
 
             // Render underscore or block cursor
             m_renderer->RenderText("_", cursorPosX, cursorPosY, cursorR, cursorG, cursorB, 1.0f);
+        }
+    }
+
+    // Render search bar if in search mode
+    if (m_searchMode) {
+        const int searchBarHeight = 30;
+        int windowHeight = 720;  // TODO: Get actual window height
+        float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
+
+        // Search bar background
+        m_renderer->RenderRect(0.0f, searchBarY, 2000.0f, static_cast<float>(searchBarHeight),
+                               0.2f, 0.2f, 0.25f, 1.0f);
+
+        // Search label
+        m_renderer->RenderText("Search:", 10.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
+
+        // Search query (convert wstring to UTF-8)
+        std::string queryUtf8;
+        for (wchar_t wc : m_searchQuery) {
+            if (wc < 128) queryUtf8 += static_cast<char>(wc);
+            else queryUtf8 += '?';
+        }
+        m_renderer->RenderText(queryUtf8.c_str(), 80.0f, searchBarY + 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+        // Search results count
+        char countBuf[64];
+        if (m_searchMatches.empty()) {
+            snprintf(countBuf, sizeof(countBuf), "No matches");
+        } else {
+            snprintf(countBuf, sizeof(countBuf), "%d of %d",
+                     m_currentMatchIndex + 1, static_cast<int>(m_searchMatches.size()));
+        }
+        m_renderer->RenderText(countBuf, 400.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
+
+        // Instructions
+        m_renderer->RenderText("F3/Enter: Next  Shift+F3: Prev  Esc: Close",
+                               550.0f, searchBarY + 5.0f, 0.5f, 0.5f, 0.5f, 1.0f);
+    }
+
+    // Highlight search matches
+    if (m_searchMode && !m_searchMatches.empty()) {
+        int queryLen = static_cast<int>(m_searchQuery.length());
+        for (int i = 0; i < static_cast<int>(m_searchMatches.size()); ++i) {
+            const auto& match = m_searchMatches[i];
+            bool isCurrent = (i == m_currentMatchIndex);
+
+            for (int j = 0; j < queryLen; ++j) {
+                float posX = static_cast<float>(startX + (match.x + j) * charWidth);
+                float posY = static_cast<float>(startY + match.y * lineHeight);
+
+                // Current match: bright yellow, other matches: dim yellow
+                if (isCurrent) {
+                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
+                                           static_cast<float>(lineHeight), 0.8f, 0.6f, 0.0f, 0.6f);
+                } else {
+                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
+                                           static_cast<float>(lineHeight), 0.5f, 0.4f, 0.0f, 0.4f);
+                }
+            }
         }
     }
 
@@ -414,16 +542,25 @@ void Application::OnWindowClose() {
 }
 
 void Application::OnTerminalOutput(const char* data, size_t size) {
-    if (!m_vtParser) {
-        return;
-    }
-
-    // Parse VT100/ANSI sequences and update screen buffer
-    m_vtParser->ProcessInput(data, size);
+    // This is now handled internally by each Tab
+    // Kept for potential external callbacks
+    (void)data;
+    (void)size;
 }
 
 void Application::OnChar(wchar_t ch) {
-    if (!m_terminal || !m_terminal->IsRunning()) {
+    // Handle search mode text input
+    if (m_searchMode) {
+        // Only accept printable characters
+        if (ch >= 32) {
+            m_searchQuery += ch;
+            UpdateSearchResults();
+        }
+        return;
+    }
+
+    Pty::ConPtySession* terminal = GetActiveTerminal();
+    if (!terminal || !terminal->IsRunning()) {
         return;
     }
 
@@ -441,7 +578,7 @@ void Application::OnChar(wchar_t ch) {
     int len = WideCharToMultiByte(CP_UTF8, 0, &ch, 1, utf8, sizeof(utf8), nullptr, nullptr);
 
     if (len > 0) {
-        m_terminal->WriteInput(utf8, len);
+        terminal->WriteInput(utf8, len);
     }
 }
 
@@ -452,7 +589,8 @@ static WORD GetScanCodeForVK(UINT vk) {
 
 // Send key in Win32 input mode format: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
 void Application::SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown, DWORD controlState) {
-    if (!m_terminal || !m_terminal->IsRunning()) {
+    Pty::ConPtySession* terminal = GetActiveTerminal();
+    if (!terminal || !terminal->IsRunning()) {
         return;
     }
 
@@ -468,7 +606,7 @@ void Application::SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown, 
                        controlState);
 
     if (len > 0 && len < (int)sizeof(buf)) {
-        m_terminal->WriteInput(buf, len);
+        terminal->WriteInput(buf, len);
     }
 }
 
@@ -477,14 +615,92 @@ void Application::OnKey(UINT key, bool isDown) {
         return;
     }
 
-    // Handle Ctrl+C/V for copy/paste
+    // Handle search mode input
+    if (m_searchMode) {
+        if (key == VK_ESCAPE) {
+            CloseSearch();
+            return;
+        }
+        if (key == VK_RETURN) {
+            // Enter: Next match (Shift+Enter: Previous)
+            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+                SearchPrevious();
+            } else {
+                SearchNext();
+            }
+            return;
+        }
+        if (key == VK_F3) {
+            // F3: Next match (Shift+F3: Previous)
+            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+                SearchPrevious();
+            } else {
+                SearchNext();
+            }
+            return;
+        }
+        if (key == VK_BACK) {
+            // Backspace: Remove last character
+            if (!m_searchQuery.empty()) {
+                m_searchQuery.pop_back();
+                UpdateSearchResults();
+            }
+            return;
+        }
+        // Other keys handled by OnChar for text input
+        return;
+    }
+
+    Pty::ConPtySession* terminal = GetActiveTerminal();
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+
+    // Handle Ctrl+key shortcuts
     if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+        // Ctrl+Shift+F: Open search
+        if (key == 'F' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+            OpenSearch();
+            return;
+        }
+        // Tab management shortcuts
+        if (key == 'T') {
+            // Ctrl+T: New tab
+            if (m_tabManager) {
+                int scrollbackLines = m_config->GetTerminal().scrollbackLines;
+                m_tabManager->CreateTab(m_shellCommand, 80, 24, scrollbackLines);
+                spdlog::info("Created new tab");
+            }
+            return;
+        }
+        if (key == 'W') {
+            // Ctrl+W: Close active tab
+            if (m_tabManager && m_tabManager->GetTabCount() > 1) {
+                m_tabManager->CloseActiveTab();
+                spdlog::info("Closed active tab");
+            } else if (m_tabManager && m_tabManager->GetTabCount() == 1) {
+                // Last tab - close window
+                m_running = false;
+            }
+            return;
+        }
+        if (key == VK_TAB) {
+            // Ctrl+Tab / Ctrl+Shift+Tab: Switch tabs
+            if (m_tabManager) {
+                if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+                    m_tabManager->PreviousTab();
+                } else {
+                    m_tabManager->NextTab();
+                }
+            }
+            return;
+        }
+
+        // Copy/Paste
         if (key == 'C') {
             if (m_hasSelection) {
                 CopySelectionToClipboard();
-            } else if (m_terminal && m_terminal->IsRunning()) {
+            } else if (terminal && terminal->IsRunning()) {
                 // Send SIGINT (Ctrl+C) to terminal
-                m_terminal->WriteInput("\x03", 1);
+                terminal->WriteInput("", 1);
             }
             return;
         }
@@ -494,20 +710,20 @@ void Application::OnKey(UINT key, bool isDown) {
         }
     }
 
-    if (!m_terminal || !m_terminal->IsRunning()) {
+    if (!terminal || !terminal->IsRunning()) {
         return;
     }
 
     // Handle scrollback navigation
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
         // Shift is pressed - handle scrollback
-        if (key == VK_PRIOR) {  // Shift+Page Up
-            int currentOffset = m_screenBuffer->GetScrollOffset();
-            m_screenBuffer->SetScrollOffset(currentOffset + m_screenBuffer->GetRows());
+        if (key == VK_PRIOR && screenBuffer) {  // Shift+Page Up
+            int currentOffset = screenBuffer->GetScrollOffset();
+            screenBuffer->SetScrollOffset(currentOffset + screenBuffer->GetRows());
             return;
-        } else if (key == VK_NEXT) {  // Shift+Page Down
-            int currentOffset = m_screenBuffer->GetScrollOffset();
-            m_screenBuffer->SetScrollOffset(std::max(0, currentOffset - m_screenBuffer->GetRows()));
+        } else if (key == VK_NEXT && screenBuffer) {  // Shift+Page Down
+            int currentOffset = screenBuffer->GetScrollOffset();
+            screenBuffer->SetScrollOffset(std::max(0, currentOffset - screenBuffer->GetRows()));
             return;
         }
     }
@@ -522,10 +738,10 @@ void Application::OnKey(UINT key, bool isDown) {
     // This ensures ConPTY correctly interprets the key
     switch (key) {
         case VK_BACK:
-            SendWin32InputKey(VK_BACK, L'\b', true, controlState);
+            SendWin32InputKey(VK_BACK, L'', true, controlState);
             return;
         case VK_RETURN:
-            SendWin32InputKey(VK_RETURN, L'\r', true, controlState);
+            SendWin32InputKey(VK_RETURN, L'', true, controlState);
             return;
         case VK_TAB:
             SendWin32InputKey(VK_TAB, L'	', true, controlState);
@@ -566,8 +782,10 @@ void Application::OnKey(UINT key, bool isDown) {
     }
 }
 
+
 void Application::OnMouseWheel(int delta) {
-    if (!m_screenBuffer) {
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    if (!screenBuffer) {
         return;
     }
 
@@ -579,13 +797,13 @@ void Application::OnMouseWheel(int delta) {
     const int linesPerNotch = 3;
     int scrollLines = (delta / WHEEL_DELTA) * linesPerNotch;
 
-    int currentOffset = m_screenBuffer->GetScrollOffset();
+    int currentOffset = screenBuffer->GetScrollOffset();
     int newOffset = currentOffset + scrollLines;
 
     // Clamp to valid range
     newOffset = std::max(0, newOffset);
 
-    m_screenBuffer->SetScrollOffset(newOffset);
+    screenBuffer->SetScrollOffset(newOffset);
 }
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
@@ -600,16 +818,52 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
     pos.y = (pixelY - startY) / lineHeight;
 
     // Clamp to valid range
-    if (m_screenBuffer) {
-        pos.x = std::max(0, std::min(pos.x, m_screenBuffer->GetCols() - 1));
-        pos.y = std::max(0, std::min(pos.y, m_screenBuffer->GetRows() - 1));
+    Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
+    if (screenBuffer) {
+        pos.x = std::max(0, std::min(pos.x, screenBuffer->GetCols() - 1));
+        pos.y = std::max(0, std::min(pos.y, screenBuffer->GetRows() - 1));
     }
 
     return pos;
 }
 
 void Application::OnMouseButton(int x, int y, int button, bool down) {
+    // Handle tab bar clicks (only when multiple tabs exist)
+    const int tabBarHeight = 30;
+    if (m_tabManager && m_tabManager->GetTabCount() > 1 && y < tabBarHeight && button == 0 && down) {
+        // Find which tab was clicked
+        float tabX = 5.0f;
+        const int charWidth = 10;
+        const auto& tabs = m_tabManager->GetTabs();
+
+        for (size_t i = 0; i < tabs.size(); ++i) {
+            const auto& tab = tabs[i];
+            std::wstring wTitle = tab->GetTitle();
+            int titleLen = static_cast<int>(wTitle.length());
+            if (titleLen > 15) titleLen = 15;
+
+            float tabWidth = static_cast<float>(std::max(80, titleLen * charWidth + 20));
+
+            if (x >= tabX && x < tabX + tabWidth) {
+                // Switch to this tab
+                m_tabManager->SwitchToTab(tab->GetId());
+                return;
+            }
+            tabX += tabWidth + 5.0f;
+        }
+        return;  // Click was in tab bar but not on a tab
+    }
+
     CellPos cellPos = ScreenToCell(x, y);
+
+    // Handle Ctrl+Click for URL opening
+    if (button == 0 && down && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) {
+        std::string url = DetectUrlAt(cellPos.x, cellPos.y);
+        if (!url.empty()) {
+            OpenUrl(url);
+            return;
+        }
+    }
 
     // Right-click context menu
     if (button == 1 && down) {
@@ -686,8 +940,9 @@ void Application::OnMouseMove(int x, int y) {
     CellPos cellPos = ScreenToCell(x, y);
 
     // Report mouse motion if application wants it
-    if (ShouldReportMouse() && m_vtParser) {
-        auto mouseMode = m_vtParser->GetMouseMode();
+    Terminal::VTStateMachine* vtParser = GetActiveVTParser();
+    if (ShouldReportMouse() && vtParser) {
+        auto mouseMode = vtParser->GetMouseMode();
         // Mode 1003 (All) reports all motion
         // Mode 1002 (Normal) reports motion only while button pressed
         if (mouseMode == Terminal::VTStateMachine::MouseMode::All ||
@@ -717,7 +972,8 @@ void Application::ClearSelection() {
 }
 
 std::string Application::GetSelectedText() const {
-    if (!m_hasSelection || !m_screenBuffer) {
+    Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
+    if (!m_hasSelection || !screenBuffer) {
         return "";
     }
 
@@ -736,14 +992,14 @@ std::string Application::GetSelectedText() const {
     }
 
     std::u32string text;
-    int cols = m_screenBuffer->GetCols();
+    int cols = screenBuffer->GetCols();
 
     for (int y = startY; y <= endY; ++y) {
         int rowStartX = (y == startY) ? startX : 0;
         int rowEndX = (y == endY) ? endX : cols - 1;
 
         for (int x = rowStartX; x <= rowEndX; ++x) {
-            const auto& cell = m_screenBuffer->GetCellWithScrollback(x, y);
+            const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
             text += cell.ch;
         }
 
@@ -833,7 +1089,8 @@ void Application::CopySelectionToClipboard() {
 }
 
 void Application::PasteFromClipboard() {
-    if (!m_terminal || !m_terminal->IsRunning() || !m_window) {
+    Pty::ConPtySession* terminal = GetActiveTerminal();
+    if (!terminal || !terminal->IsRunning() || !m_window) {
         return;
     }
 
@@ -864,7 +1121,7 @@ void Application::PasteFromClipboard() {
             }
 
             // Send to terminal
-            m_terminal->WriteInput(utf8.c_str(), utf8.length());
+            terminal->WriteInput(utf8.c_str(), utf8.length());
             spdlog::info("Pasted {} characters from clipboard", utf8.length());
         }
         GlobalUnlock(hData);
@@ -874,11 +1131,14 @@ void Application::PasteFromClipboard() {
 }
 
 bool Application::ShouldReportMouse() const {
-    return m_vtParser && m_vtParser->IsMouseReportingEnabled();
+    Terminal::VTStateMachine* vtParser = const_cast<Application*>(this)->GetActiveVTParser();
+    return vtParser && vtParser->IsMouseReportingEnabled();
 }
 
 void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool motion) {
-    if (!m_terminal || !m_terminal->IsRunning() || !m_vtParser) {
+    Pty::ConPtySession* terminal = GetActiveTerminal();
+    Terminal::VTStateMachine* vtParser = GetActiveVTParser();
+    if (!terminal || !terminal->IsRunning() || !vtParser) {
         return;
     }
 
@@ -890,7 +1150,7 @@ void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool mo
     char buf[64];
     int len = 0;
 
-    if (m_vtParser->IsSGRMouseModeEnabled()) {
+    if (vtParser->IsSGRMouseModeEnabled()) {
         // SGR Extended Mouse Mode (1006): CSI < Cb ; Cx ; Cy M/m
         // Button encoding: 0=left, 1=middle, 2=right, 32+button for motion
         int cb = button;
@@ -901,7 +1161,7 @@ void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool mo
     } else {
         // X10/Normal Mouse Mode: CSI M Cb Cx Cy (encoded as Cb+32, Cx+32, Cy+32)
         // Only for press events in X10 mode
-        if (!pressed && m_vtParser->GetMouseMode() == Terminal::VTStateMachine::MouseMode::X10) {
+        if (!pressed && vtParser->GetMouseMode() == Terminal::VTStateMachine::MouseMode::X10) {
             return;
         }
 
@@ -918,7 +1178,7 @@ void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool mo
     }
 
     if (len > 0 && len < (int)sizeof(buf)) {
-        m_terminal->WriteInput(buf, len);
+        terminal->WriteInput(buf, len);
     }
 }
 
@@ -936,12 +1196,13 @@ bool Application::IsWordChar(char32_t ch) const {
 }
 
 void Application::SelectWord(int cellX, int cellY) {
-    if (!m_screenBuffer) return;
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    if (!screenBuffer) return;
 
-    int cols = m_screenBuffer->GetCols();
+    int cols = screenBuffer->GetCols();
 
     // Get character at click position
-    const auto& cell = m_screenBuffer->GetCellWithScrollback(cellX, cellY);
+    const auto& cell = screenBuffer->GetCellWithScrollback(cellX, cellY);
     
     // If clicking on whitespace, don't select anything
     if (cell.ch == U' ' || cell.ch == 0) {
@@ -955,14 +1216,14 @@ void Application::SelectWord(int cellX, int cellY) {
 
     // Scan left
     while (startX > 0) {
-        const auto& prevCell = m_screenBuffer->GetCellWithScrollback(startX - 1, cellY);
+        const auto& prevCell = screenBuffer->GetCellWithScrollback(startX - 1, cellY);
         if (!IsWordChar(prevCell.ch)) break;
         startX--;
     }
 
     // Scan right
     while (endX < cols - 1) {
-        const auto& nextCell = m_screenBuffer->GetCellWithScrollback(endX + 1, cellY);
+        const auto& nextCell = screenBuffer->GetCellWithScrollback(endX + 1, cellY);
         if (!IsWordChar(nextCell.ch)) break;
         endX++;
     }
@@ -974,9 +1235,10 @@ void Application::SelectWord(int cellX, int cellY) {
 }
 
 void Application::SelectLine(int cellY) {
-    if (!m_screenBuffer) return;
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    if (!screenBuffer) return;
 
-    int cols = m_screenBuffer->GetCols();
+    int cols = screenBuffer->GetCols();
 
     // Select entire line
     m_selectionStart = {0, cellY};
@@ -1031,12 +1293,175 @@ void Application::ShowContextMenu(int x, int y) {
             PasteFromClipboard();
             break;
         case ID_SELECT_ALL:
-            if (m_screenBuffer) {
-                m_selectionStart = {0, 0};
-                m_selectionEnd = {m_screenBuffer->GetCols() - 1, m_screenBuffer->GetRows() - 1};
-                m_hasSelection = true;
+            {
+                Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+                if (screenBuffer) {
+                    m_selectionStart = {0, 0};
+                    m_selectionEnd = {screenBuffer->GetCols() - 1, screenBuffer->GetRows() - 1};
+                    m_hasSelection = true;
+                }
             }
             break;
+    }
+}
+
+// Search functionality
+void Application::OpenSearch() {
+    m_searchMode = true;
+    m_searchQuery.clear();
+    m_searchMatches.clear();
+    m_currentMatchIndex = -1;
+    spdlog::info("Search mode opened");
+}
+
+void Application::CloseSearch() {
+    m_searchMode = false;
+    m_searchQuery.clear();
+    m_searchMatches.clear();
+    m_currentMatchIndex = -1;
+    spdlog::info("Search mode closed");
+}
+
+void Application::UpdateSearchResults() {
+    m_searchMatches.clear();
+    m_currentMatchIndex = -1;
+
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    if (!screenBuffer || m_searchQuery.empty()) {
+        return;
+    }
+
+    // Convert search query to lowercase for case-insensitive search
+    std::wstring queryLower = m_searchQuery;
+    for (auto& ch : queryLower) {
+        ch = towlower(ch);
+    }
+
+    int rows = screenBuffer->GetRows();
+    int cols = screenBuffer->GetCols();
+    int queryLen = static_cast<int>(queryLower.length());
+
+    // Search through visible area and scrollback
+    // For now, just search visible area
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x <= cols - queryLen; ++x) {
+            bool match = true;
+            for (int i = 0; i < queryLen && match; ++i) {
+                const auto& cell = screenBuffer->GetCellWithScrollback(x + i, y);
+                wchar_t cellChar = static_cast<wchar_t>(cell.ch);
+                if (towlower(cellChar) != queryLower[i]) {
+                    match = false;
+                }
+            }
+            if (match) {
+                m_searchMatches.push_back({x, y});
+            }
+        }
+    }
+
+    // If we found matches, select the first one
+    if (!m_searchMatches.empty()) {
+        m_currentMatchIndex = 0;
+    }
+
+    spdlog::info("Search found {} matches", m_searchMatches.size());
+}
+
+void Application::SearchNext() {
+    if (m_searchMatches.empty()) {
+        return;
+    }
+
+    m_currentMatchIndex = (m_currentMatchIndex + 1) % static_cast<int>(m_searchMatches.size());
+    spdlog::debug("Search: next match {} of {}", m_currentMatchIndex + 1, m_searchMatches.size());
+}
+
+void Application::SearchPrevious() {
+    if (m_searchMatches.empty()) {
+        return;
+    }
+
+    m_currentMatchIndex--;
+    if (m_currentMatchIndex < 0) {
+        m_currentMatchIndex = static_cast<int>(m_searchMatches.size()) - 1;
+    }
+    spdlog::debug("Search: previous match {} of {}", m_currentMatchIndex + 1, m_searchMatches.size());
+}
+
+// URL detection
+std::string Application::DetectUrlAt(int cellX, int cellY) const {
+    Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
+    if (!screenBuffer) return "";
+
+    int cols = screenBuffer->GetCols();
+
+    // Build the text around the clicked position
+    std::string lineText;
+    for (int x = 0; x < cols; ++x) {
+        const auto& cell = screenBuffer->GetCellWithScrollback(x, cellY);
+        if (cell.ch < 128 && cell.ch > 0) {
+            lineText += static_cast<char>(cell.ch);
+        } else if (cell.ch >= 128) {
+            lineText += ' ';  // Replace non-ASCII with space
+        } else {
+            lineText += ' ';
+        }
+    }
+
+    // URL prefixes to detect
+    const char* prefixes[] = {"https://", "http://", "file://", "ftp://"};
+
+    // Find all URLs in the line and check if cellX is within any of them
+    for (const char* prefix : prefixes) {
+        size_t pos = 0;
+        while ((pos = lineText.find(prefix, pos)) != std::string::npos) {
+            // Find the end of the URL
+            size_t urlEnd = pos;
+            while (urlEnd < lineText.length()) {
+                char ch = lineText[urlEnd];
+                // URL valid characters
+                if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                    (ch >= '0' && ch <= '9') ||
+                    ch == '-' || ch == '.' || ch == '_' || ch == '~' ||
+                    ch == ':' || ch == '/' || ch == '?' || ch == '#' ||
+                    ch == '[' || ch == ']' || ch == '@' || ch == '!' ||
+                    ch == '$' || ch == '&' || ch == '\'' || ch == '(' ||
+                    ch == ')' || ch == '*' || ch == '+' || ch == ',' ||
+                    ch == ';' || ch == '=' || ch == '%') {
+                    urlEnd++;
+                } else {
+                    break;
+                }
+            }
+
+            // Check if the clicked position is within this URL
+            if (cellX >= static_cast<int>(pos) && cellX < static_cast<int>(urlEnd)) {
+                return lineText.substr(pos, urlEnd - pos);
+            }
+
+            pos = urlEnd;
+        }
+    }
+
+    return "";
+}
+
+void Application::OpenUrl(const std::string& url) {
+    if (url.empty()) return;
+
+    // Convert to wide string for ShellExecute
+    int wideLen = MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, nullptr, 0);
+    if (wideLen <= 0) return;
+
+    std::wstring wideUrl(wideLen, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, &wideUrl[0], wideLen);
+
+    // Open URL in default browser
+    HINSTANCE result = ShellExecuteW(nullptr, L"open", wideUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    if (reinterpret_cast<intptr_t>(result) > 32) {
+        spdlog::info("Opened URL: {}", url);
+    } else {
+        spdlog::error("Failed to open URL: {}", url);
     }
 }
 

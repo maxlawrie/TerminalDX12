@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <chrono>
+#include <vector>
 #include <Windows.h>
 
 namespace TerminalDX12 {
@@ -17,6 +18,10 @@ namespace Pty { class ConPtySession; }
 namespace Terminal {
     class ScreenBuffer;
     class VTStateMachine;
+}
+namespace UI {
+    class TabManager;
+    class Tab;
 }
 
 namespace Core {
@@ -67,12 +72,26 @@ private:
     // Context menu
     void ShowContextMenu(int x, int y);
 
+    // Search functionality
+    void OpenSearch();
+    void CloseSearch();
+    void SearchNext();
+    void SearchPrevious();
+    void UpdateSearchResults();
+
+    // URL detection
+    std::string DetectUrlAt(int cellX, int cellY) const;
+    void OpenUrl(const std::string& url);
+
     std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
-    std::unique_ptr<Pty::ConPtySession> m_terminal;
-    std::unique_ptr<Terminal::ScreenBuffer> m_screenBuffer;
-    std::unique_ptr<Terminal::VTStateMachine> m_vtParser;
+    std::unique_ptr<UI::TabManager> m_tabManager;
+
+    // Helper accessors for active tab's components
+    Terminal::ScreenBuffer* GetActiveScreenBuffer();
+    Terminal::VTStateMachine* GetActiveVTParser();
+    Pty::ConPtySession* GetActiveTerminal();
 
     bool m_running;
     bool m_minimized;
@@ -90,6 +109,12 @@ private:
     int m_clickCount;              // 1=single, 2=double, 3=triple
     int m_lastMouseButton;         // Last button pressed (for mouse reporting)
     bool m_mouseButtonDown;        // Is a button currently pressed
+
+    // Search state
+    bool m_searchMode = false;         // Search bar is visible
+    std::wstring m_searchQuery;        // Current search text
+    std::vector<CellPos> m_searchMatches;  // Found match positions
+    int m_currentMatchIndex = -1;      // Currently highlighted match (-1 = none)
 
     static Application* s_instance;
 };
