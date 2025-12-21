@@ -7,7 +7,10 @@
 namespace TerminalDX12 {
 
 // Forward declarations
-namespace Core { class Window; }
+namespace Core {
+    class Window;
+    class Config;
+}
 namespace Rendering { class DX12Renderer; }
 namespace Pty { class ConPtySession; }
 namespace Terminal {
@@ -51,6 +54,7 @@ private:
     void PasteFromClipboard();
     void ClearSelection();
 
+    std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
     std::unique_ptr<Pty::ConPtySession> m_terminal;

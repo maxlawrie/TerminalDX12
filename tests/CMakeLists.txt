@@ -5,7 +5,10 @@ find_package(spdlog CONFIG REQUIRED)
 
 # Create a testable static library from terminal components
 # This allows unit testing without linking the full application
+find_package(nlohmann_json CONFIG REQUIRED)
+
 add_library(TerminalCore STATIC
+    ${CMAKE_SOURCE_DIR}/src/core/Config.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/ScreenBuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/VTStateMachine.cpp
 )
@@ -16,6 +19,7 @@ target_include_directories(TerminalCore PUBLIC
 
 target_link_libraries(TerminalCore PRIVATE
     spdlog::spdlog
+    nlohmann_json::nlohmann_json
 )
 
 # Compiler settings for the library
@@ -27,6 +31,7 @@ endif()
 
 # Unit test sources
 set(TEST_SOURCES
+    unit/test_config.cpp
     unit/test_vt_parser.cpp
     unit/test_screen_buffer.cpp
     unit/test_unicode.cpp

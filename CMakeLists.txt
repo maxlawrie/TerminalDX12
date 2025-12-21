@@ -31,6 +31,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # Source files
 set(CORE_SOURCES
     src/core/Application.cpp
+    src/core/Config.cpp
     src/core/Window.cpp
 )
 

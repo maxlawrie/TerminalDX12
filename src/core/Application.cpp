@@ -1,4 +1,5 @@
 #include "core/Application.h"
+#include "core/Config.h"
 #include "core/Window.h"
 #include "rendering/DX12Renderer.h"
 #include "pty/ConPtySession.h"
@@ -32,7 +33,20 @@ Application::~Application() {
 }
 
 bool Application::Initialize(const std::wstring& shell) {
-    m_shellCommand = shell;
+    // Load configuration
+    m_config = std::make_unique<Config>();
+    m_config->LoadDefault();
+    
+    // Create default config file if it doesn't exist
+    m_config->CreateDefaultIfMissing();
+    
+    // Log any config warnings
+    for (const auto& warning : m_config->GetWarnings()) {
+        spdlog::warn("Config: {}", warning);
+    }
+    
+    // Use shell from command line if provided, otherwise from config
+    m_shellCommand = shell.empty() ? m_config->GetTerminal().shell : shell;
 
     // Create window
     m_window = std::make_unique<Window>();
@@ -96,8 +110,9 @@ bool Application::Initialize(const std::wstring& shell) {
     int termCols = 80;
     int termRows = 24;
 
-    // Create screen buffer
-    m_screenBuffer = std::make_unique<Terminal::ScreenBuffer>(termCols, termRows);
+    // Create screen buffer with configured scrollback
+    int scrollbackLines = m_config->GetTerminal().scrollbackLines;
+    m_screenBuffer = std::make_unique<Terminal::ScreenBuffer>(termCols, termRows, scrollbackLines);
 
     // Create VT parser
     m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
@@ -202,25 +217,19 @@ void Application::Render() {
     m_renderer->BeginFrame();
     m_renderer->ClearText();
 
-    // VT100/ANSI color palette (16 colors)
-    static const float colorPalette[16][3] = {
-        {0.0f, 0.0f, 0.0f},      // 0: Black
-        {0.8f, 0.0f, 0.0f},      // 1: Red
-        {0.0f, 0.8f, 0.0f},      // 2: Green
-        {0.8f, 0.8f, 0.0f},      // 3: Yellow
-        {0.0f, 0.0f, 0.8f},      // 4: Blue
-        {0.8f, 0.0f, 0.8f},      // 5: Magenta
-        {0.0f, 0.8f, 0.8f},      // 6: Cyan
-        {0.8f, 0.8f, 0.8f},      // 7: White
-        {0.5f, 0.5f, 0.5f},      // 8: Bright Black (Gray)
-        {1.0f, 0.0f, 0.0f},      // 9: Bright Red
-        {0.0f, 1.0f, 0.0f},      // 10: Bright Green
-        {1.0f, 1.0f, 0.0f},      // 11: Bright Yellow
-        {0.0f, 0.0f, 1.0f},      // 12: Bright Blue
-        {1.0f, 0.0f, 1.0f},      // 13: Bright Magenta
-        {0.0f, 1.0f, 1.0f},      // 14: Bright Cyan
-        {1.0f, 1.0f, 1.0f}       // 15: Bright White
-    };
+    // Get color palette from config
+    const auto& colorConfig = m_config->GetColors();
+    float colorPalette[16][3];
+    for (int i = 0; i < 16; ++i) {
+        colorPalette[i][0] = colorConfig.palette[i].r / 255.0f;
+        colorPalette[i][1] = colorConfig.palette[i].g / 255.0f;
+        colorPalette[i][2] = colorConfig.palette[i].b / 255.0f;
+    }
+    
+    // Cursor color from config
+    float cursorR = colorConfig.cursor.r / 255.0f;
+    float cursorG = colorConfig.cursor.g / 255.0f;
+    float cursorB = colorConfig.cursor.b / 255.0f;
 
     // Render screen buffer contents
     const int fontSize = 16;  // Should match the font size used by renderer
@@ -379,7 +388,7 @@ void Application::Render() {
             float cursorPosY = static_cast<float>(startY + cursorY * lineHeight);
 
             // Render underscore or block cursor
-            m_renderer->RenderText("_", cursorPosX, cursorPosY, 0.0f, 1.0f, 0.0f, 1.0f);  // Green cursor
+            m_renderer->RenderText("_", cursorPosX, cursorPosY, cursorR, cursorG, cursorB, 1.0f);
         }
     }
 
