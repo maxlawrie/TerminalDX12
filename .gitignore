@@ -70,3 +70,8 @@ CTestTestfile.cmake
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Test outputs
+tests/screenshots/
+tests/test_output.txt
+tests/test_basic_output.txt
