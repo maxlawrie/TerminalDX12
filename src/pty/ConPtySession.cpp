@@ -73,6 +73,10 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
     // Prepare startup info with pseudoconsole attribute
     STARTUPINFOEXW siEx = {};
     siEx.StartupInfo.cb = sizeof(STARTUPINFOEXW);
+    siEx.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    siEx.StartupInfo.hStdInput = nullptr;
+    siEx.StartupInfo.hStdOutput = nullptr;
+    siEx.StartupInfo.hStdError = nullptr;
 
     // Allocate attribute list
     SIZE_T attrListSize = 0;
@@ -119,7 +123,7 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
         nullptr,                                    // Thread security attributes
         FALSE,                                      // Inherit handles
         EXTENDED_STARTUPINFO_PRESENT,               // Creation flags
-        nullptr,                                    // Environment
+        nullptr,                                    // Inherit environment
         nullptr,                                    // Current directory
         &siEx.StartupInfo,                          // Startup info
         &pi                                         // Process information

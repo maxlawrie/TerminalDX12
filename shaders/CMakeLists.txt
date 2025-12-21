@@ -59,3 +59,12 @@ endforeach()
 add_custom_target(Shaders ALL
     DEPENDS ${COMPILED_SHADERS}
 )
+
+# Copy shaders to executable output directory after build
+add_custom_command(TARGET Shaders POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TerminalDX12>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${COMPILED_SHADERS}
+        $<TARGET_FILE_DIR:TerminalDX12>/shaders/
+    COMMENT "Copying shaders to output directory"
+)
