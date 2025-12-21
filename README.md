@@ -54,6 +54,13 @@ cmake --build . --config Release
 bin\Release\TerminalDX12.exe
 ```
 
+By default, PowerShell is used. To run a different shell:
+
+```bash
+bin\Release\TerminalDX12.exe cmd.exe
+bin\Release\TerminalDX12.exe bash.exe
+```
+
 ## Usage
 
 ### Keyboard Shortcuts
@@ -85,7 +92,11 @@ TerminalDX12/
 │   └── ui/           # Input handling
 ├── src/              # Implementation files
 ├── shaders/          # HLSL shaders for text rendering
-└── tests/            # Python test suite with screenshots
+├── tests/            # Test suites
+│   ├── unit/         # C++ unit tests (GTest)
+│   ├── *.py          # Python integration tests
+│   └── README.md     # Test documentation
+└── run_tests.bat     # Test runner script
 ```
 
 ## Architecture
@@ -106,23 +117,52 @@ TerminalDX12/
 
 ## Testing
 
-The test suite uses Python with screenshot-based visual validation:
+### C++ Unit Tests
+
+Build with tests enabled:
 
 ```bash
-cd C:\Temp\TerminalDX12Test
+cmake .. -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTS=ON
+cmake --build . --config Release
+```
+
+Run tests using the helper script:
+
+```bash
+run_tests.bat
+```
+
+Or run the test executable directly:
+
+```bash
+build\tests\Release\TerminalDX12Tests.exe
+```
+
+**Test Coverage:** 165 unit tests covering VT parser, screen buffer, and Unicode handling.
+
+### Python Integration Tests
+
+Visual validation tests using screenshots:
+
+```bash
+cd tests
 python test_terminal.py
 ```
 
 **Requirements:** Python 3.x, Pillow, pywin32, numpy
 
-**Test Coverage:** 20 tests covering startup, keyboard input, colors, text attributes, scrollback, and more.
+**Test Coverage:** 35 integration tests covering startup, keyboard input, colors, text attributes, scrollback, resize, and mouse interactions.
 
 ## Dependencies (via vcpkg)
 
+**Runtime:**
 - directx-headers
 - freetype
 - spdlog
 - nlohmann-json
+
+**Testing (optional):**
+- gtest
 
 ## License
 
