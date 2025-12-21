@@ -46,10 +46,10 @@ cmd.exe /c "cd /d C:\\Temp\\TerminalDX12Test && python test_terminal.py"
 ```
 tests/
   unit/                    # C++ unit tests (GTest)
-    test_screen_buffer.cpp # ScreenBuffer tests (~55 tests)
-    test_vt_parser.cpp     # VTStateMachine tests (~63 tests)
-    test_unicode.cpp       # Unicode handling tests (~20 tests)
-    test_performance.cpp   # Performance benchmarks (~15 tests)
+    test_screen_buffer.cpp # ScreenBuffer tests (61 tests)
+    test_vt_parser.cpp     # VTStateMachine tests (68 tests)
+    test_unicode.cpp       # Unicode handling tests (27 tests)
+    test_performance.cpp   # Performance benchmarks (20 tests)
   test_terminal.py         # Main Python visual tests (22 tests)
   test_mouse.py            # Mouse interaction tests
   test_resize.py           # Window resize tests

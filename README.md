@@ -153,7 +153,14 @@ python test_terminal.py
 
 **Requirements:** Python 3.x, Pillow, pywin32, numpy
 
-**Test Coverage:** 35 integration tests covering startup, keyboard input, colors, text attributes, scrollback, resize, and mouse interactions.
+**Test Coverage:** 22 integration tests covering startup, keyboard input, colors, text attributes, scrollback, resize, and mouse interactions.
+
+For detailed test documentation, see [tests/README.md](tests/README.md).
+
+
+## Feature Specification
+
+See [SPECIFICATION.md](SPECIFICATION.md) for a complete list of supported VT escape sequences, text attributes, and planned features with implementation status.
 
 ## Dependencies (via vcpkg)
 
