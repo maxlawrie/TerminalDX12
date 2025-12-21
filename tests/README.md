@@ -1,7 +1,7 @@
 # TerminalDX12 Test Suite
 
 This directory contains the test suite for TerminalDX12, consisting of:
-- **C++ Unit Tests** - Fast, headless tests for core terminal logic (165 tests)
+- **C++ Unit Tests** - Fast, headless tests for core terminal logic (176 tests)
 - **Python Integration Tests** - Visual tests that verify rendering (22 tests)
 
 ## Quick Start
@@ -77,12 +77,12 @@ ctest --output-on-failure -C Release
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| test_screen_buffer.cpp | 55 | Buffer ops, cursor, scrolling, resize, attributes |
-| test_vt_parser.cpp | 63 | Escape sequences, colors, cursor movement, OSC |
+| test_screen_buffer.cpp | 61 | Buffer ops, cursor, scrolling, resize, attributes, backspace |
+| test_vt_parser.cpp | 68 | Escape sequences, colors, cursor movement, OSC, backspace |
 | test_unicode.cpp | 27 | CJK, emoji, box drawing, symbols, edge cases |
 | test_performance.cpp | 20 | Throughput, stress tests, memory |
 
-**Total: 165 C++ unit tests**
+**Total: 176 C++ unit tests**
 
 ## Python Integration Tests
 
@@ -203,9 +203,9 @@ The `helpers.py` module provides reusable components:
 
 ## Current Test Status
 
-### C++ Unit Tests: 165/165 passing (100%)
+### C++ Unit Tests: 176/176 passing (100%)
 
-All C++ unit tests pass successfully.
+All C++ unit tests pass successfully, including the new backspace behavior tests.
 
 ### Python Integration Tests: 22/22 passing (100%)
 
