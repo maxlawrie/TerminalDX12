@@ -7,9 +7,11 @@ A GPU-accelerated terminal emulator for Windows using DirectX 12.
 - **GPU-Accelerated Rendering** - DirectX 12 instanced rendering with glyph atlas
 - **VT100/ANSI Support** - Colors (16, 256, true color), bold, underline, inverse
 - **ConPTY Integration** - Native Windows pseudo console for shell processes
+- **Win32 Input Mode** - Full support for ConPTY's Win32 input mode for proper key handling
 - **Copy/Paste** - Mouse text selection with Ctrl+C/V clipboard support
 - **Scrollback Buffer** - 10,000 lines of history with mouse wheel scrolling
 - **Unicode Support** - Full UTF-8/UTF-32 character handling via FreeType
+- **Multi-Shell Support** - Works with PowerShell, cmd.exe, and WSL/Ubuntu
 
 ## Screenshots
 
@@ -58,7 +60,7 @@ By default, PowerShell is used. To run a different shell:
 
 ```bash
 bin\Release\TerminalDX12.exe cmd.exe
-bin\Release\TerminalDX12.exe bash.exe
+bin\Release\TerminalDX12.exe wsl.exe
 ```
 
 ## Usage
@@ -138,7 +140,7 @@ Or run the test executable directly:
 build\tests\Release\TerminalDX12Tests.exe
 ```
 
-**Test Coverage:** 165 unit tests covering VT parser, screen buffer, and Unicode handling.
+**Test Coverage:** 176 unit tests covering VT parser, screen buffer, Unicode handling, and backspace behavior.
 
 ### Python Integration Tests
 

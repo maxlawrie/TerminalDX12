@@ -220,6 +220,68 @@ TEST_F(ScreenBufferTest, WriteCharBackspaceAtStart) {
     EXPECT_EQ(buffer->GetCursorX(), 0);  // Doesn't go negative
 }
 
+TEST_F(ScreenBufferTest, WriteCharBackspacePreservesCharacter) {
+    // Backspace should only move cursor, not erase
+    buffer->WriteChar(U'A');
+    buffer->WriteChar(U'B');
+    buffer->WriteChar(U'C');
+    buffer->WriteChar(U'\b');
+
+    EXPECT_EQ(buffer->GetCursorX(), 2);
+    EXPECT_EQ(buffer->GetCell(2, 0).ch, U'C');  // Character still there
+}
+
+TEST_F(ScreenBufferTest, WriteCharBackspaceOverwrite) {
+    // Type ABC, backspace, type X - should give ABX
+    buffer->WriteChar(U'A');
+    buffer->WriteChar(U'B');
+    buffer->WriteChar(U'C');
+    buffer->WriteChar(U'\b');
+    buffer->WriteChar(U'X');
+
+    EXPECT_EQ(buffer->GetCell(0, 0).ch, U'A');
+    EXPECT_EQ(buffer->GetCell(1, 0).ch, U'B');
+    EXPECT_EQ(buffer->GetCell(2, 0).ch, U'X');
+    EXPECT_EQ(buffer->GetCursorX(), 3);
+}
+
+TEST_F(ScreenBufferTest, WriteCharBackspaceSpaceBackspace) {
+    // Typical erase sequence: \b \b
+    buffer->WriteChar(U'A');
+    buffer->WriteChar(U'B');
+    buffer->WriteChar(U'C');
+    buffer->WriteChar(U'\b');  // Move back
+    buffer->WriteChar(U' ');   // Overwrite with space
+    buffer->WriteChar(U'\b');  // Move back again
+
+    EXPECT_EQ(buffer->GetCursorX(), 2);
+    EXPECT_EQ(buffer->GetCell(2, 0).ch, U' ');  // Erased
+    EXPECT_EQ(buffer->GetCell(0, 0).ch, U'A');
+    EXPECT_EQ(buffer->GetCell(1, 0).ch, U'B');
+}
+
+TEST_F(ScreenBufferTest, WriteCharBackspaceDoesNotWrapToPreviousLine) {
+    buffer->SetCursorPos(0, 1);
+    buffer->WriteChar(U'\b');
+
+    // Should stay at column 0, row 1
+    EXPECT_EQ(buffer->GetCursorX(), 0);
+    EXPECT_EQ(buffer->GetCursorY(), 1);
+}
+
+TEST_F(ScreenBufferTest, WriteCharMultipleBackspaces) {
+    buffer->WriteChar(U'A');
+    buffer->WriteChar(U'B');
+    buffer->WriteChar(U'C');
+    buffer->WriteChar(U'D');
+    buffer->WriteChar(U'E');
+    buffer->WriteChar(U'\b');
+    buffer->WriteChar(U'\b');
+    buffer->WriteChar(U'\b');
+
+    EXPECT_EQ(buffer->GetCursorX(), 2);
+}
+
 TEST_F(ScreenBufferTest, WriteCharMarksBufferDirty) {
     buffer->ClearDirty();
     buffer->WriteChar(U'X');

@@ -50,6 +50,10 @@ void VTStateMachine::ProcessCharacter(char ch) {
                 } else {
                     m_params.push_back(0);
                 }
+            } else if (ch == '?' || ch == '>' || ch == '!') {
+                // Private mode indicator - store as intermediate
+                m_intermediateChar = ch;
+                m_state = State::CSI_Param;
             } else if (ch >= 0x20 && ch <= 0x2F) {  // Intermediate byte
                 m_intermediateChar = ch;
                 m_state = State::CSI_Intermediate;
@@ -149,18 +153,25 @@ void VTStateMachine::HandleCSI() {
         case 'B': HandleCursorDown(); break;
         case 'C': HandleCursorForward(); break;
         case 'D': HandleCursorBack(); break;
+        case 'G': HandleCursorHorizontalAbsolute(); break;  // CHA
+        case 'd': HandleCursorVerticalAbsolute(); break;    // VPA
         case 'H': HandleCursorPosition(); break;
         case 'f': HandleCursorPosition(); break;  // HVP (same as CUP)
         case 'J': HandleEraseInDisplay(); break;
         case 'K': HandleEraseInLine(); break;
+        case 'X': HandleEraseCharacter(); break;            // ECH
+        case 'P': HandleDeleteCharacter(); break;           // DCH
+        case '@': HandleInsertCharacter(); break;           // ICH
+        case 'L': HandleInsertLine(); break;                // IL
+        case 'M': HandleDeleteLine(); break;                // DL
         case 'm': HandleSGR(); break;
         case 'c': HandleDeviceAttributes(); break;
         case 'h': HandleMode(); break;
         case 'l': HandleMode(); break;
+        case 'r': HandleSetScrollingRegion(); break;        // DECSTBM
+        case 'n': HandleDeviceStatusReport(); break;        // DSR
         default:
-            spdlog::debug("Unhandled CSI sequence: ESC[{}{}",
-                         m_intermediateChar ? std::string(1, m_intermediateChar) : "",
-                         m_finalChar);
+            // Unhandled CSI sequence - silently ignore
             break;
     }
 }
@@ -198,6 +209,103 @@ void VTStateMachine::HandleCursorBack() {
     int x, y;
     m_screenBuffer->GetCursorPos(x, y);
     m_screenBuffer->SetCursorPos(std::max(0, x - count), y);
+}
+
+void VTStateMachine::HandleCursorHorizontalAbsolute() {
+    // ESC[nG - Move cursor to column n (1-indexed)
+    int col = GetParam(0, 1) - 1;
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+    m_screenBuffer->SetCursorPos(col, y);
+}
+
+void VTStateMachine::HandleCursorVerticalAbsolute() {
+    // ESC[nd - Move cursor to row n (1-indexed)
+    int row = GetParam(0, 1) - 1;
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+    m_screenBuffer->SetCursorPos(x, row);
+}
+
+void VTStateMachine::HandleEraseCharacter() {
+    // ESC[nX - Erase n characters at cursor (replace with spaces)
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+
+    for (int i = 0; i < count && (x + i) < m_screenBuffer->GetCols(); ++i) {
+        m_screenBuffer->GetCellMutable(x + i, y).ch = U' ';
+    }
+}
+
+void VTStateMachine::HandleDeleteCharacter() {
+    // ESC[nP - Delete n characters at cursor (shift remaining left)
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+    int cols = m_screenBuffer->GetCols();
+
+    // Shift characters left
+    for (int i = x; i < cols - count; ++i) {
+        m_screenBuffer->GetCellMutable(i, y) = m_screenBuffer->GetCell(i + count, y);
+    }
+
+    // Clear the rightmost characters
+    for (int i = cols - count; i < cols; ++i) {
+        m_screenBuffer->GetCellMutable(i, y).ch = U' ';
+    }
+}
+
+void VTStateMachine::HandleInsertCharacter() {
+    // ESC[n@ - Insert n blank characters at cursor (shift remaining right)
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+    int cols = m_screenBuffer->GetCols();
+
+    // Shift characters right
+    for (int i = cols - 1; i >= x + count; --i) {
+        m_screenBuffer->GetCellMutable(i, y) = m_screenBuffer->GetCell(i - count, y);
+    }
+
+    // Clear the inserted positions
+    for (int i = x; i < x + count && i < cols; ++i) {
+        m_screenBuffer->GetCellMutable(i, y).ch = U' ';
+    }
+}
+
+void VTStateMachine::HandleInsertLine() {
+    // ESC[nL - Insert n blank lines at cursor (scroll down)
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+
+    // For now, just clear lines - proper implementation would scroll region
+    for (int i = 0; i < count; ++i) {
+        m_screenBuffer->ClearLine(y + i);
+    }
+}
+
+void VTStateMachine::HandleDeleteLine() {
+    // ESC[nM - Delete n lines at cursor (scroll up)
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+
+    // For now, just clear lines - proper implementation would scroll region
+    for (int i = 0; i < count; ++i) {
+        m_screenBuffer->ClearLine(y + i);
+    }
+}
+
+void VTStateMachine::HandleSetScrollingRegion() {
+    // ESC[t;br - Set scrolling region from line t to line b
+    // For now, just ignore (full-screen scrolling)
+}
+
+void VTStateMachine::HandleDeviceStatusReport() {
+    // ESC[n - Various device status queries
+    // For now, just ignore
 }
 
 void VTStateMachine::HandleEraseInDisplay() {

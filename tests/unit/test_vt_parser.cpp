@@ -75,6 +75,62 @@ TEST_F(VTStateMachineTest, ProcessTab) {
     EXPECT_EQ(buffer->GetCell(8, 0).ch, U'B');
 }
 
+TEST_F(VTStateMachineTest, ProcessBackspace) {
+    ProcessString("ABC\b");
+
+    // Cursor should be at position 2 (moved back from 3)
+    EXPECT_EQ(buffer->GetCursorX(), 2);
+    // Character should still be there (backspace only moves cursor)
+    EXPECT_EQ(buffer->GetCell(2, 0).ch, U'C');
+}
+
+TEST_F(VTStateMachineTest, ProcessBackspaceSpaceBackspace) {
+    // This is the typical "erase character" sequence: \b \b
+    ProcessString("ABC\b \b");
+
+    // Cursor should be at position 2
+    EXPECT_EQ(buffer->GetCursorX(), 2);
+    // Character should be erased (replaced with space)
+    EXPECT_EQ(buffer->GetCell(2, 0).ch, U' ');
+    // Previous characters should remain
+    EXPECT_EQ(buffer->GetCell(0, 0).ch, U'A');
+    EXPECT_EQ(buffer->GetCell(1, 0).ch, U'B');
+}
+
+TEST_F(VTStateMachineTest, ProcessMultipleBackspaces) {
+    ProcessString("ABCDE\b\b\b");
+
+    // Cursor should be at position 2 (moved back 3 from 5)
+    EXPECT_EQ(buffer->GetCursorX(), 2);
+}
+
+TEST_F(VTStateMachineTest, ProcessBackspaceAtStart) {
+    ProcessString("\b");
+
+    // Cursor should stay at 0
+    EXPECT_EQ(buffer->GetCursorX(), 0);
+}
+
+TEST_F(VTStateMachineTest, ProcessBackspaceAndType) {
+    // Type ABC, backspace, type X - should result in ABX
+    ProcessString("ABC\bX");
+
+    EXPECT_EQ(buffer->GetCell(0, 0).ch, U'A');
+    EXPECT_EQ(buffer->GetCell(1, 0).ch, U'B');
+    EXPECT_EQ(buffer->GetCell(2, 0).ch, U'X');
+    EXPECT_EQ(buffer->GetCursorX(), 3);
+}
+
+TEST_F(VTStateMachineTest, ProcessBackspaceDoesNotWrapLine) {
+    // Move to start of second line and backspace
+    buffer->SetCursorPos(0, 1);
+    ProcessString("\b");
+
+    // Should stay at column 0, row 1 (not wrap to end of row 0)
+    EXPECT_EQ(buffer->GetCursorX(), 0);
+    EXPECT_EQ(buffer->GetCursorY(), 1);
+}
+
 TEST_F(VTStateMachineTest, ProcessEmptyInput) {
     ProcessString("");
     // Should not crash

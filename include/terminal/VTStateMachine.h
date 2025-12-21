@@ -40,11 +40,20 @@ private:
     void HandleCursorDown();         // CUD - ESC[#B
     void HandleCursorForward();      // CUF - ESC[#C
     void HandleCursorBack();         // CUB - ESC[#D
+    void HandleCursorHorizontalAbsolute();  // CHA - ESC[#G
+    void HandleCursorVerticalAbsolute();    // VPA - ESC[#d
     void HandleEraseInDisplay();     // ED - ESC[#J
     void HandleEraseInLine();        // EL - ESC[#K
+    void HandleEraseCharacter();     // ECH - ESC[#X
+    void HandleDeleteCharacter();    // DCH - ESC[#P
+    void HandleInsertCharacter();    // ICH - ESC[#@
+    void HandleInsertLine();         // IL - ESC[#L
+    void HandleDeleteLine();         // DL - ESC[#M
     void HandleSGR();                // SGR - ESC[#m (colors/attributes)
     void HandleDeviceAttributes();   // DA - ESC[#c
     void HandleMode();               // Set/Reset mode
+    void HandleSetScrollingRegion(); // DECSTBM - ESC[#;#r
+    void HandleDeviceStatusReport(); // DSR - ESC[#n
     void HandleOSC();                // OSC - ESC]#;...BEL (Operating System Command)
 
     // Utility

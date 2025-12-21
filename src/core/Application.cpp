@@ -406,12 +406,48 @@ void Application::OnChar(wchar_t ch) {
         return;
     }
 
+    // Skip control characters that are handled by OnKey via WM_KEYDOWN
+    // These would otherwise be sent twice (once by WM_KEYDOWN, once by WM_CHAR)
+    if (ch == L'\b' ||   // Backspace - handled by VK_BACK
+        ch == L'\t' ||   // Tab - handled by VK_TAB
+        ch == L'\r' ||   // Enter - handled by VK_RETURN
+        ch == L'\x1b') { // Escape - handled by VK_ESCAPE
+        return;
+    }
+
     // Convert wchar_t to UTF-8 for ConPTY
     char utf8[4] = {0};
     int len = WideCharToMultiByte(CP_UTF8, 0, &ch, 1, utf8, sizeof(utf8), nullptr, nullptr);
 
     if (len > 0) {
         m_terminal->WriteInput(utf8, len);
+    }
+}
+
+// Helper to get scan code for a virtual key
+static WORD GetScanCodeForVK(UINT vk) {
+    return static_cast<WORD>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC));
+}
+
+// Send key in Win32 input mode format: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
+void Application::SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown, DWORD controlState) {
+    if (!m_terminal || !m_terminal->IsRunning()) {
+        return;
+    }
+
+    WORD scanCode = GetScanCodeForVK(vk);
+
+    // Format: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), "\x1b[%u;%u;%u;%u;%u;1_",
+                       vk,
+                       scanCode,
+                       static_cast<unsigned>(unicodeChar),
+                       keyDown ? 1 : 0,
+                       controlState);
+
+    if (len > 0 && len < (int)sizeof(buf)) {
+        m_terminal->WriteInput(buf, len);
     }
 }
 
@@ -441,54 +477,6 @@ void Application::OnKey(UINT key, bool isDown) {
         return;
     }
 
-    // Handle special keys
-    const char* sequence = nullptr;
-
-    switch (key) {
-        case VK_RETURN:
-            sequence = "\r";
-            break;
-        case VK_BACK:
-            sequence = "\b";
-            break;
-        case VK_TAB:
-            sequence = "\t";
-            break;
-        case VK_ESCAPE:
-            sequence = "\x1b";
-            break;
-        case VK_UP:
-            sequence = "\x1b[A";
-            break;
-        case VK_DOWN:
-            sequence = "\x1b[B";
-            break;
-        case VK_RIGHT:
-            sequence = "\x1b[C";
-            break;
-        case VK_LEFT:
-            sequence = "\x1b[D";
-            break;
-        case VK_HOME:
-            sequence = "\x1b[H";
-            break;
-        case VK_END:
-            sequence = "\x1b[F";
-            break;
-        case VK_PRIOR:  // Page Up
-            sequence = "\x1b[5~";
-            break;
-        case VK_NEXT:   // Page Down
-            sequence = "\x1b[6~";
-            break;
-        case VK_INSERT:
-            sequence = "\x1b[2~";
-            break;
-        case VK_DELETE:
-            sequence = "\x1b[3~";
-            break;
-    }
-
     // Handle scrollback navigation
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
         // Shift is pressed - handle scrollback
@@ -503,8 +491,57 @@ void Application::OnKey(UINT key, bool isDown) {
         }
     }
 
-    if (sequence) {
-        m_terminal->WriteInput(sequence);
+    // Get control key state
+    DWORD controlState = 0;
+    if (GetAsyncKeyState(VK_SHIFT) & 0x8000) controlState |= SHIFT_PRESSED;
+    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) controlState |= LEFT_CTRL_PRESSED;
+    if (GetAsyncKeyState(VK_MENU) & 0x8000) controlState |= LEFT_ALT_PRESSED;
+
+    // For special keys, use Win32 input mode format
+    // This ensures ConPTY correctly interprets the key
+    switch (key) {
+        case VK_BACK:
+            SendWin32InputKey(VK_BACK, L'\b', true, controlState);
+            return;
+        case VK_RETURN:
+            SendWin32InputKey(VK_RETURN, L'\r', true, controlState);
+            return;
+        case VK_TAB:
+            SendWin32InputKey(VK_TAB, L'\t', true, controlState);
+            return;
+        case VK_ESCAPE:
+            SendWin32InputKey(VK_ESCAPE, L'\x1b', true, controlState);
+            return;
+        case VK_UP:
+            SendWin32InputKey(VK_UP, 0, true, controlState);
+            return;
+        case VK_DOWN:
+            SendWin32InputKey(VK_DOWN, 0, true, controlState);
+            return;
+        case VK_RIGHT:
+            SendWin32InputKey(VK_RIGHT, 0, true, controlState);
+            return;
+        case VK_LEFT:
+            SendWin32InputKey(VK_LEFT, 0, true, controlState);
+            return;
+        case VK_HOME:
+            SendWin32InputKey(VK_HOME, 0, true, controlState);
+            return;
+        case VK_END:
+            SendWin32InputKey(VK_END, 0, true, controlState);
+            return;
+        case VK_PRIOR:  // Page Up
+            SendWin32InputKey(VK_PRIOR, 0, true, controlState);
+            return;
+        case VK_NEXT:   // Page Down
+            SendWin32InputKey(VK_NEXT, 0, true, controlState);
+            return;
+        case VK_INSERT:
+            SendWin32InputKey(VK_INSERT, 0, true, controlState);
+            return;
+        case VK_DELETE:
+            SendWin32InputKey(VK_DELETE, 0, true, controlState);
+            return;
     }
 }
 
