@@ -22,7 +22,7 @@ public:
     Application();
     ~Application();
 
-    bool Initialize();
+    bool Initialize(const std::wstring& shell = L"powershell.exe");
     int Run();
     void Shutdown();
 
@@ -58,6 +58,7 @@ private:
 
     bool m_running;
     bool m_minimized;
+    std::wstring m_shellCommand;
 
     // Selection state
     CellPos m_selectionStart;

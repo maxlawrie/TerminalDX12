@@ -31,7 +31,9 @@ Application::~Application() {
     s_instance = nullptr;
 }
 
-bool Application::Initialize() {
+bool Application::Initialize(const std::wstring& shell) {
+    m_shellCommand = shell;
+
     // Create window
     m_window = std::make_unique<Window>();
 
@@ -101,7 +103,7 @@ bool Application::Initialize() {
     m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
 
     // Start PowerShell (make this optional - continue even if it fails)
-    if (!m_terminal->Start(L"powershell.exe", termCols, termRows)) {
+    if (!m_terminal->Start(m_shellCommand, termCols, termRows)) {
         spdlog::warn("Failed to start terminal session - continuing without ConPTY");
         m_terminal.reset();  // Clear the terminal if it failed to start
     } else {

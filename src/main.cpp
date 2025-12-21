@@ -15,8 +15,13 @@ int WINAPI wWinMain(
 {
     (void)hInstance;
     (void)hPrevInstance;
-    (void)lpCmdLine;
     (void)nShowCmd;
+
+    // Parse command line - use lpCmdLine as shell if provided, otherwise default to PowerShell
+    std::wstring shell = L"powershell.exe";
+    if (lpCmdLine && lpCmdLine[0] != L'\0') {
+        shell = lpCmdLine;
+    }
 
     // Enable debug layer in debug builds
 #if defined(_DEBUG)
@@ -31,7 +36,7 @@ int WINAPI wWinMain(
     // Create and run application
     Core::Application app;
 
-    if (!app.Initialize()) {
+    if (!app.Initialize(shell)) {
         MessageBoxW(nullptr,
             L"Failed to initialize application!",
             L"Error",
