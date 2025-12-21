@@ -30,6 +30,8 @@ GlyphAtlas::GlyphAtlas()
     , m_device(nullptr)
     , m_commandList(nullptr)
     , m_atlasDirty(false)
+    , m_hbFont(nullptr)
+    , m_ligaturesEnabled(false)
 {
 }
 
@@ -48,6 +50,14 @@ bool GlyphAtlas::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* com
         spdlog::error("Failed to initialize FreeType");
         return false;
     }
+
+    // Initialize HarfBuzz font from FreeType face
+    m_hbFont = hb_ft_font_create(m_ftFace, nullptr);
+    if (!m_hbFont) {
+        spdlog::error("Failed to create HarfBuzz font");
+        return false;
+    }
+    spdlog::info("HarfBuzz font created successfully");
 
     // Create atlas texture
     if (!CreateAtlasTexture(device)) {
@@ -77,6 +87,12 @@ bool GlyphAtlas::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* com
 void GlyphAtlas::Shutdown() {
     m_glyphCache.clear();
     m_atlasBuffer.reset();
+
+    // Clean up HarfBuzz (before FreeType since it references the face)
+    if (m_hbFont) {
+        hb_font_destroy(m_hbFont);
+        m_hbFont = nullptr;
+    }
 
     if (m_ftFace) {
         FT_Done_Face(m_ftFace);
@@ -453,6 +469,82 @@ void GlyphAtlas::PreloadASCIIGlyphs() {
     }
 
     spdlog::info("Preloaded {} glyphs total ({} failed)", loaded, failed);
+}
+
+std::vector<ShapedGlyph> GlyphAtlas::ShapeText(const std::u32string& text, bool bold, bool italic) {
+    std::vector<ShapedGlyph> result;
+
+    if (text.empty() || !m_hbFont) {
+        return result;
+    }
+
+    // If ligatures disabled, just return simple glyph lookups
+    if (!m_ligaturesEnabled) {
+        result.reserve(text.size());
+        for (size_t i = 0; i < text.size(); ++i) {
+            ShapedGlyph sg;
+            sg.glyph = GetGlyph(text[i], bold, italic);
+            sg.xOffset = 0.0f;
+            sg.yOffset = 0.0f;
+            sg.xAdvance = sg.glyph ? static_cast<float>(sg.glyph->advance) : 0.0f;
+            sg.clusterIndex = static_cast<int>(i);
+            result.push_back(sg);
+        }
+        return result;
+    }
+
+    // Create HarfBuzz buffer
+    hb_buffer_t* buffer = hb_buffer_create();
+    if (!buffer) {
+        return result;
+    }
+
+    // Set buffer properties
+    hb_buffer_set_direction(buffer, HB_DIRECTION_LTR);
+    hb_buffer_set_script(buffer, HB_SCRIPT_COMMON);
+    hb_buffer_set_language(buffer, hb_language_get_default());
+
+    // Add text to buffer (convert u32string to proper format)
+    for (char32_t ch : text) {
+        hb_buffer_add(buffer, ch, hb_buffer_get_length(buffer));
+    }
+
+    // Enable OpenType ligature features
+    hb_feature_t features[] = {
+        {HB_TAG('l','i','g','a'), 1, 0, static_cast<unsigned>(-1)},  // Standard ligatures
+        {HB_TAG('c','l','i','g'), 1, 0, static_cast<unsigned>(-1)},  // Contextual ligatures
+        {HB_TAG('c','a','l','t'), 1, 0, static_cast<unsigned>(-1)},  // Contextual alternates
+    };
+
+    // Shape the text
+    hb_shape(m_hbFont, buffer, features, sizeof(features) / sizeof(features[0]));
+
+    // Get shaping results
+    unsigned int glyphCount;
+    hb_glyph_info_t* glyphInfo = hb_buffer_get_glyph_infos(buffer, &glyphCount);
+    hb_glyph_position_t* glyphPos = hb_buffer_get_glyph_positions(buffer, &glyphCount);
+
+    result.reserve(glyphCount);
+
+    for (unsigned int i = 0; i < glyphCount; ++i) {
+        ShapedGlyph sg;
+
+        // Get glyph by its glyph ID (not codepoint) - for ligatures
+        // For now, use the cluster codepoint as fallback
+        uint32_t cluster = glyphInfo[i].cluster;
+        char32_t codepoint = (cluster < text.size()) ? text[cluster] : U' ';
+
+        sg.glyph = GetGlyph(codepoint, bold, italic);
+        sg.xOffset = static_cast<float>(glyphPos[i].x_offset) / 64.0f;
+        sg.yOffset = static_cast<float>(glyphPos[i].y_offset) / 64.0f;
+        sg.xAdvance = static_cast<float>(glyphPos[i].x_advance) / 64.0f;
+        sg.clusterIndex = static_cast<int>(cluster);
+
+        result.push_back(sg);
+    }
+
+    hb_buffer_destroy(buffer);
+    return result;
 }
 
 } // namespace TerminalDX12::Rendering

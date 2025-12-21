@@ -407,5 +407,64 @@ void ScreenBuffer::ScrollRegionDown(int lines) {
     m_dirty = true;
 }
 
+// OSC 133 shell integration methods
+void ScreenBuffer::MarkPromptStart() {
+    m_currentZone = SemanticZone::Prompt;
+
+    // Calculate absolute line number (scrollback + current line)
+    int absoluteLine = m_scrollbackUsed + m_cursorY;
+
+    // Add prompt marker
+    PromptMarker marker;
+    marker.absoluteLine = absoluteLine;
+    marker.exitCode = -1;
+    m_promptMarkers.push_back(marker);
+
+    spdlog::debug("OSC 133;A - Prompt start at line {}", absoluteLine);
+}
+
+void ScreenBuffer::MarkInputStart() {
+    m_currentZone = SemanticZone::Input;
+    spdlog::debug("OSC 133;B - Input start");
+}
+
+void ScreenBuffer::MarkCommandStart() {
+    m_currentZone = SemanticZone::Output;
+    spdlog::debug("OSC 133;C - Command execution start");
+}
+
+void ScreenBuffer::MarkCommandEnd(int exitCode) {
+    m_currentZone = SemanticZone::None;
+
+    // Update the last prompt marker with exit code if we have one
+    if (!m_promptMarkers.empty()) {
+        m_promptMarkers.back().exitCode = exitCode;
+    }
+
+    spdlog::debug("OSC 133;D - Command end, exit code: {}", exitCode);
+}
+
+int ScreenBuffer::GetPreviousPromptLine(int fromLine) const {
+    // Find the prompt before fromLine
+    int foundLine = -1;
+    for (const auto& marker : m_promptMarkers) {
+        if (marker.absoluteLine < fromLine) {
+            foundLine = marker.absoluteLine;
+        } else {
+            break;
+        }
+    }
+    return foundLine;
+}
+
+int ScreenBuffer::GetNextPromptLine(int fromLine) const {
+    // Find the prompt after fromLine
+    for (const auto& marker : m_promptMarkers) {
+        if (marker.absoluteLine > fromLine) {
+            return marker.absoluteLine;
+        }
+    }
+    return -1;
+}
 
 } // namespace TerminalDX12::Terminal

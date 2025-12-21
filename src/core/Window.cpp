@@ -96,6 +96,22 @@ void Window::SetTitle(const std::wstring& title) {
     SetWindowTextW(m_hwnd, title.c_str());
 }
 
+void Window::SetOpacity(float opacity) {
+    // Clamp to valid range
+    if (opacity < 0.0f) opacity = 0.0f;
+    if (opacity > 1.0f) opacity = 1.0f;
+
+    // Add WS_EX_LAYERED style if not already set
+    LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+    if (!(exStyle & WS_EX_LAYERED)) {
+        SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+    }
+
+    // Set the window opacity
+    BYTE alpha = static_cast<BYTE>(opacity * 255.0f);
+    SetLayeredWindowAttributes(m_hwnd, 0, alpha, LWA_ALPHA);
+}
+
 void Window::UpdateDPI() {
     HDC hdc = GetDC(nullptr);
     int dpi = GetDeviceCaps(hdc, LOGPIXELSX);

@@ -654,7 +654,7 @@ void VTStateMachine::HandleOSC() {
     // Ps = 0: Change icon name and window title
     // Ps = 1: Change icon name
     // Ps = 2: Change window title
-    // For now, we just silently consume these
+    // Ps = 133: Shell integration (FinalTerm/iTerm2)
 
     if (m_oscBuffer.empty()) {
         return;
@@ -668,11 +668,53 @@ void VTStateMachine::HandleOSC() {
 
         spdlog::debug("OSC sequence: type={}, value=\"{}\"", type, value);
 
+        // OSC 133 - Shell integration
+        if (type == "133") {
+            HandleOSC133(value);
+        }
         // OSC 0, 1, 2 are window title - we could handle these if desired
-        // For now, just log them
     }
 
     m_oscBuffer.clear();
+}
+
+void VTStateMachine::HandleOSC133(const std::string& param) {
+    // OSC 133 shell integration:
+    // A = Prompt start (before prompt is displayed)
+    // B = Prompt end / Input start (after prompt, before user types)
+    // C = Command start (user pressed Enter)
+    // D = Command finished (optionally with exit code: D;N)
+
+    if (param.empty()) return;
+
+    char marker = param[0];
+    switch (marker) {
+        case 'A':
+            m_screenBuffer->MarkPromptStart();
+            break;
+        case 'B':
+            m_screenBuffer->MarkInputStart();
+            break;
+        case 'C':
+            m_screenBuffer->MarkCommandStart();
+            break;
+        case 'D': {
+            int exitCode = -1;
+            // Check for exit code: D;N
+            if (param.length() > 2 && param[1] == ';') {
+                try {
+                    exitCode = std::stoi(param.substr(2));
+                } catch (...) {
+                    exitCode = -1;
+                }
+            }
+            m_screenBuffer->MarkCommandEnd(exitCode);
+            break;
+        }
+        default:
+            spdlog::debug("Unknown OSC 133 marker: {}", marker);
+            break;
+    }
 }
 
 void VTStateMachine::ExecuteCharacter(char ch) {

@@ -25,6 +25,7 @@ endif()
 # Find required packages
 find_package(directx-headers CONFIG REQUIRED)
 find_package(freetype CONFIG REQUIRED)
+find_package(harfbuzz CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
@@ -55,6 +56,7 @@ set(UI_SOURCES
     src/ui/InputHandler.cpp
     src/ui/Tab.cpp
     src/ui/TabManager.cpp
+    src/ui/SettingsDialog.cpp
 )
 
 set(ALL_SOURCES
@@ -79,6 +81,7 @@ target_link_libraries(TerminalDX12 PRIVATE
     Microsoft::DirectX-Headers
     Microsoft::DirectX-Guids
     freetype
+    harfbuzz::harfbuzz
     spdlog::spdlog
     nlohmann_json::nlohmann_json
     d3d12.lib

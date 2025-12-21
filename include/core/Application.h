@@ -83,6 +83,9 @@ private:
     std::string DetectUrlAt(int cellX, int cellY) const;
     void OpenUrl(const std::string& url);
 
+    // Settings dialog
+    void ShowSettings();
+
     std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;

@@ -5,6 +5,10 @@
   "dependencies": [
     "directx-headers",
     "freetype",
+    {
+      "name": "harfbuzz",
+      "features": ["freetype"]
+    },
     "spdlog",
     "nlohmann-json",
     "gtest"

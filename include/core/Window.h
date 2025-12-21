@@ -32,6 +32,7 @@ public:
 
     // Setters
     void SetTitle(const std::wstring& title);
+    void SetOpacity(float opacity);  // 0.0 = transparent, 1.0 = opaque
 
     // Event callbacks
     std::function<void(UINT key, bool isDown)> OnKeyEvent;

@@ -4,10 +4,13 @@
 #include <wrl/client.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include <hb.h>
+#include <hb-ft.h>
 #include <unordered_map>
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 
@@ -53,6 +56,15 @@ struct GlyphKeyHash {
     }
 };
 
+// Result of text shaping (used for ligatures)
+struct ShapedGlyph {
+    const GlyphInfo* glyph;
+    float xOffset;      // Offset from base position (for combining)
+    float yOffset;
+    float xAdvance;     // How far to move for next glyph
+    int clusterIndex;   // Index into original text
+};
+
 class GlyphAtlas {
 public:
     GlyphAtlas();
@@ -65,6 +77,13 @@ public:
 
     // Get or create a glyph in the atlas
     const GlyphInfo* GetGlyph(char32_t codepoint, bool bold = false, bool italic = false);
+
+    // Shape text with HarfBuzz for ligature support
+    std::vector<ShapedGlyph> ShapeText(const std::u32string& text, bool bold = false, bool italic = false);
+
+    // Check if ligatures are enabled
+    bool LigaturesEnabled() const { return m_ligaturesEnabled; }
+    void SetLigaturesEnabled(bool enabled) { m_ligaturesEnabled = enabled; }
 
     // Get the atlas texture SRV
     D3D12_GPU_DESCRIPTOR_HANDLE GetAtlasSRV() const { return m_atlasSRV; }
@@ -136,6 +155,10 @@ private:
 
     // Solid white pixel glyph for rectangles/underlines
     GlyphInfo m_solidGlyph;
+
+    // HarfBuzz for text shaping/ligatures
+    hb_font_t* m_hbFont;
+    bool m_ligaturesEnabled;
 };
 
 } // namespace TerminalDX12::Rendering

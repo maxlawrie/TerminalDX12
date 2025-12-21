@@ -87,6 +87,7 @@ private:
     void HandleSetScrollingRegion(); // DECSTBM - ESC[#;#r
     void HandleDeviceStatusReport(); // DSR - ESC[#n
     void HandleOSC();                // OSC - ESC]#;...BEL
+    void HandleOSC133(const std::string& param);  // OSC 133 shell integration
     void HandleCursorSave();         // CSI s - Save cursor position
     void HandleCursorRestore();      // CSI u - Restore cursor position
     void HandleScrollUp();           // CSI n S - Scroll up

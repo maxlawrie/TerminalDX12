@@ -4,6 +4,7 @@
 #include "rendering/DX12Renderer.h"
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
+#include "ui/SettingsDialog.h"
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"
@@ -120,6 +121,13 @@ bool Application::Initialize(const std::wstring& shell) {
         spdlog::warn("Failed to start initial terminal session - continuing without ConPTY");
     } else {
         spdlog::info("Terminal session started successfully");
+    }
+
+    // Apply window transparency from config
+    float opacity = m_config->GetTerminal().opacity;
+    if (opacity < 1.0f) {
+        m_window->SetOpacity(opacity);
+        spdlog::info("Window opacity set to {}%", static_cast<int>(opacity * 100));
     }
 
     m_window->Show();
@@ -656,6 +664,37 @@ void Application::OnKey(UINT key, bool isDown) {
 
     // Handle Ctrl+key shortcuts
     if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+        // Ctrl+Comma: Open settings
+        if (key == VK_OEM_COMMA) {
+            ShowSettings();
+            return;
+        }
+        // Ctrl+Shift+N: New window
+        if (key == 'N' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+            // Launch a new instance of the application
+            wchar_t exePath[MAX_PATH];
+            if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
+                STARTUPINFOW si = {};
+                si.cb = sizeof(si);
+                PROCESS_INFORMATION pi = {};
+
+                // Pass the same shell command if specified
+                std::wstring cmdLine = exePath;
+                if (!m_shellCommand.empty() && m_shellCommand != L"powershell.exe") {
+                    cmdLine += L" \"" + m_shellCommand + L"\"";
+                }
+
+                if (CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr,
+                                  FALSE, 0, nullptr, nullptr, &si, &pi)) {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                    spdlog::info("Launched new window");
+                } else {
+                    spdlog::error("Failed to launch new window: {}", GetLastError());
+                }
+            }
+            return;
+        }
         // Ctrl+Shift+F: Open search
         if (key == 'F' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
             OpenSearch();
@@ -690,6 +729,41 @@ void Application::OnKey(UINT key, bool isDown) {
                 } else {
                     m_tabManager->NextTab();
                 }
+            }
+            return;
+        }
+
+        // Ctrl+Up/Down: Navigate between shell prompts (OSC 133)
+        if (key == VK_UP && screenBuffer) {
+            // Calculate current absolute line position
+            int currentLine = screenBuffer->GetCursorY() +
+                             (screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
+                             screenBuffer->GetRows() + screenBuffer->GetScrollOffset();
+            int prevPrompt = screenBuffer->GetPreviousPromptLine(currentLine);
+            if (prevPrompt >= 0) {
+                // Scroll to show the previous prompt
+                int scrollbackTotal = static_cast<int>(screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
+                                     screenBuffer->GetRows();
+                int targetOffset = std::max(0, scrollbackTotal - prevPrompt + screenBuffer->GetRows() / 2);
+                screenBuffer->SetScrollOffset(targetOffset);
+                spdlog::debug("Jumped to previous prompt at line {}", prevPrompt);
+            }
+            return;
+        }
+        if (key == VK_DOWN && screenBuffer) {
+            int currentLine = screenBuffer->GetCursorY() +
+                             (screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
+                             screenBuffer->GetRows() + screenBuffer->GetScrollOffset();
+            int nextPrompt = screenBuffer->GetNextPromptLine(currentLine);
+            if (nextPrompt >= 0) {
+                int scrollbackTotal = static_cast<int>(screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
+                                     screenBuffer->GetRows();
+                int targetOffset = std::max(0, scrollbackTotal - nextPrompt + screenBuffer->GetRows() / 2);
+                screenBuffer->SetScrollOffset(targetOffset);
+                spdlog::debug("Jumped to next prompt at line {}", nextPrompt);
+            } else {
+                // No next prompt, scroll to bottom
+                screenBuffer->ScrollToBottom();
             }
             return;
         }
@@ -1462,6 +1536,24 @@ void Application::OpenUrl(const std::string& url) {
         spdlog::info("Opened URL: {}", url);
     } else {
         spdlog::error("Failed to open URL: {}", url);
+    }
+}
+
+void Application::ShowSettings() {
+    if (!m_window || !m_config) {
+        return;
+    }
+
+    UI::SettingsDialog dialog(m_window->GetHandle(), m_config.get());
+
+    // Set preview callback to trigger re-render
+    dialog.SetPreviewCallback([this]() {
+        // Re-render with new settings
+    });
+
+    bool changed = dialog.Show();
+    if (changed) {
+        spdlog::info("Settings were changed and saved");
     }
 }
 

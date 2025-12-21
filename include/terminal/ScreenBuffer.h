@@ -6,6 +6,20 @@
 
 namespace TerminalDX12::Terminal {
 
+// OSC 133 shell integration semantic zones
+enum class SemanticZone {
+    None,       // Regular output
+    Prompt,     // OSC 133;A - Prompt region
+    Input,      // OSC 133;B - User input region
+    Output      // OSC 133;C/D - Command output region
+};
+
+// Prompt marker for navigation
+struct PromptMarker {
+    int absoluteLine;    // Absolute line number (including scrollback)
+    int exitCode = -1;   // Exit code from OSC 133;D;N (-1 if not set)
+};
+
 // Cell attributes (SGR - Select Graphic Rendition)
 struct CellAttributes {
     uint8_t foreground;      // Foreground color (0-255 palette index)
@@ -146,6 +160,18 @@ public:
     void UseAlternativeBuffer(bool use);
     bool IsUsingAlternativeBuffer() const { return m_useAltBuffer; }
 
+    // OSC 133 shell integration
+    void MarkPromptStart();
+    void MarkInputStart();
+    void MarkCommandStart();
+    void MarkCommandEnd(int exitCode = -1);
+    SemanticZone GetCurrentZone() const { return m_currentZone; }
+
+    // Prompt navigation
+    int GetPreviousPromptLine(int fromLine) const;
+    int GetNextPromptLine(int fromLine) const;
+    const std::vector<PromptMarker>& GetPromptMarkers() const { return m_promptMarkers; }
+
 private:
     void NewLine();
     void CarriageReturn();
@@ -182,6 +208,10 @@ private:
 
     // Dirty flag for rendering optimization
     bool m_dirty;
+
+    // OSC 133 shell integration
+    SemanticZone m_currentZone = SemanticZone::None;
+    std::vector<PromptMarker> m_promptMarkers;
 };
 
 } // namespace TerminalDX12::Terminal

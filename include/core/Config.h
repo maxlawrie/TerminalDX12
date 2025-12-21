@@ -99,6 +99,7 @@ struct TerminalConfig {
     CursorStyle cursorStyle = CursorStyle::Block;
     bool cursorBlink = true;
     int cursorBlinkMs = 530;
+    float opacity = 1.0f;              // Window opacity (0.0-1.0)
 };
 
 // Main configuration class
