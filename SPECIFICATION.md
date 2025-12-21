@@ -30,6 +30,7 @@ This document specifies all features for TerminalDX12, including current impleme
 16. [Configuration](#16-configuration)
 17. [Window Management](#17-window-management)
 18. [Rendering](#18-rendering)
+19. [Claude Code Compatibility](#claude-code-compatibility)
 
 ---
 
@@ -933,6 +934,57 @@ struct Cell {
 | Batch Rendering | Instance batching | **COMPLETE** |
 | Frame Rate | Uncapped (vsync optional) | **COMPLETE** |
 | GPU Acceleration | Hardware rendering | **COMPLETE** |
+
+---
+
+## Claude Code Compatibility
+
+This section tracks features required for running [Claude Code](https://claude.com/claude-code), Anthropic's CLI coding agent.
+
+### Required Features
+
+| Feature | Description | Section | Current Status |
+|---------|-------------|---------|----------------|
+| **True Color (24-bit)** | Full RGB color for syntax highlighting | [3.3](#33-truecolor-24-bit-rgb) | PARTIAL |
+| **Dim/Faint (SGR 2)** | De-emphasized text styling | [2.1](#21-basic-attributes) | NOT STARTED |
+| **Strikethrough (SGR 9)** | Show removed/deleted code | [2.1](#21-basic-attributes) | NOT STARTED |
+| **Cursor Hide/Show** | DECTCEM (mode 25) | [5.2](#52-cursor-visibility) | NOT STARTED |
+| **Cursor Save/Restore** | CSI s / CSI u sequences | [5.4](#54-cursor-saverestore) | NOT STARTED |
+| **Bracketed Paste** | Mode 2004 for paste detection | [8.2](#82-paste) | NOT STARTED |
+| **Alt Screen Buffer** | Mode 1049 for TUI apps | [4.2](#42-alternate-buffer) | PARTIAL |
+| **Cursor Horizontal Absolute** | CSI n G (CHA) | [1.2](#cursor-movement) | NOT STARTED |
+| **Erase Characters** | CSI n X (ECH) | [1.2](#erase-operations) | NOT STARTED |
+| **Cursor Position Report** | CSI 6 n / response | [1.2](#device-status) | NOT STARTED |
+| **Application Cursor Keys** | DECCKM (mode 1) | [1.2](#mode-setting) | NOT STARTED |
+| **Auto-Wrap Mode** | DECAWM (mode 7) | [1.2](#mode-setting) | NOT STARTED |
+
+### Implementation Checklist
+
+**High Priority (Core functionality):**
+- [ ] True color support (store full RGB, not map to 16)
+- [ ] Dim/Faint text attribute (SGR 2)
+- [ ] Cursor visibility control (DECTCEM mode 25)
+- [ ] Cursor save/restore (CSI s/u)
+- [ ] Cursor Horizontal Absolute (CSI G)
+- [ ] Device Status Report / Cursor Position Report (CSI 6 n -> CSI row;col R)
+
+**Medium Priority (Enhanced experience):**
+- [ ] Strikethrough attribute (SGR 9)
+- [ ] Bracketed paste mode (mode 2004)
+- [ ] Erase Characters (CSI X)
+- [ ] Application cursor keys (DECCKM mode 1)
+- [ ] Auto-wrap mode (DECAWM mode 7)
+
+**Low Priority (Nice to have):**
+- [ ] OSC 8 hyperlinks (clickable URLs in output)
+- [ ] OSC 133 shell integration (command tracking)
+
+### Notes
+
+- Claude Code uses ANSI escape sequences extensively for its TUI interface
+- The status line and syntax highlighting require proper color support
+- Cursor manipulation is used for dynamic UI updates
+- See [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code) for more information
 
 ---
 
