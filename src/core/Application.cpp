@@ -110,9 +110,18 @@ bool Application::Initialize(const std::wstring& shell) {
     // Create tab manager
     m_tabManager = std::make_unique<UI::TabManager>();
 
-    // Calculate terminal size (80x24 columns/rows for now - will be dynamic later)
-    int termCols = 80;
-    int termRows = 24;
+    // Calculate terminal size based on window dimensions
+    const int charWidth = 10;
+    const int lineHeight = 25;
+    const int startX = 10;
+    const int tabBarHeight = 30;
+    const int startY = tabBarHeight + 5;
+    const int padding = 10;
+
+    int availableWidth = windowDesc.width - startX - padding;
+    int availableHeight = windowDesc.height - startY - padding;
+    int termCols = std::max(20, availableWidth / charWidth);
+    int termRows = std::max(5, availableHeight / lineHeight);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
 
     // Create initial tab
@@ -590,6 +599,33 @@ void Application::OnWindowResize(int width, int height) {
 
     if (!m_minimized && m_renderer) {
         m_renderer->Resize(width, height);
+
+        // Calculate new terminal dimensions based on window size
+        const int charWidth = 10;
+        const int lineHeight = 25;
+        const int startX = 10;
+        const int tabBarHeight = 30;
+        const int startY = tabBarHeight + 5;
+        const int padding = 10;  // Right/bottom padding
+
+        // Calculate available space for terminal
+        int availableWidth = width - startX - padding;
+        int availableHeight = height - startY - padding;
+
+        // Calculate new cols and rows
+        int newCols = std::max(20, availableWidth / charWidth);
+        int newRows = std::max(5, availableHeight / lineHeight);
+
+        // Resize all tabs to new dimensions
+        if (m_tabManager) {
+            for (int i = 0; i < m_tabManager->GetTabCount(); ++i) {
+                UI::Tab* tab = m_tabManager->GetTab(i);
+                if (tab) {
+                    tab->Resize(newCols, newRows);
+                }
+            }
+            spdlog::debug("Terminal resized to {}x{}", newCols, newRows);
+        }
     }
 }
 
@@ -752,9 +788,16 @@ void Application::OnKey(UINT key, bool isDown) {
         if (key == 'T') {
             // Ctrl+T: New tab
             if (m_tabManager) {
+                // Use dimensions from active tab, or calculate from window
+                int cols = 80, rows = 24;
+                UI::Tab* activeTab = m_tabManager->GetActiveTab();
+                if (activeTab && activeTab->GetScreenBuffer()) {
+                    cols = activeTab->GetScreenBuffer()->GetCols();
+                    rows = activeTab->GetScreenBuffer()->GetRows();
+                }
                 int scrollbackLines = m_config->GetTerminal().scrollbackLines;
-                m_tabManager->CreateTab(m_shellCommand, 80, 24, scrollbackLines);
-                spdlog::info("Created new tab");
+                m_tabManager->CreateTab(m_shellCommand, cols, rows, scrollbackLines);
+                spdlog::info("Created new tab ({}x{})", cols, rows);
             }
             return;
         }
