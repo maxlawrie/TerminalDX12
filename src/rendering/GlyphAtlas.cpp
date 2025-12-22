@@ -450,21 +450,36 @@ void GlyphAtlas::PreloadASCIIGlyphs() {
         }
     }
 
-    // Preload block drawing characters needed for rendering
-    const char32_t blockChars[] = {
-        U'\u2588',  // █ Full block - used for solid rectangles/underlines
-        U'\u2591',  // ░ Light shade
-        U'\u2592',  // ▒ Medium shade
-        U'\u2593',  // ▓ Dark shade
-    };
-    for (char32_t ch : blockChars) {
+    // Preload box-drawing characters (U+2500-257F)
+    spdlog::info("Preloading box-drawing characters (U+2500-257F)...");
+    for (char32_t ch = 0x2500; ch <= 0x257F; ++ch) {
         const GlyphInfo* glyph = GetGlyph(ch, false, false);
         if (glyph) {
             loaded++;
-            spdlog::info("Preloaded block character U+{:04X}", static_cast<uint32_t>(ch));
         } else {
             failed++;
-            spdlog::warn("Failed to preload block char U+{:04X}", static_cast<uint32_t>(ch));
+        }
+    }
+
+    // Preload block elements (U+2580-259F)
+    spdlog::info("Preloading block elements (U+2580-259F)...");
+    for (char32_t ch = 0x2580; ch <= 0x259F; ++ch) {
+        const GlyphInfo* glyph = GetGlyph(ch, false, false);
+        if (glyph) {
+            loaded++;
+        } else {
+            failed++;
+        }
+    }
+
+    // Preload geometric shapes commonly used in TUIs (U+25A0-25FF)
+    spdlog::info("Preloading geometric shapes (U+25A0-25FF)...");
+    for (char32_t ch = 0x25A0; ch <= 0x25FF; ++ch) {
+        const GlyphInfo* glyph = GetGlyph(ch, false, false);
+        if (glyph) {
+            loaded++;
+        } else {
+            failed++;
         }
     }
 

@@ -456,11 +456,31 @@ bool DX12Renderer::CreateTextRenderingPipeline() {
     // Create glyph atlas (using Consolas font - should be available on Windows)
     m_glyphAtlas = std::make_unique<GlyphAtlas>();
 
-    // Try to find a monospace font
-    const char* fontPath = "C:\\Windows\\Fonts\\consola.ttf";  // Consolas
-    std::ifstream fontTest(fontPath);
-    if (!fontTest.good()) {
-        fontPath = "C:\\Windows\\Fonts\\cour.ttf";  // Courier New fallback
+    // Try to find a monospace font with good Unicode support
+    const char* fontPath = nullptr;
+
+    // Priority: Cascadia Mono (best Unicode), then Cascadia Code, then Consolas
+    const char* fontCandidates[] = {
+        "C:\\Users\\maxla\\AppData\\Local\\Microsoft\\Windows\\Fonts\\CascadiaMono.ttf",
+        "C:\\Users\\maxla\\AppData\\Local\\Microsoft\\Windows\\Fonts\\CascadiaCode.ttf",
+        "C:\\Windows\\Fonts\\CascadiaMono.ttf",
+        "C:\\Windows\\Fonts\\CascadiaCode.ttf",
+        "C:\\Windows\\Fonts\\consola.ttf",
+        "C:\\Windows\\Fonts\\cour.ttf"
+    };
+
+    for (const char* candidate : fontCandidates) {
+        std::ifstream fontTest(candidate);
+        if (fontTest.good()) {
+            fontPath = candidate;
+            spdlog::info("Using font: {}", fontPath);
+            break;
+        }
+    }
+
+    if (!fontPath) {
+        spdlog::error("No suitable font found!");
+        return false;
     }
 
     if (!m_glyphAtlas->Initialize(m_device.Get(), GetCommandList(), fontPath, 16)) {

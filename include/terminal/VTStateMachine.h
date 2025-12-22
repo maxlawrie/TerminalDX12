@@ -122,6 +122,11 @@ private:
     // Mouse modes
     MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode
     bool m_sgrMouseMode = false;              // Mode 1006 - SGR extended format
+
+    // UTF-8 decoding state
+    uint8_t m_utf8Buffer[4];     // Buffer for UTF-8 multi-byte sequences
+    int m_utf8BytesNeeded = 0;   // Number of continuation bytes expected
+    int m_utf8BytesReceived = 0; // Number of continuation bytes received
 };
 
 } // namespace TerminalDX12::Terminal

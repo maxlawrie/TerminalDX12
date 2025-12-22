@@ -18,7 +18,72 @@ VTStateMachine::~VTStateMachine() {
 
 void VTStateMachine::ProcessInput(const char* data, size_t size) {
     for (size_t i = 0; i < size; ++i) {
-        ProcessCharacter(data[i]);
+        uint8_t byte = static_cast<uint8_t>(data[i]);
+
+        // If we're in an escape sequence, process bytes directly
+        if (m_state != State::Ground) {
+            ProcessCharacter(data[i]);
+            continue;
+        }
+
+        // UTF-8 decoding for Ground state
+        if (m_utf8BytesNeeded > 0) {
+            // Expecting continuation byte (10xxxxxx)
+            if ((byte & 0xC0) == 0x80) {
+                m_utf8Buffer[m_utf8BytesReceived++] = byte;
+                if (m_utf8BytesReceived == m_utf8BytesNeeded) {
+                    // Decode complete UTF-8 sequence
+                    char32_t codepoint = 0;
+                    if (m_utf8BytesNeeded == 2) {
+                        codepoint = ((m_utf8Buffer[0] & 0x1F) << 6) |
+                                    (m_utf8Buffer[1] & 0x3F);
+                    } else if (m_utf8BytesNeeded == 3) {
+                        codepoint = ((m_utf8Buffer[0] & 0x0F) << 12) |
+                                    ((m_utf8Buffer[1] & 0x3F) << 6) |
+                                    (m_utf8Buffer[2] & 0x3F);
+                    } else if (m_utf8BytesNeeded == 4) {
+                        codepoint = ((m_utf8Buffer[0] & 0x07) << 18) |
+                                    ((m_utf8Buffer[1] & 0x3F) << 12) |
+                                    ((m_utf8Buffer[2] & 0x3F) << 6) |
+                                    (m_utf8Buffer[3] & 0x3F);
+                    }
+                    m_utf8BytesNeeded = 0;
+                    m_utf8BytesReceived = 0;
+                    // Write the decoded codepoint
+                    m_screenBuffer->WriteChar(codepoint);
+                }
+            } else {
+                // Invalid continuation byte - reset and process as new byte
+                m_utf8BytesNeeded = 0;
+                m_utf8BytesReceived = 0;
+                // Fall through to process this byte
+            }
+        }
+
+        if (m_utf8BytesNeeded == 0) {
+            // Check for UTF-8 lead byte
+            if ((byte & 0x80) == 0) {
+                // ASCII (0xxxxxxx) - process directly
+                ProcessCharacter(data[i]);
+            } else if ((byte & 0xE0) == 0xC0) {
+                // 2-byte sequence (110xxxxx)
+                m_utf8Buffer[0] = byte;
+                m_utf8BytesNeeded = 2;
+                m_utf8BytesReceived = 1;
+            } else if ((byte & 0xF0) == 0xE0) {
+                // 3-byte sequence (1110xxxx)
+                m_utf8Buffer[0] = byte;
+                m_utf8BytesNeeded = 3;
+                m_utf8BytesReceived = 1;
+            } else if ((byte & 0xF8) == 0xF0) {
+                // 4-byte sequence (11110xxx)
+                m_utf8Buffer[0] = byte;
+                m_utf8BytesNeeded = 4;
+                m_utf8BytesReceived = 1;
+            } else {
+                // Invalid UTF-8 lead byte - skip
+            }
+        }
     }
 }
 
