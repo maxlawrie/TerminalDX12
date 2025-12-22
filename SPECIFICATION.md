@@ -45,8 +45,8 @@ This document specifies all features for TerminalDX12, including current impleme
 | `ESC E` | NEL | Next Line - move to column 1 of next line | **COMPLETE** |
 | `ESC H` | HTS | Horizontal Tab Set | NOT STARTED |
 | `ESC M` | RI | Reverse Index - move cursor up, scroll if at top | NOT STARTED |
-| `ESC 7` | DECSC | Save Cursor Position | NOT STARTED |
-| `ESC 8` | DECRC | Restore Cursor Position | NOT STARTED |
+| `ESC 7` | DECSC | Save Cursor Position | **COMPLETE** |
+| `ESC 8` | DECRC | Restore Cursor Position | **COMPLETE** |
 | `ESC =` | DECKPAM | Keypad Application Mode | NOT STARTED |
 | `ESC >` | DECKPNM | Keypad Numeric Mode | NOT STARTED |
 
@@ -64,12 +64,12 @@ This document specifies all features for TerminalDX12, including current impleme
 | `CSI n D` | CUB | Cursor Back n columns | **COMPLETE** |
 | `CSI n E` | CNL | Cursor Next Line n times | NOT STARTED |
 | `CSI n F` | CPL | Cursor Previous Line n times | NOT STARTED |
-| `CSI n G` | CHA | Cursor Horizontal Absolute to column n | NOT STARTED |
+| `CSI n G` | CHA | Cursor Horizontal Absolute to column n | **COMPLETE** |
 | `CSI n ; m H` | CUP | Cursor Position to row n, column m | **COMPLETE** |
 | `CSI n ; m f` | HVP | Horizontal Vertical Position (same as CUP) | **COMPLETE** |
-| `CSI n d` | VPA | Vertical Position Absolute to row n | NOT STARTED |
-| `CSI s` | SCP | Save Cursor Position | NOT STARTED |
-| `CSI u` | RCP | Restore Cursor Position | NOT STARTED |
+| `CSI n d` | VPA | Vertical Position Absolute to row n | **COMPLETE** |
+| `CSI s` | SCP | Save Cursor Position | **COMPLETE** |
+| `CSI u` | RCP | Restore Cursor Position | **COMPLETE** |
 
 **Implementation:** `src/terminal/VTStateMachine.cpp` lines 175-220
 
@@ -84,7 +84,7 @@ This document specifies all features for TerminalDX12, including current impleme
 | `CSI 0 K` | EL | Erase from cursor to end of line | **COMPLETE** |
 | `CSI 1 K` | EL | Erase from start of line to cursor | **COMPLETE** |
 | `CSI 2 K` | EL | Erase entire line | **COMPLETE** |
-| `CSI n X` | ECH | Erase n characters at cursor | NOT STARTED |
+| `CSI n X` | ECH | Erase n characters at cursor | **COMPLETE** |
 
 **Implementation:** `src/terminal/VTStateMachine.cpp` lines 220-250
 
@@ -92,10 +92,10 @@ This document specifies all features for TerminalDX12, including current impleme
 
 | Sequence | Name | Description | Status |
 |----------|------|-------------|--------|
-| `CSI n @` | ICH | Insert n blank characters at cursor | NOT STARTED |
-| `CSI n P` | DCH | Delete n characters at cursor | NOT STARTED |
-| `CSI n L` | IL | Insert n blank lines at cursor | NOT STARTED |
-| `CSI n M` | DL | Delete n lines at cursor | NOT STARTED |
+| `CSI n @` | ICH | Insert n blank characters at cursor | **COMPLETE** |
+| `CSI n P` | DCH | Delete n characters at cursor | **COMPLETE** |
+| `CSI n L` | IL | Insert n blank lines at cursor | **COMPLETE** |
+| `CSI n M` | DL | Delete n lines at cursor | **COMPLETE** |
 
 **Specification:**
 - ICH: Insert n blank characters at cursor position, shifting existing characters right
@@ -107,9 +107,9 @@ This document specifies all features for TerminalDX12, including current impleme
 
 | Sequence | Name | Description | Status |
 |----------|------|-------------|--------|
-| `CSI n S` | SU | Scroll Up n lines | NOT STARTED |
-| `CSI n T` | SD | Scroll Down n lines | NOT STARTED |
-| `CSI t ; b r` | DECSTBM | Set Top and Bottom Margins (scroll region) | NOT STARTED |
+| `CSI n S` | SU | Scroll Up n lines | **COMPLETE** |
+| `CSI n T` | SD | Scroll Down n lines | **COMPLETE** |
+| `CSI t ; b r` | DECSTBM | Set Top and Bottom Margins (scroll region) | **COMPLETE** |
 
 **Specification:**
 - SU: Scroll content up n lines, new blank lines appear at bottom
@@ -120,8 +120,8 @@ This document specifies all features for TerminalDX12, including current impleme
 
 | Sequence | Name | Description | Status |
 |----------|------|-------------|--------|
-| `CSI ? n h` | DECSET | Enable private mode n | STUB |
-| `CSI ? n l` | DECRST | Disable private mode n | STUB |
+| `CSI ? n h` | DECSET | Enable private mode n | **COMPLETE** |
+| `CSI ? n l` | DECRST | Disable private mode n | **COMPLETE** |
 | `CSI n h` | SM | Set ANSI mode n | NOT STARTED |
 | `CSI n l` | RM | Reset ANSI mode n | NOT STARTED |
 
@@ -129,17 +129,17 @@ This document specifies all features for TerminalDX12, including current impleme
 
 | Mode | Name | Description | Status |
 |------|------|-------------|--------|
-| 1 | DECCKM | Application Cursor Keys | NOT STARTED |
-| 7 | DECAWM | Auto-Wrap Mode | NOT STARTED |
+| 1 | DECCKM | Application Cursor Keys | **COMPLETE** |
+| 7 | DECAWM | Auto-Wrap Mode | **COMPLETE** |
 | 12 | - | Cursor Blink | NOT STARTED |
-| 25 | DECTCEM | Cursor Visible | NOT STARTED |
+| 25 | DECTCEM | Cursor Visible | **COMPLETE** |
 | 47 | - | Alternate Screen Buffer | NOT STARTED |
-| 1000 | - | Mouse Click Tracking | NOT STARTED |
-| 1002 | - | Mouse Cell Motion Tracking | NOT STARTED |
-| 1003 | - | Mouse All Motion Tracking | NOT STARTED |
-| 1006 | - | SGR Mouse Mode | NOT STARTED |
-| 1049 | - | Alternate Screen + Save Cursor | PARTIAL |
-| 2004 | - | Bracketed Paste Mode | NOT STARTED |
+| 1000 | - | Mouse Click Tracking | **COMPLETE** |
+| 1002 | - | Mouse Cell Motion Tracking | **COMPLETE** |
+| 1003 | - | Mouse All Motion Tracking | **COMPLETE** |
+| 1006 | - | SGR Mouse Mode | **COMPLETE** |
+| 1049 | - | Alternate Screen + Save Cursor | **COMPLETE** |
+| 2004 | - | Bracketed Paste Mode | **COMPLETE** |
 
 **Specification:**
 - DECCKM: When enabled, cursor keys send application sequences (ESC O A) instead of normal (ESC [ A)
@@ -153,17 +153,17 @@ This document specifies all features for TerminalDX12, including current impleme
 
 | Sequence | Name | Description | Status |
 |----------|------|-------------|--------|
-| `CSI c` | DA | Primary Device Attributes | STUB |
+| `CSI c` | DA | Primary Device Attributes | **COMPLETE** |
 | `CSI > c` | DA2 | Secondary Device Attributes | NOT STARTED |
-| `CSI 5 n` | DSR | Device Status Report | NOT STARTED |
-| `CSI 6 n` | CPR | Cursor Position Report | NOT STARTED |
+| `CSI 5 n` | DSR | Device Status Report | **COMPLETE** |
+| `CSI 6 n` | CPR | Cursor Position Report | **COMPLETE** |
 
 **Specification:**
-- DA: Terminal should respond with `CSI ? 1 ; 2 c` (VT100 with AVO)
-- DSR: Terminal should respond with `CSI 0 n` (ready, no malfunction)
-- CPR: Terminal should respond with `CSI row ; column R`
+- DA: Terminal responds with `CSI ? 1 ; 2 c` (VT100 with AVO)
+- DSR: Terminal responds with `CSI 0 n` (ready, no malfunction)
+- CPR: Terminal responds with `CSI row ; column R`
 
-**Implementation:** `src/terminal/VTStateMachine.cpp` lines 437-440 (stub only)
+**Implementation:** `src/terminal/VTStateMachine.cpp` HandleDeviceAttributes(), HandleDeviceStatusReport()
 
 ### 1.3 OSC Sequences (ESC ] ... ST/BEL)
 
@@ -177,10 +177,10 @@ This document specifies all features for TerminalDX12, including current impleme
 | `OSC 10 ; color ST` | Set Foreground Color | NOT STARTED |
 | `OSC 11 ; color ST` | Set Background Color | NOT STARTED |
 | `OSC 52 ; base64 ST` | Clipboard Access | NOT STARTED |
-| `OSC 133 ; A ST` | Shell Integration - Prompt Start | NOT STARTED |
-| `OSC 133 ; B ST` | Shell Integration - Command Start | NOT STARTED |
-| `OSC 133 ; C ST` | Shell Integration - Command End | NOT STARTED |
-| `OSC 133 ; D ; exitcode ST` | Shell Integration - Command Finished | NOT STARTED |
+| `OSC 133 ; A ST` | Shell Integration - Prompt Start | **COMPLETE** |
+| `OSC 133 ; B ST` | Shell Integration - Command Start | **COMPLETE** |
+| `OSC 133 ; C ST` | Shell Integration - Command End | **COMPLETE** |
+| `OSC 133 ; D ; exitcode ST` | Shell Integration - Command Finished | **COMPLETE** |
 
 **Specification:**
 - OSC 0/1/2: Set window title displayed in title bar
@@ -212,14 +212,14 @@ SGR (Select Graphic Rendition) sequences: `CSI n m`
 |------|-----------|--------|
 | 0 | Reset all attributes | **COMPLETE** |
 | 1 | Bold | **COMPLETE** |
-| 2 | Dim/Faint | NOT STARTED |
+| 2 | Dim/Faint | **COMPLETE** |
 | 3 | Italic | **COMPLETE** |
 | 4 | Underline | **COMPLETE** |
 | 5 | Slow Blink | NOT STARTED |
 | 6 | Rapid Blink | NOT STARTED |
 | 7 | Inverse/Reverse | **COMPLETE** |
 | 8 | Hidden/Invisible | NOT STARTED |
-| 9 | Strikethrough | NOT STARTED |
+| 9 | Strikethrough | **COMPLETE** |
 | 21 | Double Underline | NOT STARTED |
 | 22 | Normal Intensity (not bold/dim) | **COMPLETE** |
 | 23 | Not Italic | **COMPLETE** |
@@ -227,7 +227,7 @@ SGR (Select Graphic Rendition) sequences: `CSI n m`
 | 25 | Not Blinking | NOT STARTED |
 | 27 | Not Inverse | **COMPLETE** |
 | 28 | Not Hidden | NOT STARTED |
-| 29 | Not Strikethrough | NOT STARTED |
+| 29 | Not Strikethrough | **COMPLETE** |
 
 **Implementation:** `src/terminal/VTStateMachine.cpp` lines 280-310
 **Rendering:** `src/core/Application.cpp` lines 345-354 (underline rendering)
@@ -279,28 +279,28 @@ SGR (Select Graphic Rendition) sequences: `CSI n m`
 
 | Sequence | Description | Status |
 |----------|-------------|--------|
-| `CSI 38 ; 5 ; n m` | Set foreground to color n (0-255) | PARTIAL |
-| `CSI 48 ; 5 ; n m` | Set background to color n (0-255) | PARTIAL |
+| `CSI 38 ; 5 ; n m` | Set foreground to color n (0-255) | **COMPLETE** |
+| `CSI 48 ; 5 ; n m` | Set background to color n (0-255) | **COMPLETE** |
 
 **Specification:**
 - Colors 0-15: Standard 16 colors
 - Colors 16-231: 6x6x6 color cube (R,G,B each 0-5)
 - Colors 232-255: Grayscale (24 shades)
 
-**Current Implementation:** Maps to nearest 16-color equivalent
+**Implementation:** Full 256-color support with proper palette indexing
 
 ### 3.3 Truecolor (24-bit RGB)
 
 | Sequence | Description | Status |
 |----------|-------------|--------|
-| `CSI 38 ; 2 ; r ; g ; b m` | Set foreground to RGB | PARTIAL |
-| `CSI 48 ; 2 ; r ; g ; b m` | Set background to RGB | PARTIAL |
+| `CSI 38 ; 2 ; r ; g ; b m` | Set foreground to RGB | **COMPLETE** |
+| `CSI 48 ; 2 ; r ; g ; b m` | Set background to RGB | **COMPLETE** |
 
 **Specification:** Full 24-bit color (16.7 million colors)
 
-**Current Implementation:** Maps to nearest 16-color equivalent. Should store full RGB.
+**Implementation:** Stores full RGB values in CellAttributes (fgR, fgG, fgB, bgR, bgG, bgB) with FLAG_TRUECOLOR_FG/BG flags
 
-**Implementation:** `src/terminal/VTStateMachine.cpp` lines 360-390
+**Implementation:** `src/terminal/VTStateMachine.cpp` HandleSGR()
 
 ---
 
@@ -366,7 +366,7 @@ struct Cell {
 | Get Position | Query current cursor row/column | **COMPLETE** |
 | Set Position | Move cursor to specific row/column | **COMPLETE** |
 | Bounds Clamping | Clamp to valid buffer range | **COMPLETE** |
-| Report Position | Respond to CPR request | NOT STARTED |
+| Report Position | Respond to CPR request | **COMPLETE** |
 
 **Implementation:** `src/terminal/ScreenBuffer.cpp` lines 50-80
 
@@ -374,7 +374,7 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Show/Hide | DECTCEM mode | NOT STARTED |
+| Show/Hide | DECTCEM mode | **COMPLETE** |
 | Blink | Toggle visibility on timer | **COMPLETE** |
 | Blink Rate | Configurable blink interval | PARTIAL |
 
@@ -397,12 +397,13 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| DECSC (ESC 7) | Save cursor position + attributes | NOT STARTED |
-| DECRC (ESC 8) | Restore cursor position + attributes | NOT STARTED |
-| SCP (CSI s) | Save cursor position only | NOT STARTED |
-| RCP (CSI u) | Restore cursor position only | NOT STARTED |
+| DECSC (ESC 7) | Save cursor position + attributes | **COMPLETE** |
+| DECRC (ESC 8) | Restore cursor position + attributes | **COMPLETE** |
+| SCP (CSI s) | Save cursor position only | **COMPLETE** |
+| RCP (CSI u) | Restore cursor position only | **COMPLETE** |
 
 **Specification:** DECSC/DECRC save: position, attributes, character set, origin mode, autowrap
+**Implementation:** `src/terminal/VTStateMachine.cpp` SaveCursorState(), RestoreCursorState()
 
 ---
 
@@ -426,8 +427,8 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| DECSTBM | Set top/bottom margins | NOT STARTED |
-| Region Scroll | Scroll only within region | NOT STARTED |
+| DECSTBM | Set top/bottom margins | **COMPLETE** |
+| Region Scroll | Scroll only within region | **COMPLETE** |
 | Origin Mode | Cursor relative to region | NOT STARTED |
 
 **Specification:**
@@ -435,16 +436,18 @@ struct Cell {
 - Content outside region is unaffected by scroll operations
 - DECOM enables origin mode where cursor positions are relative to scroll region
 
+**Implementation:** `src/terminal/ScreenBuffer.cpp` SetScrollRegion(), ScrollRegionUp(), ScrollRegionDown()
+
 ### 6.3 Scroll Operations
 
 | Feature | Description | Status |
 |---------|-------------|--------|
 | ScrollUp | Move content up, add blank at bottom | **COMPLETE** |
 | ScrollDown | Move content down, add blank at top | **COMPLETE** |
-| SU (CSI n S) | Scroll up n lines | NOT STARTED |
-| SD (CSI n T) | Scroll down n lines | NOT STARTED |
+| SU (CSI n S) | Scroll up n lines | **COMPLETE** |
+| SD (CSI n T) | Scroll down n lines | **COMPLETE** |
 
-**Implementation:** `src/terminal/ScreenBuffer.cpp` lines 180-220
+**Implementation:** `src/terminal/ScreenBuffer.cpp` ScrollUp(), ScrollDown(), ScrollRegionUp(), ScrollRegionDown()
 
 ---
 
@@ -479,10 +482,10 @@ struct Cell {
 
 | Mode | Description | Status |
 |------|-------------|--------|
-| 1000 | Click tracking (X10) | NOT STARTED |
-| 1002 | Cell motion tracking | NOT STARTED |
-| 1003 | All motion tracking | NOT STARTED |
-| 1006 | SGR extended mode | NOT STARTED |
+| 1000 | Click tracking (X10) | **COMPLETE** |
+| 1002 | Cell motion tracking | **COMPLETE** |
+| 1003 | All motion tracking | **COMPLETE** |
+| 1006 | SGR extended mode | **COMPLETE** |
 | 1015 | URXVT mode | NOT STARTED |
 
 **Specification:**
@@ -490,6 +493,8 @@ struct Cell {
 - Mode 1002: Also report motion while button pressed
 - Mode 1003: Report all motion, even without button
 - Mode 1006: Extended format `CSI < button ; x ; y M/m`
+
+**Implementation:** `src/terminal/VTStateMachine.cpp` HandleMode() for mode tracking, `src/core/Application.cpp` for mouse event encoding
 
 ---
 
@@ -514,12 +519,14 @@ struct Cell {
 | Ctrl+V | Paste from clipboard | **COMPLETE** |
 | Right-click Paste | Context menu paste | NOT STARTED |
 | Ctrl+Shift+V | Paste without formatting | NOT STARTED |
-| Bracketed Paste | Wrap in ESC sequences | NOT STARTED |
+| Bracketed Paste | Wrap in ESC sequences | **COMPLETE** |
 | Middle Button | X11-style paste | NOT STARTED |
 
 **Specification:**
 - Bracketed paste mode (DECSET 2004): Wrap pasted text in `ESC [ 200 ~` and `ESC [ 201 ~`
 - Allows applications to distinguish typed text from pasted text
+
+**Implementation:** `src/core/Application.cpp` checks IsBracketedPasteEnabled() and wraps paste content
 
 **Implementation:** `src/core/Application.cpp` lines 680-730
 
@@ -552,10 +559,10 @@ struct Cell {
 
 | Key | Normal | Application Mode | Status |
 |-----|--------|------------------|--------|
-| Up | `ESC [ A` | `ESC O A` | **COMPLETE** / NOT STARTED |
-| Down | `ESC [ B` | `ESC O B` | **COMPLETE** / NOT STARTED |
-| Left | `ESC [ C` | `ESC O C` | **COMPLETE** / NOT STARTED |
-| Right | `ESC [ D` | `ESC O D` | **COMPLETE** / NOT STARTED |
+| Up | `ESC [ A` | `ESC O A` | **COMPLETE** |
+| Down | `ESC [ B` | `ESC O B` | **COMPLETE** |
+| Left | `ESC [ C` | `ESC O C` | **COMPLETE** |
+| Right | `ESC [ D` | `ESC O D` | **COMPLETE** |
 | Home | `ESC [ H` | `ESC O H` | PARTIAL |
 | End | `ESC [ F` | `ESC O F` | PARTIAL |
 | Insert | `ESC [ 2 ~` | - | NOT STARTED |
@@ -945,39 +952,39 @@ This section tracks features required for running [Claude Code](https://claude.c
 
 | Feature | Description | Section | Current Status |
 |---------|-------------|---------|----------------|
-| **True Color (24-bit)** | Full RGB color for syntax highlighting | [3.3](#33-truecolor-24-bit-rgb) | PARTIAL |
-| **Dim/Faint (SGR 2)** | De-emphasized text styling | [2.1](#21-basic-attributes) | NOT STARTED |
-| **Strikethrough (SGR 9)** | Show removed/deleted code | [2.1](#21-basic-attributes) | NOT STARTED |
-| **Cursor Hide/Show** | DECTCEM (mode 25) | [5.2](#52-cursor-visibility) | NOT STARTED |
-| **Cursor Save/Restore** | CSI s / CSI u sequences | [5.4](#54-cursor-saverestore) | NOT STARTED |
-| **Bracketed Paste** | Mode 2004 for paste detection | [8.2](#82-paste) | NOT STARTED |
-| **Alt Screen Buffer** | Mode 1049 for TUI apps | [4.2](#42-alternate-buffer) | PARTIAL |
-| **Cursor Horizontal Absolute** | CSI n G (CHA) | [1.2](#cursor-movement) | NOT STARTED |
-| **Erase Characters** | CSI n X (ECH) | [1.2](#erase-operations) | NOT STARTED |
-| **Cursor Position Report** | CSI 6 n / response | [1.2](#device-status) | NOT STARTED |
-| **Application Cursor Keys** | DECCKM (mode 1) | [1.2](#mode-setting) | NOT STARTED |
-| **Auto-Wrap Mode** | DECAWM (mode 7) | [1.2](#mode-setting) | NOT STARTED |
+| **True Color (24-bit)** | Full RGB color for syntax highlighting | [3.3](#33-truecolor-24-bit-rgb) | **COMPLETE** |
+| **Dim/Faint (SGR 2)** | De-emphasized text styling | [2.1](#21-basic-attributes) | **COMPLETE** |
+| **Strikethrough (SGR 9)** | Show removed/deleted code | [2.1](#21-basic-attributes) | **COMPLETE** |
+| **Cursor Hide/Show** | DECTCEM (mode 25) | [5.2](#52-cursor-visibility) | **COMPLETE** |
+| **Cursor Save/Restore** | CSI s / CSI u sequences | [5.4](#54-cursor-saverestore) | **COMPLETE** |
+| **Bracketed Paste** | Mode 2004 for paste detection | [8.2](#82-paste) | **COMPLETE** |
+| **Alt Screen Buffer** | Mode 1049 for TUI apps | [4.2](#42-alternate-buffer) | **COMPLETE** |
+| **Cursor Horizontal Absolute** | CSI n G (CHA) | [1.2](#cursor-movement) | **COMPLETE** |
+| **Erase Characters** | CSI n X (ECH) | [1.2](#erase-operations) | **COMPLETE** |
+| **Cursor Position Report** | CSI 6 n / response | [1.2](#device-status) | **COMPLETE** |
+| **Application Cursor Keys** | DECCKM (mode 1) | [1.2](#mode-setting) | **COMPLETE** |
+| **Auto-Wrap Mode** | DECAWM (mode 7) | [1.2](#mode-setting) | **COMPLETE** |
 
 ### Implementation Checklist
 
 **High Priority (Core functionality):**
-- [ ] True color support (store full RGB, not map to 16)
-- [ ] Dim/Faint text attribute (SGR 2)
-- [ ] Cursor visibility control (DECTCEM mode 25)
-- [ ] Cursor save/restore (CSI s/u)
-- [ ] Cursor Horizontal Absolute (CSI G)
-- [ ] Device Status Report / Cursor Position Report (CSI 6 n -> CSI row;col R)
+- [X] True color support (store full RGB, not map to 16)
+- [X] Dim/Faint text attribute (SGR 2)
+- [X] Cursor visibility control (DECTCEM mode 25)
+- [X] Cursor save/restore (CSI s/u)
+- [X] Cursor Horizontal Absolute (CSI G)
+- [X] Device Status Report / Cursor Position Report (CSI 6 n -> CSI row;col R)
 
 **Medium Priority (Enhanced experience):**
-- [ ] Strikethrough attribute (SGR 9)
-- [ ] Bracketed paste mode (mode 2004)
-- [ ] Erase Characters (CSI X)
-- [ ] Application cursor keys (DECCKM mode 1)
-- [ ] Auto-wrap mode (DECAWM mode 7)
+- [X] Strikethrough attribute (SGR 9)
+- [X] Bracketed paste mode (mode 2004)
+- [X] Erase Characters (CSI X)
+- [X] Application cursor keys (DECCKM mode 1)
+- [X] Auto-wrap mode (DECAWM mode 7)
 
 **Low Priority (Nice to have):**
 - [ ] OSC 8 hyperlinks (clickable URLs in output)
-- [ ] OSC 133 shell integration (command tracking)
+- [X] OSC 133 shell integration (command tracking)
 
 ### Notes
 
@@ -986,16 +993,23 @@ This section tracks features required for running [Claude Code](https://claude.c
 - Cursor manipulation is used for dynamic UI updates
 - See [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code) for more information
 
+**Status: All Claude Code compatibility features are now COMPLETE as of Phase 1 VT Compatibility implementation.**
+
 ---
 
 ## Implementation Priority
 
-### Phase 1: Core VT Compatibility (Critical)
-1. Private mode sequences (DECTCEM, DECAWM, DECCKM)
-2. Insert/Delete character and line operations
-3. Cursor save/restore (DECSC/DECRC)
-4. Device Attributes response
-5. Scroll regions (DECSTBM)
+### Phase 1: Core VT Compatibility (Critical) - **COMPLETE**
+1. ~~Private mode sequences (DECTCEM, DECAWM, DECCKM)~~ ✓
+2. ~~Insert/Delete character and line operations~~ ✓
+3. ~~Cursor save/restore (DECSC/DECRC)~~ ✓
+4. ~~Device Attributes response~~ ✓
+5. ~~Scroll regions (DECSTBM)~~ ✓
+6. ~~True color (24-bit RGB)~~ ✓
+7. ~~Dim/Strikethrough text attributes~~ ✓
+8. ~~Mouse mode reporting~~ ✓
+9. ~~Bracketed paste mode~~ ✓
+10. ~~OSC 133 shell integration~~ ✓
 
 ### Phase 2: Configuration
 1. JSON configuration file
@@ -1004,7 +1018,7 @@ This section tracks features required for running [Claude Code](https://claude.c
 4. Keybinding customization
 
 ### Phase 3: Mouse Enhancement
-1. Mouse reporting to applications
+1. ~~Mouse reporting to applications~~ ✓
 2. Double/triple-click selection
 3. Right-click context menu
 
@@ -1017,5 +1031,5 @@ This section tracks features required for running [Claude Code](https://claude.c
 ### Phase 5: Polish
 1. Settings UI
 2. Ligatures (HarfBuzz)
-3. Shell integration (OSC 133)
+3. ~~Shell integration (OSC 133)~~ ✓
 4. Multiple windows

@@ -18,15 +18,15 @@
 
 **Purpose**: Prepare data structures for VT compatibility features
 
-- [ ] T001 [P] Add FLAG_DIM constant to CellAttributes in include/terminal/ScreenBuffer.h
-- [ ] T002 [P] Add FLAG_STRIKETHROUGH constant to CellAttributes in include/terminal/ScreenBuffer.h
-- [ ] T003 [P] Add FLAG_TRUECOLOR_FG and FLAG_TRUECOLOR_BG constants in include/terminal/ScreenBuffer.h
-- [ ] T004 [P] Add RGB fields (fgR, fgG, fgB, bgR, bgG, bgB) to CellAttributes in include/terminal/ScreenBuffer.h
-- [ ] T005 Add helper methods (IsDim, IsStrikethrough, UsesTrueColorFg/Bg) in include/terminal/ScreenBuffer.h
-- [ ] T006 Add SetForegroundRGB and SetBackgroundRGB methods in include/terminal/ScreenBuffer.h
-- [ ] T007 Verify build succeeds with extended CellAttributes structure
+- [X] T001 [P] Add FLAG_DIM constant to CellAttributes in include/terminal/ScreenBuffer.h
+- [X] T002 [P] Add FLAG_STRIKETHROUGH constant to CellAttributes in include/terminal/ScreenBuffer.h
+- [X] T003 [P] Add FLAG_TRUECOLOR_FG and FLAG_TRUECOLOR_BG constants in include/terminal/ScreenBuffer.h
+- [X] T004 [P] Add RGB fields (fgR, fgG, fgB, bgR, bgG, bgB) to CellAttributes in include/terminal/ScreenBuffer.h
+- [X] T005 Add helper methods (IsDim, IsStrikethrough, UsesTrueColorFg/Bg) in include/terminal/ScreenBuffer.h
+- [X] T006 Add SetForegroundRGB and SetBackgroundRGB methods in include/terminal/ScreenBuffer.h
+- [X] T007 Verify build succeeds with extended CellAttributes structure
 
-**Checkpoint**: CellAttributes extended with new flags and RGB support
+**Checkpoint**: CellAttributes extended with new flags and RGB support ✓ COMPLETE
 
 ---
 
@@ -34,16 +34,16 @@
 
 **Purpose**: Core infrastructure - MUST complete before user stories
 
-- [ ] T008 [P] Add SavedCursorState struct to include/terminal/VTStateMachine.h
-- [ ] T009 [P] Add scroll region members (m_scrollTop, m_scrollBottom) to include/terminal/ScreenBuffer.h
-- [ ] T010 [P] Add mode state booleans (m_applicationCursorKeys, m_autoWrap, m_bracketedPaste) to include/terminal/VTStateMachine.h
-- [ ] T011 [P] Add response callback (m_responseCallback, SetResponseCallback) to include/terminal/VTStateMachine.h
-- [ ] T012 Add SetScrollRegion and ScrollRegionUp/Down method declarations in include/terminal/ScreenBuffer.h
-- [ ] T013 Implement scroll region methods in src/terminal/ScreenBuffer.cpp
-- [ ] T014 Add unit tests for scroll region in tests/unit/ScreenBuffer_test.cpp
-- [ ] T015 Wire up response callback in src/core/Application.cpp to write to ConPTY
+- [X] T008 [P] Add SavedCursorState struct to include/terminal/VTStateMachine.h
+- [X] T009 [P] Add scroll region members (m_scrollTop, m_scrollBottom) to include/terminal/ScreenBuffer.h
+- [X] T010 [P] Add mode state booleans (m_applicationCursorKeys, m_autoWrap, m_bracketedPaste) to include/terminal/VTStateMachine.h
+- [X] T011 [P] Add response callback (m_responseCallback, SetResponseCallback) to include/terminal/VTStateMachine.h
+- [X] T012 Add SetScrollRegion and ScrollRegionUp/Down method declarations in include/terminal/ScreenBuffer.h
+- [X] T013 Implement scroll region methods in src/terminal/ScreenBuffer.cpp
+- [X] T014 Add unit tests for scroll region in tests/unit/ScreenBuffer_test.cpp
+- [X] T015 Wire up response callback in src/core/Application.cpp to write to ConPTY
 
-**Checkpoint**: Foundation ready - scroll regions, cursor state, mode tracking, response callback
+**Checkpoint**: Foundation ready - scroll regions, cursor state, mode tracking, response callback ✓ COMPLETE
 
 ---
 
@@ -55,21 +55,21 @@
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Add unit test for SGR 2 (dim) parsing in tests/unit/VTStateMachine_test.cpp
-- [ ] T017 [P] [US1] Add unit test for SGR 38;2;R;G;B storing RGB in tests/unit/VTStateMachine_test.cpp
-- [ ] T018 [P] [US1] Add unit test for SGR 48;2;R;G;B storing RGB in tests/unit/VTStateMachine_test.cpp
+- [X] T016 [P] [US1] Add unit test for SGR 2 (dim) parsing in tests/unit/VTStateMachine_test.cpp
+- [X] T017 [P] [US1] Add unit test for SGR 38;2;R;G;B storing RGB in tests/unit/VTStateMachine_test.cpp
+- [X] T018 [P] [US1] Add unit test for SGR 48;2;R;G;B storing RGB in tests/unit/VTStateMachine_test.cpp
 
 ### Implementation for User Story 1
 
-- [ ] T019 [US1] Implement SGR 2 (dim) handling in HandleSGR() in src/terminal/VTStateMachine.cpp
-- [ ] T020 [US1] Implement SGR 22 to clear both bold and dim in HandleSGR() in src/terminal/VTStateMachine.cpp
-- [ ] T021 [US1] Modify SGR 38;2;R;G;B to store true RGB using SetForegroundRGB in src/terminal/VTStateMachine.cpp
-- [ ] T022 [US1] Modify SGR 48;2;R;G;B to store true RGB using SetBackgroundRGB in src/terminal/VTStateMachine.cpp
-- [ ] T023 [US1] Update color resolution to use true RGB when FLAG_TRUECOLOR set in src/core/Application.cpp
-- [ ] T024 [US1] Apply 0.5 intensity multiplier when FLAG_DIM set in rendering in src/core/Application.cpp
-- [ ] T025 [US1] Run all unit tests and verify passing
+- [X] T019 [US1] Implement SGR 2 (dim) handling in HandleSGR() in src/terminal/VTStateMachine.cpp
+- [X] T020 [US1] Implement SGR 22 to clear both bold and dim in HandleSGR() in src/terminal/VTStateMachine.cpp
+- [X] T021 [US1] Modify SGR 38;2;R;G;B to store true RGB using SetForegroundRGB in src/terminal/VTStateMachine.cpp
+- [X] T022 [US1] Modify SGR 48;2;R;G;B to store true RGB using SetBackgroundRGB in src/terminal/VTStateMachine.cpp
+- [X] T023 [US1] Update color resolution to use true RGB when FLAG_TRUECOLOR set in src/core/Application.cpp
+- [X] T024 [US1] Apply 0.5 intensity multiplier when FLAG_DIM set in rendering in src/core/Application.cpp
+- [X] T025 [US1] Run all unit tests and verify passing
 
-**Checkpoint**: True color and dim text work - Claude Code colors display accurately
+**Checkpoint**: True color and dim text work - Claude Code colors display accurately ✓ COMPLETE
 
 ---
 
@@ -81,22 +81,22 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Add unit test for ESC 7 (DECSC) cursor save in tests/unit/VTStateMachine_test.cpp
-- [ ] T027 [P] [US2] Add unit test for ESC 8 (DECRC) cursor restore in tests/unit/VTStateMachine_test.cpp
-- [ ] T028 [P] [US2] Add unit test for CSI ?7h/l (DECAWM) in tests/unit/VTStateMachine_test.cpp
-- [ ] T029 [P] [US2] Add unit test for CSI ?1h/l (DECCKM) in tests/unit/VTStateMachine_test.cpp
+- [X] T026 [P] [US2] Add unit test for ESC 7 (DECSC) cursor save in tests/unit/VTStateMachine_test.cpp
+- [X] T027 [P] [US2] Add unit test for ESC 8 (DECRC) cursor restore in tests/unit/VTStateMachine_test.cpp
+- [X] T028 [P] [US2] Add unit test for CSI ?7h/l (DECAWM) in tests/unit/VTStateMachine_test.cpp
+- [X] T029 [P] [US2] Add unit test for CSI ?1h/l (DECCKM) in tests/unit/VTStateMachine_test.cpp
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Implement DECSC (ESC 7) handler in HandleEscapeSequence() in src/terminal/VTStateMachine.cpp
-- [ ] T031 [US2] Implement DECRC (ESC 8) handler in HandleEscapeSequence() in src/terminal/VTStateMachine.cpp
-- [ ] T032 [US2] Implement DECAWM mode 7 in HandleMode() in src/terminal/VTStateMachine.cpp
-- [ ] T033 [US2] Implement DECCKM mode 1 in HandleMode() in src/terminal/VTStateMachine.cpp
-- [ ] T034 [US2] Add IsApplicationCursorKeysEnabled() accessor in include/terminal/VTStateMachine.h
-- [ ] T035 [US2] Update keyboard handler to send ESC O x when DECCKM enabled in src/core/Application.cpp
-- [ ] T036 [US2] Run all unit tests and verify passing
+- [X] T030 [US2] Implement DECSC (ESC 7) handler in HandleEscapeSequence() in src/terminal/VTStateMachine.cpp
+- [X] T031 [US2] Implement DECRC (ESC 8) handler in HandleEscapeSequence() in src/terminal/VTStateMachine.cpp
+- [X] T032 [US2] Implement DECAWM mode 7 in HandleMode() in src/terminal/VTStateMachine.cpp
+- [X] T033 [US2] Implement DECCKM mode 1 in HandleMode() in src/terminal/VTStateMachine.cpp
+- [X] T034 [US2] Add IsApplicationCursorKeysEnabled() accessor in include/terminal/VTStateMachine.h
+- [X] T035 [US2] Update keyboard handler to send ESC O x when DECCKM enabled in src/core/Application.cpp
+- [X] T036 [US2] Run all unit tests and verify passing
 
-**Checkpoint**: vim cursor keys work, alternate screen preserves shell state
+**Checkpoint**: vim cursor keys work, alternate screen preserves shell state ✓ COMPLETE
 
 ---
 
@@ -108,21 +108,22 @@
 
 ### Tests for User Story 3
 
-- [ ] T037 [P] [US3] Add unit test for CSI ?25h/l (DECTCEM) in tests/unit/VTStateMachine_test.cpp
-- [ ] T038 [P] [US3] Add unit test for CSI s (SCP) in tests/unit/VTStateMachine_test.cpp
-- [ ] T039 [P] [US3] Add unit test for CSI u (RCP) in tests/unit/VTStateMachine_test.cpp
-- [ ] T040 [P] [US3] Add unit test for CSI 6n (CPR) response in tests/unit/VTStateMachine_test.cpp
+- [X] T037 [P] [US3] Add unit test for CSI ?25h/l (DECTCEM) in tests/unit/VTStateMachine_test.cpp
+- [X] T038 [P] [US3] Add unit test for CSI s (SCP) in tests/unit/VTStateMachine_test.cpp
+- [X] T039 [P] [US3] Add unit test for CSI u (RCP) in tests/unit/VTStateMachine_test.cpp
+- [X] T040 [P] [US3] Add unit test for CSI 6n (CPR) response in tests/unit/VTStateMachine_test.cpp
+- [X] T040b [P] [US3] Add unit test for CSI 5n (DSR status "OK" response) in tests/unit/VTStateMachine_test.cpp
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] Implement DECTCEM mode 25 in HandleMode() in src/terminal/VTStateMachine.cpp
-- [ ] T042 [US3] Add CSI s handler for cursor position save in HandleCSI() in src/terminal/VTStateMachine.cpp
-- [ ] T043 [US3] Add CSI u handler for cursor position restore in HandleCSI() in src/terminal/VTStateMachine.cpp
-- [ ] T044 [US3] Implement HandleDeviceStatusReport() for CSI 6n in src/terminal/VTStateMachine.cpp
-- [ ] T045 [US3] Implement HandleDeviceAttributes() for CSI c in src/terminal/VTStateMachine.cpp
-- [ ] T046 [US3] Run all unit tests and verify passing
+- [X] T041 [US3] Implement DECTCEM mode 25 in HandleMode() in src/terminal/VTStateMachine.cpp
+- [X] T042 [US3] Add CSI s handler for cursor position save in HandleCSI() in src/terminal/VTStateMachine.cpp
+- [X] T043 [US3] Add CSI u handler for cursor position restore in HandleCSI() in src/terminal/VTStateMachine.cpp
+- [X] T044 [US3] Implement HandleDeviceStatusReport() for CSI 5n (status) and CSI 6n (CPR) in src/terminal/VTStateMachine.cpp
+- [X] T045 [US3] Implement HandleDeviceAttributes() for CSI c in src/terminal/VTStateMachine.cpp
+- [X] T046 [US3] Run all unit tests and verify passing
 
-**Checkpoint**: Cursor visibility toggles, position save/restore works, device responses sent
+**Checkpoint**: Cursor visibility toggles, position save/restore works, device responses sent ✓ COMPLETE
 
 ---
 
@@ -134,20 +135,25 @@
 
 ### Tests for User Story 4
 
-- [ ] T047 [P] [US4] Add unit test for DECSTBM (CSI t;b r) in tests/unit/VTStateMachine_test.cpp
-- [ ] T048 [P] [US4] Add unit test for scroll region bounds in tests/unit/ScreenBuffer_test.cpp
-- [ ] T049 [P] [US4] Add unit test for CSI n S (scroll up) in tests/unit/VTStateMachine_test.cpp
-- [ ] T050 [P] [US4] Add unit test for CSI n T (scroll down) in tests/unit/VTStateMachine_test.cpp
+- [X] T047 [P] [US4] Add unit test for DECSTBM (CSI t;b r) in tests/unit/VTStateMachine_test.cpp
+- [X] T048 [P] [US4] Add unit test for scroll region bounds in tests/unit/ScreenBuffer_test.cpp
+- [X] T049 [P] [US4] Add unit test for CSI n S (scroll up) in tests/unit/VTStateMachine_test.cpp
+- [X] T050 [P] [US4] Add unit test for CSI n T (scroll down) in tests/unit/VTStateMachine_test.cpp
 
 ### Implementation for User Story 4
 
-- [ ] T051 [US4] Implement HandleSetScrollingRegion() for DECSTBM in src/terminal/VTStateMachine.cpp
-- [ ] T052 [US4] Add HandleScrollUp() for CSI n S in src/terminal/VTStateMachine.cpp
-- [ ] T053 [US4] Add HandleScrollDown() for CSI n T in src/terminal/VTStateMachine.cpp
-- [ ] T054 [US4] Modify NewLine in ScreenBuffer to respect scroll region in src/terminal/ScreenBuffer.cpp
-- [ ] T055 [US4] Run all unit tests and verify passing
+- [X] T051 [US4] Implement HandleSetScrollingRegion() for DECSTBM in src/terminal/VTStateMachine.cpp
+- [X] T052 [US4] Add HandleScrollUp() for CSI n S in src/terminal/VTStateMachine.cpp
+- [X] T053 [US4] Add HandleScrollDown() for CSI n T in src/terminal/VTStateMachine.cpp
+- [X] T054 [US4] Modify NewLine in ScreenBuffer to respect scroll region in src/terminal/ScreenBuffer.cpp
+- [X] T055 [US4] Run all unit tests and verify passing
 
-**Checkpoint**: Scroll regions work - htop header stays fixed
+### Edge Case Coverage
+
+- [X] T055b [US4] Add unit test for invalid scroll region (top > bottom) - verify graceful handling
+- [X] T055c [US3] Add unit test for double cursor save without restore - verify last save wins
+
+**Checkpoint**: Scroll regions work - htop header stays fixed ✓ COMPLETE
 
 ---
 
@@ -157,18 +163,47 @@
 
 ### Tests
 
-- [ ] T056 [P] Add unit test for SGR 9 (strikethrough) in tests/unit/VTStateMachine_test.cpp
-- [ ] T057 [P] Add unit test for CSI ?2004h/l (bracketed paste) in tests/unit/VTStateMachine_test.cpp
+- [X] T056 [P] Add unit test for SGR 9 (strikethrough) in tests/unit/VTStateMachine_test.cpp
+- [X] T057 [P] Add unit test for CSI ?2004h/l (bracketed paste) in tests/unit/VTStateMachine_test.cpp
 
 ### Implementation
 
-- [ ] T058 Implement SGR 9 (strikethrough) in HandleSGR() in src/terminal/VTStateMachine.cpp
-- [ ] T059 Implement SGR 29 (not strikethrough) in HandleSGR() in src/terminal/VTStateMachine.cpp
-- [ ] T060 Render strikethrough line through text center in src/core/Application.cpp
-- [ ] T061 Implement bracketed paste mode 2004 in HandleMode() in src/terminal/VTStateMachine.cpp
-- [ ] T062 Wrap pasted text in bracket sequences when mode enabled in src/core/Application.cpp
+- [X] T058 Implement SGR 9 (strikethrough) in HandleSGR() in src/terminal/VTStateMachine.cpp
+- [X] T059 Implement SGR 29 (not strikethrough) in HandleSGR() in src/terminal/VTStateMachine.cpp
+- [X] T060 Render strikethrough line through text center in src/core/Application.cpp
+- [X] T061 Implement bracketed paste mode 2004 in HandleMode() in src/terminal/VTStateMachine.cpp
+- [X] T062 Wrap pasted text in bracket sequences when mode enabled in src/core/Application.cpp
 
-**Checkpoint**: All Phase 1 VT sequences implemented
+**Checkpoint**: All Phase 1 VT sequences implemented ✓ COMPLETE
+
+---
+
+## Phase 7.5: Character/Line Operations
+
+**Goal**: Complete character and line manipulation sequences required for editor compatibility
+
+**Purpose**: These operations are essential for text editors that insert/delete characters mid-line
+
+### Tests for Character/Line Operations
+
+- [X] T069 [P] Add unit test for CSI n G (CHA - Cursor Horizontal Absolute) in tests/unit/VTStateMachine_test.cpp
+- [X] T070 [P] Add unit test for CSI n @ (ICH - Insert Characters) in tests/unit/VTStateMachine_test.cpp
+- [X] T071 [P] Add unit test for CSI n P (DCH - Delete Characters) in tests/unit/VTStateMachine_test.cpp
+- [X] T072 [P] Add unit test for CSI n L (IL - Insert Lines) in tests/unit/VTStateMachine_test.cpp
+- [X] T073 [P] Add unit test for CSI n M (DL - Delete Lines) in tests/unit/VTStateMachine_test.cpp
+- [X] T074 [P] Add unit test for CSI n X (ECH - Erase Characters) in tests/unit/VTStateMachine_test.cpp
+
+### Implementation for Character/Line Operations
+
+- [X] T075 Implement HandleCursorHorizontalAbsolute() for CSI n G in src/terminal/VTStateMachine.cpp
+- [X] T076 Implement HandleInsertCharacters() for CSI n @ in src/terminal/VTStateMachine.cpp
+- [X] T077 Implement HandleDeleteCharacters() for CSI n P in src/terminal/VTStateMachine.cpp
+- [X] T078 Implement HandleInsertLines() for CSI n L in src/terminal/VTStateMachine.cpp
+- [X] T079 Implement HandleDeleteLines() for CSI n M in src/terminal/VTStateMachine.cpp
+- [X] T080 Implement HandleEraseCharacters() for CSI n X in src/terminal/VTStateMachine.cpp
+- [X] T081 Run all unit tests and verify passing
+
+**Checkpoint**: All character/line manipulation sequences functional ✓ COMPLETE
 
 ---
 
@@ -176,12 +211,12 @@
 
 **Purpose**: Validation across all user stories
 
-- [ ] T063 Run complete unit test suite (run_tests.bat)
+- [X] T063 Run complete unit test suite (run_tests.bat)
 - [ ] T064 Manual test: Launch vim, edit file, exit, verify shell state preserved
 - [ ] T065 Manual test: Launch htop, verify header fixed, process list scrolls
 - [ ] T066 Manual test: Run Claude Code for 10 minutes, verify no rendering artifacts
-- [ ] T067 Update SPECIFICATION.md status for all completed sequences
-- [ ] T068 Commit all changes with descriptive message
+- [X] T067 Update SPECIFICATION.md status for all completed sequences
+- [X] T068 Commit all changes with descriptive message
 
 ---
 
@@ -244,11 +279,12 @@ US4 Tests: T047, T048, T049, T050 can run in parallel
 | Foundational | 8 | 4 | Scroll regions, state tracking |
 | US1 (Claude Code) | 10 | 3 | True color, dim |
 | US2 (vim) | 11 | 4 | Cursor save/restore, modes |
-| US3 (Cursor) | 10 | 4 | Visibility, CPR, device attrs |
-| US4 (Scroll Regions) | 9 | 4 | DECSTBM, scroll commands |
+| US3 (Cursor) | 11 | 5 | Visibility, CPR, device attrs, DSR |
+| US4 (Scroll Regions) | 11 | 5 | DECSTBM, scroll commands, edge cases |
 | Additional | 7 | 2 | Strikethrough, bracketed paste |
+| Char/Line Ops | 13 | 6 | Insert/delete chars/lines, CHA |
 | Polish | 6 | 0 | Integration testing |
-| **Total** | **68** | **25** | |
+| **Total** | **84** | **33** | |
 
 **MVP Scope**: Phases 1-3 (25 tasks) delivers Claude Code compatibility
-**Full Scope**: All phases (68 tasks) delivers complete Phase 1 VT compatibility
+**Full Scope**: All phases (84 tasks) delivers complete Phase 1 VT compatibility

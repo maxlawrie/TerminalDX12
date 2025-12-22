@@ -56,10 +56,7 @@ src/terminal/
 └── VTStateMachine.cpp   # New escape sequence handlers
 
 src/core/
-└── Application.cpp      # Dim/strikethrough rendering
-
-src/rendering/
-└── TextRenderer.cpp     # RGB color support
+└── Application.cpp      # Dim/strikethrough rendering, RGB color resolution
 
 shaders/
 └── GlyphPixel.hlsl      # Dim intensity shader parameter
