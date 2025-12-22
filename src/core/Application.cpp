@@ -360,41 +360,56 @@ void Application::Render() {
         // First pass: Render backgrounds for non-default colors
         for (int x = 0; x < cols; ) {
             const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+
+            // Determine if this cell has a non-default background
+            bool hasTrueColorBg = cell.attr.UsesTrueColorBg();
+            bool hasTrueColorFg = cell.attr.UsesTrueColorFg();
             uint8_t bgIndex = cell.attr.IsInverse() ? cell.attr.foreground % 16 : cell.attr.background % 16;
 
-            // Skip default background (black) unless inverse
-            if (bgIndex == 0 && !cell.attr.IsInverse()) {
+            // For inverse, we use the foreground color as background
+            bool hasNonDefaultBg = false;
+            float bgR = 0.0f, bgG = 0.0f, bgB = 0.0f;
+
+            if (cell.attr.IsInverse()) {
+                if (hasTrueColorFg) {
+                    bgR = cell.attr.fgR / 255.0f;
+                    bgG = cell.attr.fgG / 255.0f;
+                    bgB = cell.attr.fgB / 255.0f;
+                    hasNonDefaultBg = true;
+                } else if (bgIndex != 0) {
+                    const float* color = colorPalette[bgIndex];
+                    bgR = color[0];
+                    bgG = color[1];
+                    bgB = color[2];
+                    hasNonDefaultBg = true;
+                }
+            } else {
+                if (hasTrueColorBg) {
+                    bgR = cell.attr.bgR / 255.0f;
+                    bgG = cell.attr.bgG / 255.0f;
+                    bgB = cell.attr.bgB / 255.0f;
+                    hasNonDefaultBg = true;
+                } else if (bgIndex != 0) {
+                    const float* color = colorPalette[bgIndex];
+                    bgR = color[0];
+                    bgG = color[1];
+                    bgB = color[2];
+                    hasNonDefaultBg = true;
+                }
+            }
+
+            // Skip default background (black)
+            if (!hasNonDefaultBg) {
                 x++;
                 continue;
             }
 
-            // Find run of same background color
-            int runStart = x;
-            int runLength = 1;
-
-            while (x + runLength < cols) {
-                const auto& nextCell = screenBuffer->GetCellWithScrollback(x + runLength, y);
-                uint8_t nextBg = nextCell.attr.IsInverse() ? nextCell.attr.foreground % 16 : nextCell.attr.background % 16;
-
-                if (nextBg != bgIndex) {
-                    break;
-                }
-                runLength++;
-            }
-
-            // Render background using space characters (simpler than block chars)
-            std::string spaces(runLength, ' ');
-            const float* bgColor = colorPalette[bgIndex];
-            float posX = static_cast<float>(startX + runStart * charWidth);
+            // Render single background cell
+            float posX = static_cast<float>(startX + x * charWidth);
             float posY = static_cast<float>(startY + y * lineHeight);
+            m_renderer->RenderText("\xE2\x96\x88", posX, posY, bgR, bgG, bgB, 1.0f);
 
-            // Render with background color - we'll use inverse rendering
-            // Render colored blocks behind text
-            for (int i = 0; i < runLength; i++) {
-                m_renderer->RenderText("\xE2\x96\x88", posX + i * charWidth, posY, bgColor[0], bgColor[1], bgColor[2], 1.0f);
-            }
-
-            x += runLength;
+            x++;
         }
 
         // Second pass: Render foreground text character by character for precise grid alignment
@@ -406,29 +421,62 @@ void Application::Render() {
                 continue;
             }
 
-            // Get color from palette
-            uint8_t fgIndex = cell.attr.foreground % 16;
-            const float* fgColor = colorPalette[fgIndex];
+            // Get foreground color - check for true color first
+            float fgR, fgG, fgB;
+            if (cell.attr.UsesTrueColorFg()) {
+                // Use 24-bit true color
+                fgR = cell.attr.fgR / 255.0f;
+                fgG = cell.attr.fgG / 255.0f;
+                fgB = cell.attr.fgB / 255.0f;
+            } else {
+                // Use palette color
+                uint8_t fgIndex = cell.attr.foreground % 16;
+                const float* fgColor = colorPalette[fgIndex];
+                fgR = fgColor[0];
+                fgG = fgColor[1];
+                fgB = fgColor[2];
+            }
+
+            // Get background color - check for true color first
+            float bgR, bgG, bgB;
+            if (cell.attr.UsesTrueColorBg()) {
+                // Use 24-bit true color
+                bgR = cell.attr.bgR / 255.0f;
+                bgG = cell.attr.bgG / 255.0f;
+                bgB = cell.attr.bgB / 255.0f;
+            } else {
+                // Use palette color
+                uint8_t bgIndex = cell.attr.background % 16;
+                const float* bgColor = colorPalette[bgIndex];
+                bgR = bgColor[0];
+                bgG = bgColor[1];
+                bgB = bgColor[2];
+            }
 
             // Handle inverse attribute
             float r, g, b;
             if (cell.attr.IsInverse()) {
-                uint8_t bgIndex = cell.attr.background % 16;
-                const float* bgColor = colorPalette[bgIndex];
-                r = bgColor[0];
-                g = bgColor[1];
-                b = bgColor[2];
+                r = bgR;
+                g = bgG;
+                b = bgB;
             } else {
-                r = fgColor[0];
-                g = fgColor[1];
-                b = fgColor[2];
+                r = fgR;
+                g = fgG;
+                b = fgB;
             }
 
-            // Apply bold by brightening colors
-            if (cell.attr.IsBold() && fgIndex < 8) {
+            // Apply bold by brightening colors (only for non-true-color)
+            if (cell.attr.IsBold() && !cell.attr.UsesTrueColorFg()) {
                 r = std::min(1.0f, r + 0.2f);
                 g = std::min(1.0f, g + 0.2f);
                 b = std::min(1.0f, b + 0.2f);
+            }
+
+            // Apply dim by reducing intensity
+            if (cell.attr.IsDim()) {
+                r *= 0.5f;
+                g *= 0.5f;
+                b *= 0.5f;
             }
 
             // Calculate exact grid position for this character
