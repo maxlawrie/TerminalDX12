@@ -104,7 +104,15 @@ void VTStateMachine::ProcessCharacter(char ch) {
 
         case State::CSI_Entry:
         case State::CSI_Param:
-            if (ch >= '0' && ch <= '9') {
+            // Handle control characters during CSI sequence
+            if (ch == '\x1b') {
+                // ESC during CSI - abort and start new escape sequence
+                m_state = State::Escape;
+                ResetState();
+            } else if (ch < 0x20 && ch != '\x1b') {
+                // C0 control characters - execute them (CR, LF, etc.)
+                ExecuteCharacter(ch);
+            } else if (ch >= '0' && ch <= '9') {
                 m_paramBuffer += ch;
                 m_state = State::CSI_Param;
             } else if (ch == ';') {
@@ -130,13 +138,27 @@ void VTStateMachine::ProcessCharacter(char ch) {
                 m_finalChar = ch;
                 HandleCSI();
                 m_state = State::Ground;
+            } else {
+                // Invalid character - abort sequence and return to ground
+                m_state = State::Ground;
             }
             break;
 
         case State::CSI_Intermediate:
-            if (ch >= 0x40 && ch <= 0x7E) {
+            // Handle control characters during CSI intermediate
+            if (ch == '\x1b') {
+                // ESC - abort and start new escape sequence
+                m_state = State::Escape;
+                ResetState();
+            } else if (ch < 0x20) {
+                // C0 control characters - execute them
+                ExecuteCharacter(ch);
+            } else if (ch >= 0x40 && ch <= 0x7E) {
                 m_finalChar = ch;
                 HandleCSI();
+                m_state = State::Ground;
+            } else if (ch >= 0x80) {
+                // Invalid - abort sequence
                 m_state = State::Ground;
             }
             break;
@@ -184,15 +206,33 @@ void VTStateMachine::HandleEscapeSequence(char ch) {
             m_oscBuffer.clear();
             break;
 
-        case 'M':  // Reverse Index (move up, scroll if needed)
-            // TODO: Implement RI
+        case 'M': {  // Reverse Index (RI) - move up, scroll if at top
+            int y = m_screenBuffer->GetCursorY();
+            int scrollTop = m_screenBuffer->GetScrollRegionTop();
+            if (y <= scrollTop) {
+                // At top of scroll region - scroll content down
+                m_screenBuffer->ScrollRegionDown(1);
+            } else {
+                // Not at top - just move cursor up
+                m_screenBuffer->SetCursorPos(m_screenBuffer->GetCursorX(), y - 1);
+            }
             m_state = State::Ground;
             break;
+        }
 
-        case 'D':  // Index (move down, scroll if needed)
-            // TODO: Implement IND
+        case 'D': {  // Index (IND) - move down, scroll if at bottom
+            int y = m_screenBuffer->GetCursorY();
+            int scrollBottom = m_screenBuffer->GetScrollRegionBottom();
+            if (y >= scrollBottom) {
+                // At bottom of scroll region - scroll content up
+                m_screenBuffer->ScrollRegionUp(1);
+            } else {
+                // Not at bottom - just move cursor down
+                m_screenBuffer->SetCursorPos(m_screenBuffer->GetCursorX(), y + 1);
+            }
             m_state = State::Ground;
             break;
+        }
 
         case 'E':  // Next Line
             m_screenBuffer->WriteChar('\n');
