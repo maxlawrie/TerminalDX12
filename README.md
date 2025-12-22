@@ -173,6 +173,10 @@ See [SPECIFICATION.md](SPECIFICATION.md) for a complete list of supported VT esc
 **Testing (optional):**
 - gtest
 
+## Known Issues
+
+- **First row missing after resize** - When resizing the terminal window while a TUI application (like Claude Code) is running, the first row of content may disappear. The live resize works smoothly, but the app's header line gets lost after resize completes. This appears to be related to how resize notifications are handled between the terminal and the application.
+
 ## License
 
 MIT License
