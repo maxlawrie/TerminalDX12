@@ -38,6 +38,7 @@ ScreenBuffer::ScreenBuffer(int cols, int rows, int scrollbackLines)
     , m_dirty(true)
 {
     m_buffer.resize(m_cols * m_rows);
+    m_lineWrapped.resize(m_rows, false);
     m_scrollback.reserve(m_scrollbackLines);
 
     spdlog::info("ScreenBuffer created: {}x{} with {} scrollback lines",
@@ -55,59 +56,113 @@ void ScreenBuffer::Resize(int cols, int rows) {
     spdlog::info("Resizing screen buffer from {}x{} to {}x{}, altBuffer={}",
                  m_cols, m_rows, cols, rows, m_useAltBuffer ? "yes" : "no");
 
-    // Debug: log row 0 content before resize
-    std::string row0Before;
-    for (int x = 0; x < std::min(40, m_cols); ++x) {
-        char32_t ch = m_buffer[x].ch;
-        if (ch >= 32 && ch < 127) row0Before += static_cast<char>(ch);
-        else if (ch == 0) row0Before += '.';
-        else row0Before += '?';
-    }
-    spdlog::info("Row 0 BEFORE resize: [{}]", row0Before);
-
     int oldCols = m_cols;
     int oldRows = m_rows;
 
-    // Helper lambda to resize a buffer with content preservation
-    auto resizeBuffer = [&](std::vector<Cell>& buffer) {
+    // For alternative buffer, just resize without reflow (TUI apps handle their own reflow)
+    if (m_useAltBuffer) {
         std::vector<Cell> newBuffer(cols * rows);
-
         int copyRows = std::min(oldRows, rows);
         int copyCols = std::min(oldCols, cols);
-
         for (int y = 0; y < copyRows; ++y) {
             for (int x = 0; x < copyCols; ++x) {
-                int oldIdx = y * oldCols + x;
-                int newIdx = y * cols + x;
-                if (oldIdx < static_cast<int>(buffer.size())) {
-                    newBuffer[newIdx] = buffer[oldIdx];
+                newBuffer[y * cols + x] = m_buffer[y * oldCols + x];
+            }
+        }
+        m_buffer = std::move(newBuffer);
+        m_cols = cols;
+        m_rows = rows;
+        m_lineWrapped.resize(rows, false);
+        ClampCursor();
+        m_dirty = true;
+        return;
+    }
+
+    // Text reflow for main buffer
+    // Step 1: Extract all text as logical lines (combining soft-wrapped lines)
+    // Use heuristic: if line is full (has content at last column) and next line 
+    // starts with non-space at column 0, it's a soft wrap
+    std::vector<std::vector<Cell>> logicalLines;
+    std::vector<Cell> currentLine;
+    
+    // Process visible buffer
+    for (int y = 0; y < oldRows; ++y) {
+        // Add cells from this row
+        for (int x = 0; x < oldCols; ++x) {
+            currentLine.push_back(m_buffer[y * oldCols + x]);
+        }
+        
+        // Heuristic soft-wrap detection:
+        // 1. Check if this line has content at the last column (not just space)
+        // 2. Check if next line exists and starts with non-space content
+        bool lineIsFull = (m_buffer[y * oldCols + oldCols - 1].ch != U' ' && 
+                          m_buffer[y * oldCols + oldCols - 1].ch != 0);
+        bool nextLineHasContent = (y + 1 < oldRows) && 
+                                  (m_buffer[(y + 1) * oldCols].ch != U' ' && 
+                                   m_buffer[(y + 1) * oldCols].ch != 0);
+        
+        bool isSoftWrap = lineIsFull && nextLineHasContent;
+        
+        // End the logical line if NOT a soft wrap, or if this is the last line
+        if (!isSoftWrap || y == oldRows - 1) {
+            // Trim trailing spaces from logical line
+            while (!currentLine.empty() && currentLine.back().ch == U' ') {
+                currentLine.pop_back();
+            }
+            logicalLines.push_back(std::move(currentLine));
+            currentLine.clear();
+        }
+    }
+    
+    // Step 2: Re-wrap logical lines to new column width
+    std::vector<Cell> newBuffer(cols * rows);
+    std::vector<bool> newWrapped(rows, false);
+    int newRow = 0;
+    int newCol = 0;
+    
+    for (const auto& logicalLine : logicalLines) {
+        if (newRow >= rows) break;
+        
+        for (const Cell& cell : logicalLine) {
+            if (newRow >= rows) break;
+            
+            newBuffer[newRow * cols + newCol] = cell;
+            newCol++;
+            
+            // Wrap to next line if we've hit the column limit
+            if (newCol >= cols) {
+                newCol = 0;
+                newRow++;
+                if (newRow < rows) {
+                    newWrapped[newRow] = true;  // This is a soft wrap
                 }
             }
         }
-
-        buffer = std::move(newBuffer);
-    };
-
-    // Resize the active buffer
-    resizeBuffer(m_buffer);
-
-    // Resize the inactive alternative buffer too (with content preservation)
-    if (!m_altBuffer.empty()) {
-        resizeBuffer(m_altBuffer);
+        
+        // Move to next line after logical line (unless we're already there from wrapping)
+        if (newCol > 0) {
+            newCol = 0;
+            newRow++;
+        }
     }
-
+    
+    m_buffer = std::move(newBuffer);
+    m_lineWrapped = std::move(newWrapped);
     m_cols = cols;
     m_rows = rows;
-
-    // Debug: log row 0 content after resize
-    std::string row0After;
-    for (int x = 0; x < std::min(40, cols); ++x) {
-        char32_t ch = m_buffer[x].ch;
-        if (ch >= 32 && ch < 127) row0After += static_cast<char>(ch);
-        else if (ch == 0) row0After += '.';
-        else row0After += '?';
+    
+    // Resize the inactive alternative buffer (no reflow for alt buffer)
+    if (!m_altBuffer.empty()) {
+        std::vector<Cell> newAltBuffer(cols * rows);
+        int copyRows = std::min(oldRows, rows);
+        int copyCols = std::min(oldCols, cols);
+        for (int y = 0; y < copyRows; ++y) {
+            for (int x = 0; x < copyCols; ++x) {
+                newAltBuffer[y * cols + x] = m_altBuffer[y * oldCols + x];
+            }
+        }
+        m_altBuffer = std::move(newAltBuffer);
     }
-    spdlog::info("Row 0 AFTER resize: [{}]", row0After);
 
     // Clamp cursor to new size
     ClampCursor();
@@ -174,6 +229,11 @@ void ScreenBuffer::WriteChar(char32_t ch, const CellAttributes& attr) {
     if (m_cursorX >= m_cols) {
         m_cursorX = 0;
         m_cursorY++;
+
+        // Mark the new line as soft-wrapped (continuation of previous line)
+        if (m_cursorY < m_rows && m_cursorY < static_cast<int>(m_lineWrapped.size())) {
+            m_lineWrapped[m_cursorY] = true;
+        }
 
         // Scroll if at bottom of scroll region
         int bottom = GetScrollRegionBottom();
@@ -246,6 +306,16 @@ void ScreenBuffer::ScrollUp(int lines) {
              m_buffer.end(),
              Cell());
 
+    // Shift wrap flags up
+    if (!m_lineWrapped.empty()) {
+        std::move(m_lineWrapped.begin() + lines,
+                 m_lineWrapped.end(),
+                 m_lineWrapped.begin());
+        std::fill(m_lineWrapped.end() - lines,
+                 m_lineWrapped.end(),
+                 false);
+    }
+
     // Log row 0 after scroll
     LogRow0Change("ScrollUp-AFTER", m_buffer, m_cols);
 
@@ -283,6 +353,7 @@ void ScreenBuffer::SetScrollOffset(int offset) {
 void ScreenBuffer::Clear() {
     spdlog::info("ScreenBuffer::Clear() called, altBuffer={}, rows={}", m_useAltBuffer ? "yes" : "no", m_rows);
     std::fill(m_buffer.begin(), m_buffer.end(), Cell());
+    std::fill(m_lineWrapped.begin(), m_lineWrapped.end(), false);
     m_cursorX = 0;
     m_cursorY = 0;
     m_dirty = true;
@@ -408,6 +479,11 @@ void ScreenBuffer::UseAlternativeBuffer(bool use) {
 void ScreenBuffer::NewLine() {
     m_cursorX = 0;
     m_cursorY++;
+
+    // Mark the new line as NOT soft-wrapped (explicit newline)
+    if (m_cursorY < m_rows && m_cursorY < static_cast<int>(m_lineWrapped.size())) {
+        m_lineWrapped[m_cursorY] = false;
+    }
 
     // Scroll if at bottom of scroll region
     int bottom = GetScrollRegionBottom();

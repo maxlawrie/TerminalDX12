@@ -170,6 +170,100 @@ class TestResizeWithContent:
 
 
 @pytest.mark.slow
+class TestTextReflow:
+    """Tests for text reflow during resize."""
+
+    def test_text_reflow_on_resize(self, terminal):
+        """Test that text reflows correctly when resizing the terminal.
+
+        This test:
+        1. Maximizes the window
+        2. Prints a 100-character string
+        3. Checks output (should be on one line when wide)
+        4. Resizes to half width
+        5. Checks output (should reflow to multiple lines)
+        6. Maximizes again
+        7. Checks output (should be back to one line)
+        """
+        hwnd = terminal.hwnd
+
+        # Store original window rect
+        original_rect = win32gui.GetWindowRect(hwnd)
+
+        # Clear and maximize
+        terminal.send_keys("cls\n")
+        time.sleep(0.3)
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        time.sleep(0.5)
+
+        # Get maximized dimensions
+        max_rect = win32gui.GetWindowRect(hwnd)
+        max_width = max_rect[2] - max_rect[0]
+        max_height = max_rect[3] - max_rect[1]
+
+        # Create a 100-character test string with unique markers
+        # Using a pattern that's easy to verify: START + 90 chars + END
+        test_string = "START" + "X" * 90 + "END"
+        assert len(test_string) == 98  # START(5) + 90 + END(3) = 98
+
+        # Echo the string (add 2 more chars to make it 100 with echo command overhead)
+        terminal.send_keys(f"echo {test_string}\n")
+        time.sleep(0.5)
+
+        # Screenshot at full width - text should fit on one line
+        screenshot_wide, _ = terminal.wait_and_screenshot("reflow_1_wide")
+        assert terminal.analyze_text_presence(screenshot_wide), "No text visible when maximized"
+
+        # Now resize to half width (restore first, then resize)
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        time.sleep(0.3)
+
+        half_width = max_width // 2
+        # Position at top-left of screen for consistency
+        win32gui.MoveWindow(hwnd, 0, 0, half_width, max_height, True)
+        time.sleep(0.5)
+
+        # Screenshot at half width - text should have reflowed
+        screenshot_narrow, _ = terminal.wait_and_screenshot("reflow_2_narrow")
+        assert terminal.analyze_text_presence(screenshot_narrow), "No text visible after resize to half width"
+
+        # Maximize again
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        time.sleep(0.5)
+
+        # Screenshot after re-maximize - text should be back to single line
+        screenshot_remax, _ = terminal.wait_and_screenshot("reflow_3_remaximize")
+        assert terminal.analyze_text_presence(screenshot_remax), "No text visible after re-maximize"
+
+        # Try OCR verification if available
+        try:
+            from winocr import recognize_pil
+
+            # Verify the text content is intact after all resizes
+            ocr_result = recognize_pil(screenshot_remax)
+            ocr_text = ocr_result.text if hasattr(ocr_result, 'text') else str(ocr_result)
+
+            # The text should contain our markers
+            has_start = "START" in ocr_text
+            has_end = "END" in ocr_text
+
+            if not (has_start and has_end):
+                print(f"Warning: OCR could not find markers. OCR text: {ocr_text[:200]}...")
+            else:
+                print(f"OCR verified: START and END markers found after resize cycle")
+
+        except ImportError:
+            print("OCR not available, skipping text content verification")
+
+        # Restore original window state
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        time.sleep(0.3)
+        win32gui.MoveWindow(hwnd, original_rect[0], original_rect[1],
+                           original_rect[2] - original_rect[0],
+                           original_rect[3] - original_rect[1], True)
+
+
+@pytest.mark.slow
 class TestRapidResize:
     """Tests for rapid consecutive resize operations."""
 

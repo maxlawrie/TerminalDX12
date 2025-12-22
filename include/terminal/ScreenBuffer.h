@@ -185,7 +185,9 @@ private:
     int m_cols;
     int m_rows;
     std::vector<Cell> m_buffer;           // Current visible buffer
+    std::vector<bool> m_lineWrapped;      // True if line is soft-wrapped (continuation of previous)
     std::vector<Cell> m_scrollback;       // Lines scrolled off top
+    std::vector<bool> m_scrollbackWrapped; // Wrap flags for scrollback lines
     int m_scrollbackLines;                // Max scrollback lines
     int m_scrollbackUsed;                 // Current scrollback usage
     int m_scrollOffset;                   // Scrollback view offset
