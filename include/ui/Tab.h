@@ -52,6 +52,12 @@ public:
 
     // Resize the terminal
     void Resize(int cols, int rows);
+    
+    // Resize only screen buffer (for immediate visual feedback)
+    void ResizeScreenBuffer(int cols, int rows);
+    
+    // Resize only ConPTY (deferred to prevent scroll)
+    void ResizeConPTY(int cols, int rows);
 
 private:
     int m_id;

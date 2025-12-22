@@ -106,4 +106,19 @@ void Tab::Resize(int cols, int rows) {
     }
 }
 
+void Tab::ResizeScreenBuffer(int cols, int rows) {
+    m_cols = cols;
+    m_rows = rows;
+    
+    if (m_screenBuffer) {
+        m_screenBuffer->Resize(cols, rows);
+    }
+}
+
+void Tab::ResizeConPTY(int cols, int rows) {
+    if (m_terminal && m_terminal->IsRunning()) {
+        m_terminal->Resize(cols, rows);
+    }
+}
+
 } // namespace TerminalDX12::UI

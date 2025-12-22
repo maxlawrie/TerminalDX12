@@ -2,8 +2,19 @@
 #include "terminal/ScreenBuffer.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <fstream>
 
 namespace TerminalDX12::Terminal {
+
+// Debug logging for VT mode tracking
+static void LogMode(int mode, bool set, char intermediateChar) {
+    static std::ofstream modeLog("C:\\Users\\maxla\\TerminalDX12\\vt_modes.log", std::ios::app);
+    if (modeLog.is_open()) {
+        modeLog << "Mode " << mode << " " << (set ? "SET" : "RESET")
+                << " (intermediate='" << (intermediateChar ? intermediateChar : '0') << "')" << std::endl;
+        modeLog.flush();
+    }
+}
 
 VTStateMachine::VTStateMachine(ScreenBuffer* screenBuffer)
     : m_screenBuffer(screenBuffer)
@@ -17,6 +28,20 @@ VTStateMachine::~VTStateMachine() {
 }
 
 void VTStateMachine::ProcessInput(const char* data, size_t size) {
+    // Log raw input to check for 1049 sequences
+    static std::ofstream rawLog("C:\\Users\\maxla\\TerminalDX12\\vt_raw.log", std::ios::app);
+    std::string input(data, size);
+    if (input.find("1049") != std::string::npos || input.find("?47") != std::string::npos) {
+        rawLog << "RAW[" << size << "]: ";
+        for (size_t j = 0; j < size && j < 100; ++j) {
+            unsigned char c = static_cast<unsigned char>(data[j]);
+            if (c >= 32 && c < 127) rawLog << c;
+            else rawLog << "\\x" << std::hex << (int)c << std::dec;
+        }
+        rawLog << std::endl;
+        rawLog.flush();
+    }
+
     for (size_t i = 0; i < size; ++i) {
         uint8_t byte = static_cast<uint8_t>(data[i]);
 
@@ -689,14 +714,23 @@ void VTStateMachine::HandleSGR() {
 void VTStateMachine::HandleDeviceAttributes() {
     // CSI c or CSI 0 c - Primary Device Attributes
     // Respond as VT100 with Advanced Video Option
-    SendResponse("[?1;2c");
+    if (m_intermediateChar == '>') {
+        // CSI > c - Secondary DA - report as xterm v380
+        SendResponse("[>41;380;0c");
+    } else {
+        // CSI c - Primary DA - VT220 with features  
+        SendResponse("[?62;1;2;4;6;9;15;18;21;22c");
+    }
 }
 
 void VTStateMachine::HandleMode() {
     // CSI ? Ps h (set) or CSI ? Ps l (reset) - Private modes
     bool set = (m_finalChar == 'h');
-    
+
     for (int mode : m_params) {
+        // Log ALL modes for debugging
+        LogMode(mode, set, m_intermediateChar);
+
         if (m_intermediateChar == '?') {
             // Private modes (DEC)
             switch (mode) {
@@ -715,9 +749,11 @@ void VTStateMachine::HandleMode() {
                     spdlog::debug("DECTCEM: Cursor {}", set ? "visible" : "hidden");
                     break;
                     
-                case 1049:  // Alternate screen buffer
+                case 47:    // Alternate screen buffer (simple)
+                case 1047:  // Alternate screen buffer (like 47)
+                case 1049:  // Alternate screen buffer (save cursor, switch, clear)
                     m_screenBuffer->UseAlternativeBuffer(set);
-                    spdlog::debug("Alt screen buffer {}", set ? "enabled" : "disabled");
+                    spdlog::debug("Alt screen buffer (mode {}) {}", mode, set ? "enabled" : "disabled");
                     break;
                     
                 case 2004:  // Bracketed paste mode

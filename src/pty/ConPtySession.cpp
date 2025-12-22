@@ -240,7 +240,7 @@ bool ConPtySession::Resize(int cols, int rows) {
         return false;
     }
 
-    spdlog::debug("Resized ConPTY to {}x{}", cols, rows);
+    spdlog::info("ConPTY resized to {}x{}", cols, rows);
     return true;
 }
 

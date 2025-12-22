@@ -872,7 +872,8 @@ TEST_F(VTStateMachineTest, DeviceAttributesResponse) {
     });
 
     ProcessString(CSI("", 'c'));
-    EXPECT_EQ(response, "[?1;2c");
+    // VT220+ with features
+    EXPECT_EQ(response, "[?62;1;2;4;6;9;15;18;21;22c");
 }
 
 TEST_F(VTStateMachineTest, CursorPositionReport) {
