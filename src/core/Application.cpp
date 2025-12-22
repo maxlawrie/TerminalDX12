@@ -61,8 +61,8 @@ bool Application::Initialize(const std::wstring& shell) {
     m_window = std::make_unique<Window>();
 
     WindowDesc windowDesc;
-    windowDesc.width = 1280;
-    windowDesc.height = 720;
+    windowDesc.width = 1920;
+    windowDesc.height = 1080;
     windowDesc.title = L"TerminalDX12 - GPU-Accelerated Terminal Emulator";
     windowDesc.resizable = true;
 

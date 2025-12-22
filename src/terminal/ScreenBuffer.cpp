@@ -115,10 +115,16 @@ void ScreenBuffer::WriteChar(char32_t ch, const CellAttributes& attr) {
         m_cursorX = 0;
         m_cursorY++;
 
-        // Scroll if at bottom
-        if (m_cursorY >= m_rows) {
-            ScrollUp(1);
-            m_cursorY = m_rows - 1;
+        // Scroll if at bottom of scroll region
+        int bottom = GetScrollRegionBottom();
+        if (m_cursorY > bottom) {
+            // Check if we're within the scroll region
+            if (m_cursorY - 1 >= m_scrollTop && m_cursorY - 1 <= bottom) {
+                ScrollRegionUp(1);
+            } else {
+                ScrollUp(1);
+            }
+            m_cursorY = bottom;
         }
     }
 }
@@ -312,9 +318,16 @@ void ScreenBuffer::NewLine() {
     m_cursorX = 0;
     m_cursorY++;
 
-    if (m_cursorY >= m_rows) {
-        ScrollUp(1);
-        m_cursorY = m_rows - 1;
+    // Scroll if at bottom of scroll region
+    int bottom = GetScrollRegionBottom();
+    if (m_cursorY > bottom) {
+        // Check if we're within the scroll region
+        if (m_cursorY - 1 >= m_scrollTop && m_cursorY - 1 <= bottom) {
+            ScrollRegionUp(1);
+        } else {
+            ScrollUp(1);
+        }
+        m_cursorY = bottom;
     }
 
     m_dirty = true;
