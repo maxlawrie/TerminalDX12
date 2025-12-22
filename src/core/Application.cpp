@@ -61,8 +61,10 @@ bool Application::Initialize(const std::wstring& shell) {
     m_window = std::make_unique<Window>();
 
     WindowDesc windowDesc;
-    windowDesc.width = 1920;
-    windowDesc.height = 1080;
+    // Default size matching Windows Terminal (120 cols x 30 rows)
+    // With charWidth=10, lineHeight=25, padding=20, tabBar=35
+    windowDesc.width = 1220;   // 120*10 + 20 padding
+    windowDesc.height = 795;   // 30*25 + 35 tabBar + 10 padding
     windowDesc.title = L"TerminalDX12 - GPU-Accelerated Terminal Emulator";
     windowDesc.resizable = true;
 
