@@ -29,6 +29,7 @@ public:
     int GetWidth() const { return m_width; }
     int GetHeight() const { return m_height; }
     float GetDPIScale() const { return m_dpiScale; }
+    bool IsResizing() const { return m_isResizing; }
 
     // Setters
     void SetTitle(const std::wstring& title);

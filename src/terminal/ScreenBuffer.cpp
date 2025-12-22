@@ -36,32 +36,45 @@ void ScreenBuffer::Resize(int cols, int rows) {
     spdlog::info("Resizing screen buffer from {}x{} to {}x{}",
                  m_cols, m_rows, cols, rows);
 
-    // Create new buffer
-    std::vector<Cell> newBuffer(cols * rows);
+    int oldCols = m_cols;
+    int oldRows = m_rows;
 
-    // Copy existing content (line by line)
-    int copyRows = std::min(m_rows, rows);
-    int copyCols = std::min(m_cols, cols);
+    // Helper lambda to resize a buffer with content preservation
+    auto resizeBuffer = [&](std::vector<Cell>& buffer) {
+        std::vector<Cell> newBuffer(cols * rows);
 
-    for (int y = 0; y < copyRows; ++y) {
-        for (int x = 0; x < copyCols; ++x) {
-            int oldIdx = y * m_cols + x;
-            int newIdx = y * cols + x;
-            newBuffer[newIdx] = m_buffer[oldIdx];
+        int copyRows = std::min(oldRows, rows);
+        int copyCols = std::min(oldCols, cols);
+
+        for (int y = 0; y < copyRows; ++y) {
+            for (int x = 0; x < copyCols; ++x) {
+                int oldIdx = y * oldCols + x;
+                int newIdx = y * cols + x;
+                if (oldIdx < static_cast<int>(buffer.size())) {
+                    newBuffer[newIdx] = buffer[oldIdx];
+                }
+            }
         }
+
+        buffer = std::move(newBuffer);
+    };
+
+    // Resize the active buffer
+    resizeBuffer(m_buffer);
+
+    // Resize the inactive alternative buffer too (with content preservation)
+    if (!m_altBuffer.empty()) {
+        resizeBuffer(m_altBuffer);
     }
 
-    m_buffer = std::move(newBuffer);
     m_cols = cols;
     m_rows = rows;
 
     // Clamp cursor to new size
     ClampCursor();
 
-    // Resize alternative buffer too
-    if (!m_altBuffer.empty()) {
-        m_altBuffer.resize(cols * rows);
-    }
+    // Reset scroll region to full screen (old region may be invalid)
+    ResetScrollRegion();
 
     m_dirty = true;
 }

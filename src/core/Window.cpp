@@ -185,11 +185,40 @@ LRESULT Window::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_EXITSIZEMOVE:
             m_isResizing = false;
             // Trigger final resize
-            RECT rect;
-            if (GetClientRect(hwnd, &rect)) {
-                HandleResize(rect.right - rect.left, rect.bottom - rect.top);
+            {
+                RECT rect;
+                if (GetClientRect(hwnd, &rect)) {
+                    HandleResize(rect.right - rect.left, rect.bottom - rect.top);
+                }
             }
             return 0;
+
+        case WM_SIZING:
+            // During live resize, get the new size and force redraw
+            if (lParam) {
+                RECT* dragRect = reinterpret_cast<RECT*>(lParam);
+
+                // Calculate frame size by comparing current window and client rects
+                RECT windowRect, clientRect;
+                GetWindowRect(hwnd, &windowRect);
+                GetClientRect(hwnd, &clientRect);
+
+                int frameWidth = (windowRect.right - windowRect.left) - (clientRect.right - clientRect.left);
+                int frameHeight = (windowRect.bottom - windowRect.top) - (clientRect.bottom - clientRect.top);
+
+                // Calculate new client size from proposed window rect
+                int newWidth = (dragRect->right - dragRect->left) - frameWidth;
+                int newHeight = (dragRect->bottom - dragRect->top) - frameHeight;
+
+                if (newWidth > 0 && newHeight > 0) {
+                    HandleResize(newWidth, newHeight);
+                    // Force immediate redraw
+                    if (OnPaint) {
+                        OnPaint();
+                    }
+                }
+            }
+            return TRUE;
 
         case WM_PAINT:
             {

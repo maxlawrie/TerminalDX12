@@ -103,6 +103,11 @@ bool Application::Initialize(const std::wstring& shell) {
         OnMouseMove(x, y);
     };
 
+    // Paint handler for live resize
+    m_window->OnPaint = [this]() {
+        Render();
+    };
+
     // Create DirectX 12 renderer
     m_renderer = std::make_unique<Rendering::DX12Renderer>();
     if (!m_renderer->Initialize(m_window.get())) {
@@ -600,6 +605,7 @@ void Application::OnWindowResize(int width, int height) {
     m_minimized = (width == 0 || height == 0);
 
     if (!m_minimized && m_renderer) {
+        // Resize the renderer to match window size
         m_renderer->Resize(width, height);
 
         // Calculate new terminal dimensions based on window size
