@@ -262,6 +262,103 @@ class TestTextReflow:
                            original_rect[2] - original_rect[0],
                            original_rect[3] - original_rect[1], True)
 
+    def test_reflow_roundtrip_consistency(self, terminal):
+        """Test that text layout is consistent after resize roundtrip.
+
+        This test verifies that going wide -> narrow -> wide produces
+        identical output to the original wide state.
+
+        Steps:
+        1. Maximize the window
+        2. Print a 100-character string
+        3. Take screenshot 1 (wide)
+        4. Resize to 1/3 of the width
+        5. Take screenshot 2 (narrow)
+        6. Maximize again
+        7. Take screenshot 3 (wide again)
+        8. Validate that screenshots 1 and 3 match
+        """
+        hwnd = terminal.hwnd
+
+        # Store original window rect
+        original_rect = win32gui.GetWindowRect(hwnd)
+
+        # Clear and maximize
+        terminal.send_keys("cls\n")
+        time.sleep(0.3)
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        time.sleep(0.5)
+
+        # Get maximized dimensions
+        max_rect = win32gui.GetWindowRect(hwnd)
+        max_width = max_rect[2] - max_rect[0]
+        max_height = max_rect[3] - max_rect[1]
+
+        # Create a 100-character test string
+        test_string = "A" * 100
+
+        # Echo the string
+        terminal.send_keys(f"echo {test_string}\n")
+        time.sleep(0.5)
+
+        # Screenshot 1: maximized (wide)
+        screenshot_wide1, _ = terminal.wait_and_screenshot("roundtrip_1_wide")
+        assert terminal.analyze_text_presence(screenshot_wide1), "No text visible when maximized"
+
+        # Resize to 1/3 width
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        time.sleep(0.3)
+
+        third_width = max_width // 3
+        win32gui.MoveWindow(hwnd, 0, 0, third_width, max_height, True)
+        time.sleep(0.5)
+
+        # Screenshot 2: narrow (1/3 width)
+        screenshot_narrow, _ = terminal.wait_and_screenshot("roundtrip_2_narrow")
+        assert terminal.analyze_text_presence(screenshot_narrow), "No text visible at 1/3 width"
+
+        # Maximize again
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        time.sleep(0.5)
+
+        # Screenshot 3: maximized again (wide)
+        screenshot_wide2, _ = terminal.wait_and_screenshot("roundtrip_3_wide_again")
+        assert terminal.analyze_text_presence(screenshot_wide2), "No text visible after re-maximize"
+
+        # Compare screenshots 1 and 3 - they should be very similar
+        # Convert to numpy arrays for comparison
+        arr1 = np.array(screenshot_wide1)
+        arr3 = np.array(screenshot_wide2)
+
+        # Check dimensions match
+        assert arr1.shape == arr3.shape, f"Screenshot dimensions differ: {arr1.shape} vs {arr3.shape}"
+
+        # Calculate similarity (mean squared error)
+        # Allow some tolerance for cursor blinking, slight timing differences
+        mse = np.mean((arr1.astype(float) - arr3.astype(float)) ** 2)
+
+        # Threshold: MSE should be very low for nearly identical images
+        # A small MSE (< 100) indicates very similar images
+        # Cursor blink might cause some difference, so we allow some tolerance
+        max_allowed_mse = 500  # Generous threshold to account for cursor position differences
+
+        print(f"Screenshot comparison MSE: {mse:.2f}")
+
+        if mse > max_allowed_mse:
+            # Save difference image for debugging
+            diff = np.abs(arr1.astype(float) - arr3.astype(float)).astype(np.uint8)
+            diff_img = Image.fromarray(diff)
+            diff_img.save(terminal.screenshot_dir / "roundtrip_diff.png")
+            pytest.fail(f"Screenshots 1 and 3 differ significantly (MSE={mse:.2f} > {max_allowed_mse}). "
+                       f"Difference image saved to roundtrip_diff.png")
+
+        # Restore original window state
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        time.sleep(0.3)
+        win32gui.MoveWindow(hwnd, original_rect[0], original_rect[1],
+                           original_rect[2] - original_rect[0],
+                           original_rect[3] - original_rect[1], True)
+
 
 @pytest.mark.slow
 class TestRapidResize:
