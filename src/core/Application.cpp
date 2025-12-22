@@ -618,8 +618,7 @@ void Application::OnWindowResize(int width, int height) {
 
         // Resize all tabs to new dimensions
         if (m_tabManager) {
-            for (int i = 0; i < m_tabManager->GetTabCount(); ++i) {
-                UI::Tab* tab = m_tabManager->GetTab(i);
+            for (const auto& tab : m_tabManager->GetTabs()) {
                 if (tab) {
                     tab->Resize(newCols, newRows);
                 }
