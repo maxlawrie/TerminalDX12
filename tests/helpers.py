@@ -19,6 +19,10 @@ import win32con
 import win32api
 import time
 
+import subprocess
+from pathlib import Path
+from PIL import ImageGrab
+
 from config import TestConfig, VGAColors
 
 # OCR imports
@@ -557,3 +561,193 @@ class WindowHelper:
         win32api.SetCursorPos((center_x, center_y))
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+
+# ============================================================================
+# TerminalTester - Main test driver class
+# ============================================================================
+
+class TerminalTester:
+    """
+    Main test driver for TerminalDX12 testing.
+
+    Manages terminal lifecycle and provides high-level testing methods.
+    """
+
+    def __init__(self, terminal_exe: str = None):
+        """
+        Initialize the terminal tester.
+
+        Args:
+            terminal_exe: Path to terminal executable (uses config default if None)
+        """
+        self.terminal_exe = terminal_exe or TestConfig.TERMINAL_EXE
+        self.screenshot_dir = TestConfig.SCREENSHOT_DIR
+        self.process: Optional[subprocess.Popen] = None
+        self.hwnd: Optional[int] = None
+        self._keyboard = KeyboardController()
+        self._analyzer = ScreenAnalyzer()
+        TestConfig.ensure_dirs()
+
+    def start_terminal(self) -> bool:
+        """
+        Start the terminal process and wait for window.
+
+        Returns:
+            True if terminal started successfully
+        """
+        try:
+            self.process = subprocess.Popen(
+                [self.terminal_exe],
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+            time.sleep(TestConfig.STARTUP_WAIT)
+
+            # Find the terminal window
+            self.hwnd = WindowHelper.find_window_by_title("TerminalDX12", timeout=5.0)
+            if not self.hwnd:
+                # Try finding by process
+                self._find_window_by_process()
+
+            if self.hwnd:
+                self._keyboard.set_window(self.hwnd)
+                # Bring to foreground
+                try:
+                    win32gui.SetForegroundWindow(self.hwnd)
+                except Exception:
+                    pass
+                return True
+            return False
+        except Exception as e:
+            print(f"Failed to start terminal: {e}")
+            return False
+
+    def _find_window_by_process(self) -> None:
+        """Find window by process ID if title search fails."""
+        if not self.process:
+            return
+
+        def callback(hwnd, windows):
+            if win32gui.IsWindowVisible(hwnd):
+                try:
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    if pid == self.process.pid:
+                        windows.append(hwnd)
+                except Exception:
+                    pass
+            return True
+
+        try:
+            import win32process
+            windows = []
+            win32gui.EnumWindows(callback, windows)
+            if windows:
+                self.hwnd = windows[0]
+        except ImportError:
+            pass
+
+    def cleanup(self) -> None:
+        """Clean up terminal process."""
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=2)
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
+            self.process = None
+        self.hwnd = None
+
+    def send_keys(self, text: str, delay: float = None) -> None:
+        """
+        Send keyboard input to the terminal.
+
+        Args:
+            text: Text to type (supports \\n for Enter)
+            delay: Delay between keystrokes
+        """
+        self._keyboard.send_keys(text, delay=delay)
+
+    def wait_and_screenshot(
+        self,
+        name: str,
+        wait_stable: bool = True,
+        max_wait: float = None
+    ) -> Tuple[Image.Image, Path]:
+        """
+        Wait for screen stability and capture screenshot.
+
+        Args:
+            name: Base name for screenshot file
+            wait_stable: If True, wait for screen to stabilize
+            max_wait: Maximum time to wait for stability
+
+        Returns:
+            Tuple of (PIL Image, Path to saved file)
+        """
+        if wait_stable:
+            self._wait_for_stability(max_wait or TestConfig.MAX_WAIT)
+
+        screenshot = self._capture_screenshot()
+
+        # Save screenshot
+        filename = f"{name}_{int(time.time())}.png"
+        filepath = self.screenshot_dir / filename
+        screenshot.save(filepath)
+
+        return screenshot, filepath
+
+    def _wait_for_stability(self, max_wait: float) -> None:
+        """Wait for screen to stop changing."""
+        start_time = time.time()
+        last_screenshot = self._capture_screenshot()
+        stable_since = time.time()
+
+        while time.time() - start_time < max_wait:
+            time.sleep(TestConfig.POLL_INTERVAL)
+            current = self._capture_screenshot()
+
+            diff = self._analyzer.compare_screenshots(last_screenshot, current)
+            if diff < TestConfig.SCREEN_CHANGE_THRESHOLD:
+                if time.time() - stable_since >= TestConfig.STABILITY_TIME:
+                    return
+            else:
+                stable_since = time.time()
+
+            last_screenshot = current
+
+    def _capture_screenshot(self) -> Image.Image:
+        """Capture screenshot of terminal window."""
+        if not self.hwnd:
+            return Image.new('RGB', (100, 100), color='black')
+
+        try:
+            rect = WindowHelper.get_client_rect_screen(self.hwnd)
+            return ImageGrab.grab(bbox=rect)
+        except Exception:
+            return Image.new('RGB', (100, 100), color='black')
+
+    def analyze_text_presence(self, screenshot: Image.Image) -> bool:
+        """
+        Check if text is present in screenshot.
+
+        Args:
+            screenshot: PIL Image to analyze
+
+        Returns:
+            True if text is present
+        """
+        return self._analyzer.analyze_text_presence(screenshot)
+
+    def get_client_rect_screen(self) -> Tuple[int, int, int, int]:
+        """
+        Get client area rectangle in screen coordinates.
+
+        Returns:
+            (left, top, right, bottom) tuple
+        """
+        if not self.hwnd:
+            return (0, 0, 100, 100)
+        return WindowHelper.get_client_rect_screen(self.hwnd)

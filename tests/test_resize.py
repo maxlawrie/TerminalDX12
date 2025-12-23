@@ -155,7 +155,7 @@ class TestResizeWithContent:
         # Generate scrollback content
         terminal.send_keys("cls\n")
         time.sleep(0.5)
-        terminal.send_keys('for /L %i in (1,1,30) do @echo Scrollback line %i\n')
+        terminal.send_keys('1..30 | % { echo "Scrollback line $_" }\n')
         time.sleep(2)
 
         # Resize while there's scrollback

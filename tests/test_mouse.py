@@ -126,7 +126,7 @@ class TestMouseScroll:
         # Generate lots of output to ensure scrollback content exists
         terminal.send_keys("cls\n")
         time.sleep(0.5)
-        terminal.send_keys('for /L %i in (1,1,100) do @echo Line number %i with some text\n')
+        terminal.send_keys('1..100 | % { echo "Line number $_ with some text" }\n')
         time.sleep(3)
 
         # Position mouse in terminal
@@ -170,7 +170,7 @@ class TestMouseScroll:
         # First scroll down to have content to scroll up to
         terminal.send_keys("cls\n")
         time.sleep(0.5)
-        terminal.send_keys('for /L %i in (1,1,30) do @echo Test line number %i\n')
+        terminal.send_keys('1..30 | % { echo "Test line number $_" }\n')
         time.sleep(2)
 
         # Position mouse

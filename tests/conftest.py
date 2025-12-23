@@ -21,20 +21,12 @@ from typing import Generator
 sys.path.insert(0, str(Path(__file__).parent))
 
 from config import TestConfig
-from helpers import ScreenAnalyzer, KeyboardController, OCRVerifier, WindowHelper
-
-# Import TerminalTester from the main test file
-# We do this dynamically to avoid circular imports
-_terminal_tester = None
+from helpers import ScreenAnalyzer, KeyboardController, OCRVerifier, WindowHelper, TerminalTester
 
 
 def get_terminal_tester():
-    """Lazily import TerminalTester to avoid circular imports."""
-    global _terminal_tester
-    if _terminal_tester is None:
-        from test_terminal import TerminalTester
-        _terminal_tester = TerminalTester
-    return _terminal_tester
+    """Return the TerminalTester class."""
+    return TerminalTester
 
 
 def pytest_addoption(parser):

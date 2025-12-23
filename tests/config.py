@@ -23,7 +23,7 @@ class TestConfig:
     # Paths
     TERMINAL_EXE: str = os.environ.get(
         'TERMINAL_EXE',
-        r"C:\Temp\TerminalDX12Test\TerminalDX12.exe"
+        str(Path(__file__).parent.parent / "build" / "bin" / "Release" / "TerminalDX12.exe")
     )
     SCREENSHOT_DIR: Path = Path(os.environ.get(
         'SCREENSHOT_DIR',
