@@ -741,6 +741,46 @@ class TerminalTester:
         """
         return self._analyzer.analyze_text_presence(screenshot)
 
+    def verify_text(self, screenshot: Image.Image, expected: str, threshold: float = 0.7) -> Tuple[bool, str]:
+        """
+        Verify expected text is visible in screenshot using OCR.
+
+        Args:
+            screenshot: PIL Image to analyze
+            expected: Text to look for
+            threshold: Fuzzy match threshold (0.0-1.0)
+
+        Returns:
+            Tuple of (success, ocr_text)
+        """
+        if not OCR_AVAILABLE:
+            # Fall back to basic text presence check
+            return self._analyzer.analyze_text_presence(screenshot), "(OCR not available)"
+
+        ocr = OCRVerifier()
+        ocr_text = ocr.ocr_image(screenshot)
+        found = ocr.contains(ocr_text, expected, threshold)
+        return found, ocr_text
+
+    def get_screen_text(self, screenshot: Image.Image = None) -> str:
+        """
+        Get all text from screenshot using OCR.
+
+        Args:
+            screenshot: PIL Image to analyze (captures new one if None)
+
+        Returns:
+            OCR extracted text
+        """
+        if screenshot is None:
+            screenshot = self._capture_screenshot()
+
+        if not OCR_AVAILABLE:
+            return "(OCR not available)"
+
+        ocr = OCRVerifier()
+        return ocr.ocr_image(screenshot)
+
     def get_client_rect_screen(self) -> Tuple[int, int, int, int]:
         """
         Get client area rectangle in screen coordinates.
