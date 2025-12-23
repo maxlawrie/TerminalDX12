@@ -17,6 +17,7 @@ from ctypes import wintypes
 import win32gui
 import win32con
 import win32api
+import pywintypes
 import time
 
 import subprocess
@@ -280,7 +281,7 @@ class KeyboardController:
         if self.hwnd:
             try:
                 win32gui.SetForegroundWindow(self.hwnd)
-            except (OSError, RuntimeError):
+            except (OSError, RuntimeError, pywintypes.error):
                 pass  # Window may not be ready, continue anyway
             time.sleep(0.1)
 
@@ -638,7 +639,7 @@ class TerminalTester:
                 # Bring to foreground
                 try:
                     win32gui.SetForegroundWindow(self.hwnd)
-                except (OSError, RuntimeError):
+                except (OSError, RuntimeError, pywintypes.error):
                     pass  # Window may not be ready
                 return True
             return False
