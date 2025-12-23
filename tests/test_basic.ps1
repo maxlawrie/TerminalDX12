@@ -1,3 +1,5 @@
+#Requires -Version 5.1
+
 # TerminalDX12 Basic Test Suite (PowerShell)
 #
 # These are fast smoke tests that verify basic build artifacts and stress scenarios

@@ -1,6 +1,24 @@
-# Setup script for TerminalDX12 build environment
-# Run this in PowerShell as Administrator
+#Requires -Version 5.1
 
+<#
+.SYNOPSIS
+    Sets up the Windows build environment for TerminalDX12.
+.DESCRIPTION
+    Installs and configures Visual Studio, Git, vcpkg, and CMake for building TerminalDX12.
+    Should be run as Administrator for best results.
+.PARAMETER SkipVisualStudio
+    Skip Visual Studio installation check.
+.PARAMETER SkipVcpkg
+    Skip vcpkg installation.
+.EXAMPLE
+    .\setup-windows.ps1
+    Runs full setup.
+.EXAMPLE
+    .\setup-windows.ps1 -SkipVisualStudio
+    Runs setup but skips VS check.
+#>
+
+[CmdletBinding()]
 param(
     [switch]$SkipVisualStudio,
     [switch]$SkipVcpkg
