@@ -9,7 +9,7 @@ namespace TerminalDX12::Terminal {
 
 // Debug helper to log row 0 changes - write to file for GUI app
 static void LogRow0Change(const std::string& operation, const std::vector<Cell>& buffer, int cols) {
-    static std::ofstream scrollLog("C:\Users\maxla\TerminalDX12\scroll_debug.log", std::ios::app);
+    static std::ofstream scrollLog("C:/Users/maxla/TerminalDX12/scroll_debug.log", std::ios::app);
     std::string row0;
     for (int x = 0; x < std::min(40, cols); ++x) {
         char32_t ch = buffer[x].ch;
@@ -80,31 +80,27 @@ void ScreenBuffer::Resize(int cols, int rows) {
 
     // Text reflow for main buffer
     // Step 1: Extract all text as logical lines (combining soft-wrapped lines)
-    // Use heuristic: if line is full (has content at last column) and next line 
-    // starts with non-space at column 0, it's a soft wrap
+    // Use m_lineWrapped flags to determine soft wraps - m_lineWrapped[y] = true means
+    // row y is a continuation of row y-1 (i.e., row y-1 soft-wrapped to row y)
     std::vector<std::vector<Cell>> logicalLines;
     std::vector<Cell> currentLine;
-    
+
     // Process visible buffer
     for (int y = 0; y < oldRows; ++y) {
         // Add cells from this row
         for (int x = 0; x < oldCols; ++x) {
             currentLine.push_back(m_buffer[y * oldCols + x]);
         }
-        
-        // Heuristic soft-wrap detection:
-        // 1. Check if this line has content at the last column (not just space)
-        // 2. Check if next line exists and starts with non-space content
-        bool lineIsFull = (m_buffer[y * oldCols + oldCols - 1].ch != U' ' && 
-                          m_buffer[y * oldCols + oldCols - 1].ch != 0);
-        bool nextLineHasContent = (y + 1 < oldRows) && 
-                                  (m_buffer[(y + 1) * oldCols].ch != U' ' && 
-                                   m_buffer[(y + 1) * oldCols].ch != 0);
-        
-        bool isSoftWrap = lineIsFull && nextLineHasContent;
-        
-        // End the logical line if NOT a soft wrap, or if this is the last line
-        if (!isSoftWrap || y == oldRows - 1) {
+
+        // Check if next row is a continuation of this row (soft wrap)
+        // m_lineWrapped[y+1] = true means row y soft-wrapped to row y+1
+        bool nextRowIsContinuation = false;
+        if (y + 1 < oldRows && y + 1 < static_cast<int>(m_lineWrapped.size())) {
+            nextRowIsContinuation = m_lineWrapped[y + 1];
+        }
+
+        // End the logical line if next row is NOT a continuation, or if this is the last line
+        if (!nextRowIsContinuation || y == oldRows - 1) {
             // Trim trailing spaces from logical line
             while (!currentLine.empty() && currentLine.back().ch == U' ') {
                 currentLine.pop_back();
@@ -139,11 +135,10 @@ void ScreenBuffer::Resize(int cols, int rows) {
             }
         }
         
-        // Move to next line after logical line (unless we're already there from wrapping)
-        if (newCol > 0) {
-            newCol = 0;
-            newRow++;
-        }
+        // Move to next line after logical line
+        // Always advance to next row, even for empty lines
+        newRow++;
+        newCol = 0;
     }
     
     m_buffer = std::move(newBuffer);
