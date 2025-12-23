@@ -1,8 +1,8 @@
 # TerminalDX12 Test Suite
 
 This directory contains the test suite for TerminalDX12, consisting of:
-- **C++ Unit Tests** - Fast, headless tests for core terminal logic (176 tests)
-- **Python Integration Tests** - Visual tests using screenshots and OCR (7 tests)
+- **C++ Unit Tests** - Fast, headless tests for core terminal logic (226 tests)
+- **Python Integration Tests** - Visual tests using screenshots and OCR (72 tests)
 - **PowerShell Smoke Tests** - Build artifact and stability tests (4 tests)
 
 ## Quick Start
@@ -85,12 +85,12 @@ ctest --output-on-failure -C Release
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| test_screen_buffer.cpp | 61 | Buffer ops, cursor, scrolling, resize, attributes, backspace |
-| test_vt_parser.cpp | 68 | Escape sequences, colors, cursor movement, OSC, backspace |
-| test_unicode.cpp | 27 | CJK, emoji, box drawing, symbols, edge cases |
-| test_performance.cpp | 20 | Throughput, stress tests, memory |
+| test_screen_buffer.cpp | 72 | Buffer ops, cursor, scrolling, resize, attributes, backspace |
+| test_vt_parser.cpp | 100 | Escape sequences, colors, cursor movement, OSC, mouse modes |
+| test_config.cpp | 23 | Configuration parsing, validation, keybindings |
+| test_unicode.cpp | 31 | CJK, emoji, box drawing, symbols, edge cases |
 
-**Total: 176 C++ unit tests**
+**Total: 226 C++ unit tests**
 
 ## Python Integration Tests
 
@@ -183,6 +183,7 @@ The `helpers.py` module provides reusable components:
 - **KeyboardController** - Keyboard input simulation
 - **OCRVerifier** - OCR-based text verification
 - **WindowHelper** - Window management utilities
+- **TerminalTester** - Main test driver class
 
 ## Troubleshooting
 
@@ -211,7 +212,7 @@ The `helpers.py` module provides reusable components:
 
 ## Current Test Status
 
-### C++ Unit Tests: 176/176 passing (100%)
+### C++ Unit Tests: 226/226 passing (100%)
 
 All C++ unit tests pass successfully, covering VT parser, screen buffer, Unicode, and performance.
 

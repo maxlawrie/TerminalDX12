@@ -118,16 +118,17 @@ cd build\bin\Release
 .\TerminalDX12.exe
 ```
 
-## Expected Behavior (Current State)
+## Expected Behavior
 
-Currently, the application should:
+After a successful build, the application should:
 - ✓ Create a window titled "TerminalDX12 - GPU-Accelerated Terminal Emulator"
-- ✓ Initialize DirectX 12 renderer
-- ✓ Display a black screen (clear color)
+- ✓ Initialize DirectX 12 renderer with GPU-accelerated glyph atlas
+- ✓ Launch PowerShell (or specified shell) via ConPTY
+- ✓ Display terminal output with full color support (16, 256, true color)
+- ✓ Handle keyboard input and mouse interaction
+- ✓ Support text selection and clipboard (Ctrl+C/V)
 - ✓ Respond to window events (resize, close, minimize)
 - ✓ Handle DPI scaling properly
-
-**Note:** Text rendering, terminal emulation, and shell integration are not yet implemented. The current build creates a basic window with DirectX 12 initialization.
 
 ## Troubleshooting
 

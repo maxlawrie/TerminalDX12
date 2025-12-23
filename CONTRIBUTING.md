@@ -34,7 +34,7 @@ Thank you for your interest in contributing to TerminalDX12! We welcome contribu
 
 ### C++ Guidelines
 
-- **Modern C++**: Use C++17 features, prefer C++20 where beneficial
+- **Modern C++**: Use C++20 features (the project requires C++20)
 - **Naming**:
   - Classes: `PascalCase` (e.g., `TextRenderer`)
   - Methods: `PascalCase` (e.g., `RenderGlyph`)

@@ -140,7 +140,7 @@ Or run the test executable directly:
 build\tests\Release\TerminalDX12Tests.exe
 ```
 
-**Test Coverage:** 176 unit tests covering VT parser, screen buffer, Unicode handling, and backspace behavior.
+**Test Coverage:** 226 unit tests covering VT parser, screen buffer, configuration, Unicode handling, and performance benchmarks.
 
 ### Python Integration Tests
 
