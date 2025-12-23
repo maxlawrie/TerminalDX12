@@ -57,6 +57,21 @@ class POINT(ctypes.Structure):
 
 user32 = ctypes.windll.user32
 
+# Enable DPI awareness for accurate screen coordinates
+try:
+    # Try Windows 10+ API first (per-monitor DPI aware)
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    try:
+        # Fall back to Windows 8.1 API
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        try:
+            # Fall back to Vista+ API
+            user32.SetProcessDPIAware()
+        except Exception:
+            pass  # DPI awareness not available
+
 
 # ============================================================================
 # ScreenAnalyzer - Color detection and text presence analysis
