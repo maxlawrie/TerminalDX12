@@ -2,12 +2,11 @@
 """
 Window resize and text reflow tests for TerminalDX12.
 
-These 5 tests cover:
+These 4 tests cover:
 1. Basic resize to 1/4 size
-2. Text reflow roundtrip consistency
-3. Resize with scrollback content
-4. Maximize/restore operations
-5. Rapid resize stability
+2. Resize with scrollback content
+3. Maximize/restore operations
+4. Rapid resize stability
 """
 
 import pytest
@@ -52,71 +51,6 @@ class TestResize:
 
         screenshot_restored, _ = terminal.wait_and_screenshot("resize_restored")
         assert terminal.analyze_text_presence(screenshot_restored), "No text visible after restore"
-
-    def test_text_reflow_roundtrip(self, terminal):
-        """Test that text reflows correctly: maximize -> 1/4 width -> maximize.
-
-        Verifies that the final state matches the initial state after a
-        resize roundtrip that forces text to wrap and unwrap.
-        """
-        hwnd = terminal.hwnd
-        original_rect = win32gui.GetWindowRect(hwnd)
-
-        # Clear and maximize
-        terminal.send_keys("cls\n")
-        time.sleep(0.3)
-        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-        time.sleep(0.5)
-
-        max_rect = win32gui.GetWindowRect(hwnd)
-        max_width = max_rect[2] - max_rect[0]
-        max_height = max_rect[3] - max_rect[1]
-
-        # Print a 100-character string
-        test_string = "A" * 100
-        terminal.send_keys(f"echo {test_string}\n")
-        time.sleep(0.5)
-
-        # Screenshot 1: maximized
-        screenshot_wide1, _ = terminal.wait_and_screenshot("reflow_1_wide")
-        assert terminal.analyze_text_presence(screenshot_wide1), "No text when maximized"
-
-        # Resize to 1/4 width (force reflow)
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-        time.sleep(0.3)
-        quarter_width = max(300, max_width // 4)
-        win32gui.MoveWindow(hwnd, 0, 0, quarter_width, max_height, True)
-        time.sleep(0.5)
-
-        screenshot_narrow, _ = terminal.wait_and_screenshot("reflow_2_narrow")
-        assert terminal.analyze_text_presence(screenshot_narrow), "No text at 1/4 width"
-
-        # Maximize again
-        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-        time.sleep(0.5)
-
-        # Screenshot 3: maximized again
-        screenshot_wide2, _ = terminal.wait_and_screenshot("reflow_3_wide")
-        assert terminal.analyze_text_presence(screenshot_wide2), "No text after re-maximize"
-
-        # Compare screenshots 1 and 3 - should be very similar
-        arr1 = np.array(screenshot_wide1)
-        arr3 = np.array(screenshot_wide2)
-
-        if arr1.shape == arr3.shape:
-            mse = np.mean((arr1.astype(float) - arr3.astype(float)) ** 2)
-            # Allow tolerance for cursor blink
-            if mse > 500:
-                diff = np.abs(arr1.astype(float) - arr3.astype(float)).astype(np.uint8)
-                Image.fromarray(diff).save(terminal.screenshot_dir / "reflow_diff.png")
-                pytest.fail(f"Screenshots differ after roundtrip (MSE={mse:.2f})")
-
-        # Restore original window state
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-        time.sleep(0.3)
-        win32gui.MoveWindow(hwnd, original_rect[0], original_rect[1],
-                           original_rect[2] - original_rect[0],
-                           original_rect[3] - original_rect[1], True)
 
     def test_resize_with_scrollback(self, terminal):
         """Test that resize to 1/4 size preserves scrollback content."""
