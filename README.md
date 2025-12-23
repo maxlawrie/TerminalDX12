@@ -144,16 +144,25 @@ build\tests\Release\TerminalDX12Tests.exe
 
 ### Python Integration Tests
 
-Visual validation tests using screenshots:
+Visual validation tests using screenshots and OCR:
 
 ```bash
-cd tests
-python test_terminal.py
+python -m pytest tests/ -v
 ```
 
-**Requirements:** Python 3.x, Pillow, pywin32, numpy
+**Requirements:** Python 3.x, Pillow, pywin32, numpy, winocr
 
-**Test Coverage:** 22 integration tests covering startup, keyboard input, colors, text attributes, scrollback, resize, and mouse interactions.
+**Test Coverage:** 7 integration tests covering mouse input, scrolling, and window resize.
+
+### PowerShell Smoke Tests
+
+Quick validation of build artifacts and stability:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests/test_basic.ps1
+```
+
+**Test Coverage:** 4 smoke tests covering executable existence, dependencies, multiple instances, and rapid start/stop.
 
 For detailed test documentation, see [tests/README.md](tests/README.md).
 

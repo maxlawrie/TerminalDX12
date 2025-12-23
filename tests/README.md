@@ -2,7 +2,8 @@
 
 This directory contains the test suite for TerminalDX12, consisting of:
 - **C++ Unit Tests** - Fast, headless tests for core terminal logic (176 tests)
-- **Python Integration Tests** - Visual tests that verify rendering (22 tests)
+- **Python Integration Tests** - Visual tests using screenshots and OCR (7 tests)
+- **PowerShell Smoke Tests** - Build artifact and stability tests (4 tests)
 
 ## Quick Start
 
@@ -205,8 +206,12 @@ The `helpers.py` module provides reusable components:
 
 ### C++ Unit Tests: 176/176 passing (100%)
 
-All C++ unit tests pass successfully, including the new backspace behavior tests.
+All C++ unit tests pass successfully, covering VT parser, screen buffer, Unicode, and performance.
 
-### Python Integration Tests: 22/22 passing (100%)
+### Python Integration Tests: 7/7 passing (100%)
 
-All visual integration tests pass, including color rendering, text attributes (bold, underline), keyboard input, scrollback, and cursor positioning.
+Visual tests covering mouse input, scrolling, and window resize operations.
+
+### PowerShell Smoke Tests: 4/4 passing (100%)
+
+Build validation and stability tests for executable, dependencies, and multi-instance scenarios.
