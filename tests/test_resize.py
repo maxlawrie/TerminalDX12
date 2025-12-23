@@ -45,18 +45,18 @@ class TestWindowResize:
         win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
 
     def test_resize_width_decrease(self, terminal):
-        """Test that decreasing window width works correctly."""
+        """Test that decreasing window width to 1/4 works correctly and triggers reflow."""
         hwnd = terminal.hwnd
         rect = win32gui.GetWindowRect(hwnd)
         original_width = rect[2] - rect[0]
         original_height = rect[3] - rect[1]
 
-        # Type some text
-        terminal.send_keys("echo Narrow window test\n")
+        # Type a long line that will need to wrap
+        terminal.send_keys("echo " + "X" * 80 + "\n")
         time.sleep(0.5)
 
-        # Decrease width by 100 pixels (but keep minimum viable)
-        new_width = max(400, original_width - 100)
+        # Decrease width to 1/4 of original (minimum 300 for usability)
+        new_width = max(300, original_width // 4)
         win32gui.MoveWindow(hwnd, rect[0], rect[1], new_width, original_height, True)
         time.sleep(0.5)
 
@@ -88,17 +88,20 @@ class TestWindowResize:
         win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
 
     def test_resize_height_decrease(self, terminal):
-        """Test that decreasing window height works correctly."""
+        """Test that decreasing window height to 1/4 works correctly."""
         hwnd = terminal.hwnd
         rect = win32gui.GetWindowRect(hwnd)
         original_width = rect[2] - rect[0]
         original_height = rect[3] - rect[1]
 
-        terminal.send_keys("echo Shorter window test\n")
-        time.sleep(0.5)
+        # Generate multiple lines of content
+        terminal.send_keys("cls\n")
+        time.sleep(0.3)
+        terminal.send_keys('1..20 | % { echo "Line $_" }\n')
+        time.sleep(1)
 
-        # Decrease height (keep minimum viable)
-        new_height = max(300, original_height - 100)
+        # Decrease height to 1/4 of original (minimum 200 for usability)
+        new_height = max(200, original_height // 4)
         win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, new_height, True)
         time.sleep(0.5)
 
@@ -146,20 +149,22 @@ class TestResizeWithContent:
         win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
 
     def test_resize_with_scrollback(self, terminal):
-        """Test that resize preserves scrollback buffer content."""
+        """Test that resize to 1/4 size preserves scrollback buffer content."""
         hwnd = terminal.hwnd
         rect = win32gui.GetWindowRect(hwnd)
         original_width = rect[2] - rect[0]
         original_height = rect[3] - rect[1]
 
-        # Generate scrollback content
+        # Generate scrollback content with long lines that will wrap
         terminal.send_keys("cls\n")
         time.sleep(0.5)
-        terminal.send_keys('1..30 | % { echo "Scrollback line $_" }\n')
+        terminal.send_keys('1..30 | % { echo "Scrollback line $_ with extra text to force wrapping when narrow" }\n')
         time.sleep(2)
 
-        # Resize while there's scrollback
-        win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width - 50, original_height - 50, True)
+        # Resize to 1/4 size while there's scrollback (triggers reflow)
+        new_width = max(300, original_width // 4)
+        new_height = max(200, original_height // 4)
+        win32gui.MoveWindow(hwnd, rect[0], rect[1], new_width, new_height, True)
         time.sleep(0.5)
 
         screenshot, _ = terminal.wait_and_screenshot("resize_scrollback")
@@ -180,7 +185,7 @@ class TestTextReflow:
         1. Maximizes the window
         2. Prints a 100-character string
         3. Checks output (should be on one line when wide)
-        4. Resizes to half width
+        4. Resizes to 1/4 width (forces significant reflow)
         5. Checks output (should reflow to multiple lines)
         6. Maximizes again
         7. Checks output (should be back to one line)
@@ -214,18 +219,18 @@ class TestTextReflow:
         screenshot_wide, _ = terminal.wait_and_screenshot("reflow_1_wide")
         assert terminal.analyze_text_presence(screenshot_wide), "No text visible when maximized"
 
-        # Now resize to half width (restore first, then resize)
+        # Now resize to 1/4 width (restore first, then resize)
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         time.sleep(0.3)
 
-        half_width = max_width // 2
+        quarter_width = max(300, max_width // 4)
         # Position at top-left of screen for consistency
-        win32gui.MoveWindow(hwnd, 0, 0, half_width, max_height, True)
+        win32gui.MoveWindow(hwnd, 0, 0, quarter_width, max_height, True)
         time.sleep(0.5)
 
-        # Screenshot at half width - text should have reflowed
+        # Screenshot at 1/4 width - text should have reflowed significantly
         screenshot_narrow, _ = terminal.wait_and_screenshot("reflow_2_narrow")
-        assert terminal.analyze_text_presence(screenshot_narrow), "No text visible after resize to half width"
+        assert terminal.analyze_text_presence(screenshot_narrow), "No text visible after resize to 1/4 width"
 
         # Maximize again
         win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
@@ -272,7 +277,7 @@ class TestTextReflow:
         1. Maximize the window
         2. Print a 100-character string
         3. Take screenshot 1 (wide)
-        4. Resize to 1/3 of the width
+        4. Resize to 1/4 of the width (forces significant reflow)
         5. Take screenshot 2 (narrow)
         6. Maximize again
         7. Take screenshot 3 (wide again)
@@ -305,17 +310,17 @@ class TestTextReflow:
         screenshot_wide1, _ = terminal.wait_and_screenshot("roundtrip_1_wide")
         assert terminal.analyze_text_presence(screenshot_wide1), "No text visible when maximized"
 
-        # Resize to 1/3 width
+        # Resize to 1/4 width
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         time.sleep(0.3)
 
-        third_width = max_width // 3
-        win32gui.MoveWindow(hwnd, 0, 0, third_width, max_height, True)
+        quarter_width = max(300, max_width // 4)
+        win32gui.MoveWindow(hwnd, 0, 0, quarter_width, max_height, True)
         time.sleep(0.5)
 
-        # Screenshot 2: narrow (1/3 width)
+        # Screenshot 2: narrow (1/4 width)
         screenshot_narrow, _ = terminal.wait_and_screenshot("roundtrip_2_narrow")
-        assert terminal.analyze_text_presence(screenshot_narrow), "No text visible at 1/3 width"
+        assert terminal.analyze_text_presence(screenshot_narrow), "No text visible at 1/4 width"
 
         # Maximize again
         win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
@@ -365,21 +370,29 @@ class TestRapidResize:
     """Tests for rapid consecutive resize operations."""
 
     def test_rapid_resize_stability(self, terminal):
-        """Test that rapid resize operations don't crash the terminal."""
+        """Test that rapid resize operations between full and 1/4 size don't crash the terminal."""
         hwnd = terminal.hwnd
         rect = win32gui.GetWindowRect(hwnd)
         original_width = rect[2] - rect[0]
         original_height = rect[3] - rect[1]
 
-        terminal.send_keys("echo Rapid resize test\n")
+        # Generate content that will need reflow
+        terminal.send_keys("echo " + "Y" * 80 + "\n")
         time.sleep(0.3)
 
-        # Perform rapid resizes
+        # Calculate quarter sizes
+        quarter_width = max(300, original_width // 4)
+        quarter_height = max(200, original_height // 4)
+
+        # Perform rapid resizes alternating between full and quarter size
         for i in range(5):
-            new_width = original_width + (i % 2) * 50 - 25
-            new_height = original_height + (i % 2) * 50 - 25
-            win32gui.MoveWindow(hwnd, rect[0], rect[1], new_width, new_height, True)
-            time.sleep(0.1)
+            if i % 2 == 0:
+                # Shrink to quarter size
+                win32gui.MoveWindow(hwnd, rect[0], rect[1], quarter_width, quarter_height, True)
+            else:
+                # Restore to full size
+                win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
+            time.sleep(0.15)
 
         # Let it settle
         time.sleep(0.5)
