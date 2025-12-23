@@ -70,4 +70,4 @@ This constitution defines the architectural boundaries and development practices
 2. Impact analysis on existing architecture
 3. Update to this constitution before implementation
 
-**Version**: 1.0.0 | **Ratified**: 2024-12-21 | **Last Amended**: 2024-12-21
+**Version**: 1.0.0 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-21

@@ -68,6 +68,30 @@ Implements smooth scrolling via WM_MOUSEWHEEL messages.
 Scrollback buffer is now navigable with the mouse wheel.
 ```
 
+## Feature Development with Speckit
+
+For larger features requiring design, use the Speckit workflow:
+
+```
+/speckit.specify "feature description"  # Create specification
+/speckit.clarify                        # Resolve ambiguities
+/speckit.plan                           # Technical design
+/speckit.tasks                          # Task breakdown
+/speckit.implement                      # Execute tasks
+```
+
+**When to use Speckit:**
+- New features requiring architectural decisions
+- Changes affecting multiple components
+- Features needing formal specification
+
+**When NOT to use:**
+- Bug fixes with obvious solutions
+- Documentation updates
+- Simple refactoring
+
+See `.specify/memory/constitution.md` for project principles and quality gates.
+
 ## What to Contribute
 
 ### Good First Issues
