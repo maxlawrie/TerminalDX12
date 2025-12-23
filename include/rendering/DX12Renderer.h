@@ -25,7 +25,7 @@ public:
     DX12Renderer();
     ~DX12Renderer();
 
-    bool Initialize(Core::Window* window);
+    [[nodiscard]] bool Initialize(Core::Window* window);
     void Shutdown();
 
     void BeginFrame();

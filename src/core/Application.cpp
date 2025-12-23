@@ -11,9 +11,30 @@
 #include <chrono>
 #include <spdlog/spdlog.h>
 #include <string>
-#include <locale>
-#include <codecvt>
 #include <shellapi.h>
+
+namespace {
+// Convert a single UTF-32 codepoint to UTF-8 string
+std::string Utf32ToUtf8(char32_t codepoint) {
+    std::string result;
+    if (codepoint < 0x80) {
+        result += static_cast<char>(codepoint);
+    } else if (codepoint < 0x800) {
+        result += static_cast<char>(0xC0 | (codepoint >> 6));
+        result += static_cast<char>(0x80 | (codepoint & 0x3F));
+    } else if (codepoint < 0x10000) {
+        result += static_cast<char>(0xE0 | (codepoint >> 12));
+        result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+        result += static_cast<char>(0x80 | (codepoint & 0x3F));
+    } else if (codepoint < 0x110000) {
+        result += static_cast<char>(0xF0 | (codepoint >> 18));
+        result += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+        result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+        result += static_cast<char>(0x80 | (codepoint & 0x3F));
+    }
+    return result;
+}
+} // anonymous namespace
 
 namespace TerminalDX12 {
 namespace Core {
@@ -514,8 +535,7 @@ void Application::Render() {
             float posY = static_cast<float>(startY + y * lineHeight);
 
             // Convert single character to UTF-8
-            std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
-            std::string utf8Char = converter.to_bytes(std::u32string(1, cell.ch));
+            std::string utf8Char = Utf32ToUtf8(cell.ch);
 
             // Render single character at exact grid position
             m_renderer->RenderChar(utf8Char, posX, posY, r, g, b, 1.0f);

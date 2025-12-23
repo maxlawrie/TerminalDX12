@@ -67,7 +67,7 @@ public:
      * @param shell Path to the shell executable (default: powershell.exe)
      * @return true if initialization succeeded, false on error
      */
-    bool Initialize(const std::wstring& shell = L"powershell.exe");
+    [[nodiscard]] bool Initialize(const std::wstring& shell = L"powershell.exe");
 
     /**
      * @brief Run the main application loop

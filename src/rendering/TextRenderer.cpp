@@ -1,7 +1,40 @@
 #include "rendering/TextRenderer.h"
 #include <spdlog/spdlog.h>
-#include <codecvt>
-#include <locale>
+
+namespace {
+// Convert UTF-8 string to UTF-32
+std::u32string Utf8ToUtf32(const std::string& utf8) {
+    std::u32string result;
+    size_t i = 0;
+    while (i < utf8.size()) {
+        char32_t codepoint = 0;
+        unsigned char c = utf8[i];
+        if ((c & 0x80) == 0) {
+            codepoint = c;
+            i += 1;
+        } else if ((c & 0xE0) == 0xC0) {
+            codepoint = (c & 0x1F) << 6;
+            if (i + 1 < utf8.size()) codepoint |= (utf8[i + 1] & 0x3F);
+            i += 2;
+        } else if ((c & 0xF0) == 0xE0) {
+            codepoint = (c & 0x0F) << 12;
+            if (i + 1 < utf8.size()) codepoint |= (utf8[i + 1] & 0x3F) << 6;
+            if (i + 2 < utf8.size()) codepoint |= (utf8[i + 2] & 0x3F);
+            i += 3;
+        } else if ((c & 0xF8) == 0xF0) {
+            codepoint = (c & 0x07) << 18;
+            if (i + 1 < utf8.size()) codepoint |= (utf8[i + 1] & 0x3F) << 12;
+            if (i + 2 < utf8.size()) codepoint |= (utf8[i + 2] & 0x3F) << 6;
+            if (i + 3 < utf8.size()) codepoint |= (utf8[i + 3] & 0x3F);
+            i += 4;
+        } else {
+            i += 1; // Skip invalid byte
+        }
+        if (codepoint > 0) result += codepoint;
+    }
+    return result;
+}
+} // anonymous namespace
 
 namespace TerminalDX12::Rendering {
 
@@ -101,8 +134,7 @@ void TextRenderer::Clear() {
 
 void TextRenderer::RenderText(const std::string& text, float x, float y, const XMFLOAT4& color) {
     // Convert UTF-8 to UTF-32
-    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
-    std::u32string utf32Text = converter.from_bytes(text);
+    std::u32string utf32Text = Utf8ToUtf32(text);
     RenderText(utf32Text, x, y, color);
 }
 
@@ -170,8 +202,7 @@ void TextRenderer::RenderCharAtCell(const std::string& ch, float x, float y, con
     }
 
     // Convert UTF-8 to UTF-32
-    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
-    std::u32string utf32Text = converter.from_bytes(ch);
+    std::u32string utf32Text = Utf8ToUtf32(ch);
     if (utf32Text.empty()) {
         return;
     }

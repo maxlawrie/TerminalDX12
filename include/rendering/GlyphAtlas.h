@@ -71,7 +71,7 @@ public:
     ~GlyphAtlas();
 
     // Initialize with D3D12 device and font path
-    bool Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* commandList,
+    [[nodiscard]] bool Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* commandList,
                    const std::string& fontPath, int fontSize);
     void Shutdown();
 
@@ -109,9 +109,9 @@ public:
     ID3D12DescriptorHeap* GetSRVHeap() const { return m_srvHeap.Get(); }
 
 private:
-    bool InitializeFreeType(const std::string& fontPath, int fontSize);
-    bool CreateAtlasTexture(ID3D12Device* device);
-    bool CreateAtlasSRV(ID3D12Device* device);
+    [[nodiscard]] bool InitializeFreeType(const std::string& fontPath, int fontSize);
+    [[nodiscard]] bool CreateAtlasTexture(ID3D12Device* device);
+    [[nodiscard]] bool CreateAtlasSRV(ID3D12Device* device);
 
     // Add a glyph to the atlas
     GlyphInfo* AddGlyphToAtlas(char32_t codepoint, bool bold, bool italic);

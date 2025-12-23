@@ -26,7 +26,7 @@ public:
     TextRenderer();
     ~TextRenderer();
 
-    bool Initialize(ID3D12Device* device, GlyphAtlas* atlas, int screenWidth, int screenHeight);
+    [[nodiscard]] bool Initialize(ID3D12Device* device, GlyphAtlas* atlas, int screenWidth, int screenHeight);
     void Shutdown();
 
     // Render text at position
