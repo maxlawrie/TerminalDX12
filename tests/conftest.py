@@ -23,6 +23,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config import TestConfig
 from helpers import ScreenAnalyzer, KeyboardController, OCRVerifier, WindowHelper, TerminalTester
 
+__all__ = [
+    'terminal_session',
+    'terminal_isolated',
+    'terminal',
+    'screenshot_dir',
+    'clear_screen',
+    'ocr_available',
+    'screen_analyzer',
+    'keyboard_controller',
+    'ocr_verifier',
+]
+
 
 def get_terminal_tester():
     """Return the TerminalTester class."""

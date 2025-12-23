@@ -16,6 +16,11 @@ Configuration can be overridden via environment variables:
 import os
 from pathlib import Path
 
+__all__ = [
+    'TestConfig',
+    'VGAColors',
+]
+
 
 class TestConfig:
     """Centralized test configuration with environment variable overrides."""

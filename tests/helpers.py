@@ -25,6 +25,15 @@ from PIL import ImageGrab
 
 from config import TestConfig, VGAColors
 
+__all__ = [
+    'ScreenAnalyzer',
+    'KeyboardController',
+    'OCRVerifier',
+    'WindowHelper',
+    'TerminalTester',
+    'OCR_AVAILABLE',
+]
+
 # OCR imports
 try:
     from winocr import recognize_pil
@@ -61,15 +70,15 @@ user32 = ctypes.windll.user32
 try:
     # Try Windows 10+ API first (per-monitor DPI aware)
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
-except Exception:
+except (OSError, AttributeError):
     try:
         # Fall back to Windows 8.1 API
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except Exception:
+    except (OSError, AttributeError):
         try:
             # Fall back to Vista+ API
             user32.SetProcessDPIAware()
-        except Exception:
+        except (OSError, AttributeError):
             pass  # DPI awareness not available
 
 
@@ -80,7 +89,7 @@ except Exception:
 class ScreenAnalyzer:
     """Analyzes screenshots for colors and text presence."""
 
-    def __init__(self, color_tolerance: int = None):
+    def __init__(self, color_tolerance: Optional[int] = None):
         """
         Initialize screen analyzer.
 
@@ -122,7 +131,7 @@ class ScreenAnalyzer:
     def analyze_text_presence(
         self,
         screenshot: Image.Image,
-        min_pixels: int = None
+        min_pixels: Optional[int] = None
     ) -> bool:
         """
         Check if text is present (non-black pixels).
@@ -251,7 +260,7 @@ class ScreenAnalyzer:
 class KeyboardController:
     """Handles keyboard input simulation for Windows."""
 
-    def __init__(self, hwnd: int = None, key_delay: float = None):
+    def __init__(self, hwnd: Optional[int] = None, key_delay: Optional[float] = None):
         """
         Initialize keyboard controller.
 
@@ -271,8 +280,8 @@ class KeyboardController:
         if self.hwnd:
             try:
                 win32gui.SetForegroundWindow(self.hwnd)
-            except Exception:
-                pass  # Continue anyway
+            except (OSError, RuntimeError):
+                pass  # Window may not be ready, continue anyway
             time.sleep(0.1)
 
     def send_keys(
@@ -589,7 +598,7 @@ class TerminalTester:
     Manages terminal lifecycle and provides high-level testing methods.
     """
 
-    def __init__(self, terminal_exe: str = None):
+    def __init__(self, terminal_exe: Optional[str] = None):
         """
         Initialize the terminal tester.
 
@@ -629,8 +638,8 @@ class TerminalTester:
                 # Bring to foreground
                 try:
                     win32gui.SetForegroundWindow(self.hwnd)
-                except Exception:
-                    pass
+                except (OSError, RuntimeError):
+                    pass  # Window may not be ready
                 return True
             return False
         except Exception as e:
@@ -667,11 +676,11 @@ class TerminalTester:
             try:
                 self.process.terminate()
                 self.process.wait(timeout=2)
-            except Exception:
+            except (OSError, subprocess.TimeoutExpired):
                 try:
                     self.process.kill()
-                except Exception:
-                    pass
+                except OSError:
+                    pass  # Process already terminated
             self.process = None
         self.hwnd = None
 
@@ -689,7 +698,7 @@ class TerminalTester:
         self,
         name: str,
         wait_stable: bool = True,
-        max_wait: float = None
+        max_wait: Optional[float] = None
     ) -> Tuple[Image.Image, Path]:
         """
         Wait for screen stability and capture screenshot.
@@ -741,7 +750,7 @@ class TerminalTester:
         try:
             rect = WindowHelper.get_client_rect_screen(self.hwnd)
             return ImageGrab.grab(bbox=rect)
-        except Exception:
+        except (OSError, RuntimeError):
             return Image.new('RGB', (100, 100), color='black')
 
     def analyze_text_presence(self, screenshot: Image.Image) -> bool:
