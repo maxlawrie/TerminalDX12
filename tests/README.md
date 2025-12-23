@@ -56,6 +56,11 @@ tests/
   test_resize.py           # Window resize tests
   test_e2e.py              # End-to-end workflow tests
   test_stress.py           # Stress and stability tests
+  test_clipboard.py        # Clipboard copy/paste tests
+  test_keyboard.py         # Keyboard shortcut tests
+  test_colors.py           # ANSI color rendering tests
+  test_attributes.py       # Text attribute tests (bold, underline, inverse)
+  test_unicode.py          # Unicode visual rendering tests
   conftest.py              # pytest fixtures
   config.py                # Test configuration
   helpers.py               # Extracted helper classes
@@ -210,9 +215,9 @@ The `helpers.py` module provides reusable components:
 
 All C++ unit tests pass successfully, covering VT parser, screen buffer, Unicode, and performance.
 
-### Python Integration Tests: 16/16 passing (100%)
+### Python Integration Tests: 72/72 passing (100%)
 
-Visual tests covering mouse input, scrolling, window resize, end-to-end workflows, and stress testing.
+Visual tests covering clipboard, keyboard shortcuts, ANSI colors, text attributes, Unicode rendering, mouse input, scrolling, window resize, E2E workflows, and stress testing.
 
 ### PowerShell Smoke Tests: 4/4 passing (100%)
 

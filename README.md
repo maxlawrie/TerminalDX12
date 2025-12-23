@@ -152,7 +152,7 @@ python -m pytest tests/ -v
 
 **Requirements:** Python 3.x, Pillow, pywin32, numpy, winocr
 
-**Test Coverage:** 16 integration tests covering mouse input, scrolling, window resize, E2E workflows, and stress testing.
+**Test Coverage:** 72 integration tests covering clipboard, keyboard shortcuts, ANSI colors, text attributes, Unicode rendering, mouse input, scrolling, window resize, E2E workflows, and stress testing.
 
 ### PowerShell Smoke Tests
 

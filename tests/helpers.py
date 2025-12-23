@@ -806,3 +806,29 @@ class TerminalTester:
         if not self.hwnd:
             return (0, 0, 100, 100)
         return WindowHelper.get_client_rect_screen(self.hwnd)
+
+    def send_ctrl_key(self, key: str) -> None:
+        """
+        Send Ctrl+key combination.
+
+        Args:
+            key: Single character key (e.g., 'c', 'v', 'a')
+        """
+        self._keyboard.send_special_key(ord(key.upper()), ctrl=True)
+
+    def send_shift_key(self, vk_code: int) -> None:
+        """
+        Send Shift+key combination.
+
+        Args:
+            vk_code: Virtual key code
+        """
+        self._keyboard.send_special_key(vk_code, shift=True)
+
+    def send_page_up(self, with_shift: bool = False) -> None:
+        """Send Page Up key, optionally with Shift."""
+        self._keyboard.send_page_up(with_shift=with_shift)
+
+    def send_page_down(self, with_shift: bool = False) -> None:
+        """Send Page Down key, optionally with Shift."""
+        self._keyboard.send_page_down(with_shift=with_shift)
