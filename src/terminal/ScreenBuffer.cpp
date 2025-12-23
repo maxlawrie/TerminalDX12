@@ -1,27 +1,8 @@
 #include "terminal/ScreenBuffer.h"
 #include <algorithm>
 #include <spdlog/spdlog.h>
-#include <fstream>
-#include <chrono>
-#include <ctime>
 
 namespace TerminalDX12::Terminal {
-
-// Debug helper to log row 0 changes - write to file for GUI app
-static void LogRow0Change(const std::string& operation, const std::vector<Cell>& buffer, int cols) {
-    static std::ofstream scrollLog("C:/Users/maxla/TerminalDX12/scroll_debug.log", std::ios::app);
-    std::string row0;
-    for (int x = 0; x < std::min(40, cols); ++x) {
-        char32_t ch = buffer[x].ch;
-        if (ch >= 32 && ch < 127) row0 += static_cast<char>(ch);
-        else if (ch == 0) row0 += '.';
-        else row0 += '?';
-    }
-    if (scrollLog.is_open()) {
-        scrollLog << operation << ": [" << row0 << "]" << std::endl;
-        scrollLog.flush();
-    }
-}
 
 ScreenBuffer::ScreenBuffer(int cols, int rows, int scrollbackLines)
     : m_cols(cols)
@@ -262,9 +243,6 @@ void ScreenBuffer::ScrollUp(int lines) {
     // Log scroll events to track resize issues
     spdlog::info("ScrollUp({}) called, altBuf={}, scrollTop={}, scrollBottom={}",
                  lines, m_useAltBuffer ? "yes" : "no", m_scrollTop, GetScrollRegionBottom());
-    
-    // Log row 0 before scroll
-    LogRow0Change("ScrollUp-BEFORE", m_buffer, m_cols);
 
     // Don't add to scrollback if using alt buffer
     if (!m_useAltBuffer) {
@@ -310,9 +288,6 @@ void ScreenBuffer::ScrollUp(int lines) {
                  m_lineWrapped.end(),
                  false);
     }
-
-    // Log row 0 after scroll
-    LogRow0Change("ScrollUp-AFTER", m_buffer, m_cols);
 
     m_dirty = true;
 }
@@ -429,24 +404,10 @@ const Cell& ScreenBuffer::GetCellWithScrollback(int x, int y) const {
     return m_buffer[CellIndex(x, y)];
 }
 
-// File logger for alt buffer tracking
-static void AltBufLog(const std::string& msg) {
-    static std::ofstream debugFile("C:\\Users\\maxla\\TerminalDX12\\resize_debug.log", std::ios::app);
-    if (debugFile.is_open()) {
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        char buf[64];
-        std::strftime(buf, sizeof(buf), "%H:%M:%S", std::localtime(&time));
-        debugFile << "[" << buf << "] ALTBUF: " << msg << std::endl;
-        debugFile.flush();
-    }
-}
 
 void ScreenBuffer::UseAlternativeBuffer(bool use) {
-    AltBufLog("UseAlternativeBuffer(" + std::to_string(use) + ") called, current=" + std::to_string(m_useAltBuffer));
 
     if (use == m_useAltBuffer) {
-        AltBufLog("No change needed, returning");
         return;
     }
 
@@ -459,13 +420,11 @@ void ScreenBuffer::UseAlternativeBuffer(bool use) {
         std::swap(m_buffer, m_altBuffer);
         m_useAltBuffer = true;
 
-        AltBufLog("Switched TO alternative buffer");
     } else {
         // Switch back to primary buffer
         std::swap(m_buffer, m_altBuffer);
         m_useAltBuffer = false;
 
-        AltBufLog("Switched BACK to primary buffer");
     }
 
     m_dirty = true;
@@ -547,15 +506,6 @@ void ScreenBuffer::ScrollRegionUp(int lines) {
 
     int bottom = GetScrollRegionBottom();
     
-    // Log scroll region events to track resize issues
-    spdlog::info("ScrollRegionUp({}) called, scrollTop={}, scrollBottom={}",
-                 lines, m_scrollTop, bottom);
-    
-    // Log row 0 before if scroll region starts at 0
-    if (m_scrollTop == 0) {
-        LogRow0Change("ScrollRegionUp-BEFORE", m_buffer, m_cols);
-    }
-    
     int regionHeight = bottom - m_scrollTop + 1;
     lines = std::min(lines, regionHeight);
 
@@ -571,11 +521,6 @@ void ScreenBuffer::ScrollRegionUp(int lines) {
         for (int x = 0; x < m_cols; ++x) {
             m_buffer[CellIndex(x, y)] = Cell();
         }
-    }
-
-    // Log row 0 after if scroll region starts at 0
-    if (m_scrollTop == 0) {
-        LogRow0Change("ScrollRegionUp-AFTER", m_buffer, m_cols);
     }
 
     m_dirty = true;

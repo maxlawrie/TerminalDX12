@@ -38,13 +38,10 @@ constexpr int DIALOG_HEIGHT = 350;
 SettingsDialog::SettingsDialog(HWND parentWindow, Core::Config* config)
     : m_parentWindow(parentWindow)
     , m_config(config)
-    , m_originalConfig(nullptr)
 {
 }
 
-SettingsDialog::~SettingsDialog() {
-    delete m_originalConfig;
-}
+SettingsDialog::~SettingsDialog() = default;
 
 INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     SettingsDialog* dialog = nullptr;
@@ -65,7 +62,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hwnd, UINT msg, WPARAM wParam, 
 
 bool SettingsDialog::Show() {
     // Backup original settings for cancel
-    m_originalConfig = new Core::Config();
+    m_originalConfig = std::make_unique<Core::Config>();
     *m_originalConfig = *m_config;
     m_settingsChanged = false;
 

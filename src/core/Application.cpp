@@ -14,20 +14,6 @@
 #include <locale>
 #include <codecvt>
 #include <shellapi.h>
-#include <fstream>
-
-// Debug file logger for resize investigation
-static void DebugLog(const std::string& msg) {
-    static std::ofstream debugFile("C:\\Users\\maxla\\TerminalDX12\\resize_debug.log", std::ios::app);
-    if (debugFile.is_open()) {
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        char buf[64];
-        std::strftime(buf, sizeof(buf), "%H:%M:%S", std::localtime(&time));
-        debugFile << "[" << buf << "] " << msg << std::endl;
-        debugFile.flush();
-    }
-}
 
 namespace TerminalDX12 {
 namespace Core {
@@ -146,9 +132,6 @@ bool Application::Initialize(const std::wstring& shell) {
     int termRows = std::max(5, availableHeight / lineHeight);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
 
-    DebugLog("Initial terminal creation: " + std::to_string(termCols) + "x" + std::to_string(termRows) +
-             " (startY=" + std::to_string(startY) + ", window=" + std::to_string(windowDesc.width) +
-             "x" + std::to_string(windowDesc.height) + ")");
 
     // Create initial tab
     UI::Tab* initialTab = m_tabManager->CreateTab(m_shellCommand, termCols, termRows, scrollbackLines);
@@ -369,19 +352,6 @@ void Application::Render() {
     int rows = screenBuffer->GetRows();
     int cols = screenBuffer->GetCols();
 
-    // Debug: periodically log row 0 content during render
-    static int renderCount = 0;
-    if (renderCount++ % 300 == 0) {  // Every ~5 seconds at 60fps
-        std::string row0Content;
-        for (int x = 0; x < std::min(60, cols); ++x) {
-            char32_t ch = screenBuffer->GetCell(x, 0).ch;
-            if (ch >= 32 && ch < 127) row0Content += static_cast<char>(ch);
-            else if (ch == 0) row0Content += '.';
-            else row0Content += '?';
-        }
-        DebugLog("RENDER row0: [" + row0Content + "] altBuf=" +
-                 (screenBuffer->IsUsingAlternativeBuffer() ? "yes" : "no"));
-    }
 
     // Get cursor position for rendering
     int cursorX, cursorY;
@@ -667,20 +637,6 @@ void Application::OnWindowResize(int width, int height) {
         int newCols = std::max(20, availableWidth / charWidth);
         int newRows = std::max(5, availableHeight / lineHeight);
 
-        // Debug log to file
-        DebugLog("=== RESIZE EVENT ===");
-        DebugLog("Window: " + std::to_string(width) + "x" + std::to_string(height));
-        DebugLog("startY=" + std::to_string(startY) + ", padding=" + std::to_string(padding));
-        DebugLog("availableHeight=" + std::to_string(availableHeight) + ", lineHeight=" + std::to_string(lineHeight));
-        DebugLog("Calculated: " + std::to_string(newCols) + " cols x " + std::to_string(newRows) + " rows");
-        
-        // Log cursor position before resize
-        auto* activeTab = m_tabManager->GetActiveTab();
-        if (activeTab && activeTab->GetScreenBuffer()) {
-            int cx, cy;
-            activeTab->GetScreenBuffer()->GetCursorPos(cx, cy);
-            DebugLog("Cursor BEFORE resize: col=" + std::to_string(cx) + ", row=" + std::to_string(cy));
-        }
 
         spdlog::info("OnWindowResize: window={}x{}, startY={}, availableHeight={}, newRows={}",
                      width, height, startY, availableHeight, newRows);
@@ -689,18 +645,6 @@ void Application::OnWindowResize(int width, int height) {
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
                 if (tab) {
-                    // Log row 0 before resize
-                    auto* screenBuffer = tab->GetScreenBuffer();
-                    if (screenBuffer) {
-                        std::string row0Before;
-                        for (int x = 0; x < std::min(50, screenBuffer->GetCols()); ++x) {
-                            char32_t ch = screenBuffer->GetCell(x, 0).ch;
-                            if (ch >= 32 && ch < 127) row0Before += static_cast<char>(ch);
-                            else if (ch == 0) row0Before += '.';
-                            else row0Before += '?';
-                        }
-                        DebugLog("Row 0 BEFORE Tab::Resize: [" + row0Before + "]");
-                    }
 
                     // Check if we're in live resize mode
                     bool isLiveResize = m_window && m_window->IsResizing();
@@ -714,27 +658,10 @@ void Application::OnWindowResize(int width, int height) {
                         tab->Resize(newCols, newRows);
                     }
 
-                    // Log row 0 after resize
-                    if (screenBuffer) {
-                        std::string row0After;
-                        for (int x = 0; x < std::min(50, screenBuffer->GetCols()); ++x) {
-                            char32_t ch = screenBuffer->GetCell(x, 0).ch;
-                            if (ch >= 32 && ch < 127) row0After += static_cast<char>(ch);
-                            else if (ch == 0) row0After += '.';
-                            else row0After += '?';
-                        }
-                        DebugLog("Row 0 AFTER Tab::Resize: [" + row0After + "]");
-                        
-                        // Log cursor position after resize
-                        int cx, cy;
-                        screenBuffer->GetCursorPos(cx, cy);
-                        DebugLog("Cursor AFTER resize: col=" + std::to_string(cx) + ", row=" + std::to_string(cy));
-                    }
                 }
             }
             spdlog::debug("Terminal resized to {}x{}", newCols, newRows);
         }
-        DebugLog("=== END RESIZE ===\n");
     }
 }
 

@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <string>
 #include <functional>
+#include <memory>
 
 namespace TerminalDX12 {
 
@@ -47,7 +48,7 @@ private:
 
     HWND m_parentWindow;
     Core::Config* m_config;
-    Core::Config* m_originalConfig;  // Backup for cancel
+    std::unique_ptr<Core::Config> m_originalConfig;  // Backup for cancel
     std::function<void()> m_previewCallback;
     bool m_settingsChanged = false;
 };
