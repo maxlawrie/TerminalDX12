@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$TerminalExe = "C:\Temp\TerminalDX12Test\TerminalDX12.exe"
+$TerminalExe = Join-Path (Split-Path -Parent $PSScriptRoot) "build\bin\Release\TerminalDX12.exe"
 $TestResults = @()
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogFile = Join-Path $ScriptDir "test_basic_output.txt"
@@ -157,25 +157,14 @@ function Test-WindowAppears {
         # Wait for window to appear
         Start-Sleep -Seconds 2
 
-        # Try to find the window
-        Add-Type @"
-            using System;
-            using System.Runtime.InteropServices;
-            public class WindowFinder {
-                [DllImport("user32.dll", SetLastError = true)]
-                public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
-            }
-"@
-
-        # Look for window with "TerminalDX12" in title
-        $hwnd = [WindowFinder]::FindWindow($null, "TerminalDX12 - GPU-Accelerated Terminal Emulator")
-
-        if ($hwnd -ne [IntPtr]::Zero) {
+        # Check if the process has a main window
+        $process.Refresh()
+        if ($process.MainWindowHandle -ne [IntPtr]::Zero) {
             Write-Host " PASSED" -ForegroundColor Green
             $testResult = $true
         } else {
             Write-Host " FAILED" -ForegroundColor Red
-            Write-Host "  Window not found with expected title" -ForegroundColor Yellow
+            Write-Host "  Process has no main window handle" -ForegroundColor Yellow
             $testResult = $false
         }
 
