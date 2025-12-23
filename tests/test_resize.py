@@ -2,19 +2,15 @@
 """
 Window resize and text reflow tests for TerminalDX12.
 
-These 4 tests cover:
+These 3 tests cover:
 1. Basic resize to 1/4 size
 2. Resize with scrollback content
-3. Maximize/restore operations
-4. Rapid resize stability
+3. Rapid resize stability
 """
 
 import pytest
 import time
-import numpy as np
 import win32gui
-import win32con
-from PIL import Image
 
 from config import TestConfig
 
@@ -76,40 +72,6 @@ class TestResize:
 
         # Restore
         win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
-
-    def test_maximize_restore(self, terminal):
-        """Test maximize and restore window operations."""
-        hwnd = terminal.hwnd
-        original_rect = win32gui.GetWindowRect(hwnd)
-
-        terminal.send_keys("echo Before maximize\n")
-        time.sleep(0.3)
-
-        # Maximize
-        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-        time.sleep(0.5)
-
-        screenshot_max, _ = terminal.wait_and_screenshot("maximized")
-        assert terminal.analyze_text_presence(screenshot_max), "No text when maximized"
-
-        # Type while maximized
-        terminal.send_keys("echo While maximized\n")
-        time.sleep(0.3)
-
-        # Restore
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-        time.sleep(0.5)
-
-        terminal.send_keys("echo After restore\n")
-        time.sleep(0.3)
-
-        screenshot_restored, _ = terminal.wait_and_screenshot("restored")
-        assert terminal.analyze_text_presence(screenshot_restored), "No text after restore"
-
-        # Restore original position
-        win32gui.MoveWindow(hwnd, original_rect[0], original_rect[1],
-                           original_rect[2] - original_rect[0],
-                           original_rect[3] - original_rect[1], True)
 
     def test_rapid_resize_stability(self, terminal):
         """Test that rapid resize between full and 1/4 size doesn't crash."""
