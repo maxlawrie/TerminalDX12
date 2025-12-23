@@ -183,7 +183,7 @@ See [SPECIFICATION.md](SPECIFICATION.md) for a complete list of supported VT esc
 
 ## License
 
-MIT License
+GPL v2 License - See [LICENSE.md](LICENSE.md)
 
 ## Contributing
 
