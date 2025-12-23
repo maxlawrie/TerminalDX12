@@ -51,9 +51,11 @@ tests/
     test_vt_parser.cpp     # VTStateMachine tests (68 tests)
     test_unicode.cpp       # Unicode handling tests (27 tests)
     test_performance.cpp   # Performance benchmarks (20 tests)
-  test_terminal.py         # Main Python visual tests (22 tests)
+  test_terminal.py         # Main Python visual tests
   test_mouse.py            # Mouse interaction tests
   test_resize.py           # Window resize tests
+  test_e2e.py              # End-to-end workflow tests
+  test_stress.py           # Stress and stability tests
   conftest.py              # pytest fixtures
   config.py                # Test configuration
   helpers.py               # Extracted helper classes
@@ -208,9 +210,9 @@ The `helpers.py` module provides reusable components:
 
 All C++ unit tests pass successfully, covering VT parser, screen buffer, Unicode, and performance.
 
-### Python Integration Tests: 7/7 passing (100%)
+### Python Integration Tests: 16/16 passing (100%)
 
-Visual tests covering mouse input, scrolling, and window resize operations.
+Visual tests covering mouse input, scrolling, window resize, end-to-end workflows, and stress testing.
 
 ### PowerShell Smoke Tests: 4/4 passing (100%)
 
