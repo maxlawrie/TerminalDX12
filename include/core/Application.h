@@ -1,3 +1,11 @@
+/**
+ * @file Application.h
+ * @brief Main application class for TerminalDX12
+ *
+ * This file contains the Application class which coordinates all terminal
+ * components including windowing, rendering, terminal emulation, and input handling.
+ */
+
 #pragma once
 
 #include <memory>
@@ -26,13 +34,50 @@ namespace UI {
 
 namespace Core {
 
+/**
+ * @class Application
+ * @brief Main application class managing the terminal emulator lifecycle
+ *
+ * Application is the central coordinator for TerminalDX12. It manages:
+ * - Window creation and event handling
+ * - DirectX 12 rendering pipeline
+ * - Terminal emulation via ConPTY
+ * - Text selection and clipboard operations
+ * - Mouse and keyboard input processing
+ * - Tab management for multiple terminal sessions
+ *
+ * @note This class follows a singleton pattern accessible via Get()
+ *
+ * @example
+ * @code
+ * Core::Application app;
+ * if (!app.Initialize(L"powershell.exe")) {
+ *     return EXIT_FAILURE;
+ * }
+ * return app.Run();
+ * @endcode
+ */
 class Application {
 public:
     Application();
     ~Application();
 
+    /**
+     * @brief Initialize the terminal application
+     * @param shell Path to the shell executable (default: powershell.exe)
+     * @return true if initialization succeeded, false on error
+     */
     bool Initialize(const std::wstring& shell = L"powershell.exe");
+
+    /**
+     * @brief Run the main application loop
+     * @return Exit code (0 for success)
+     */
     int Run();
+
+    /**
+     * @brief Clean up resources and prepare for exit
+     */
     void Shutdown();
 
     static Application& Get() { return *s_instance; }

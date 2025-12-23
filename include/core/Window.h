@@ -1,3 +1,11 @@
+/**
+ * @file Window.h
+ * @brief Win32 window management for TerminalDX12
+ *
+ * Provides a modern C++ wrapper around Win32 window creation and event handling
+ * with support for DPI awareness and resize tracking.
+ */
+
 #pragma once
 
 #include <Windows.h>
@@ -7,21 +15,60 @@
 namespace TerminalDX12 {
 namespace Core {
 
+/**
+ * @struct WindowDesc
+ * @brief Configuration parameters for window creation
+ */
 struct WindowDesc {
-    int width = 1280;
-    int height = 720;
-    std::wstring title = L"TerminalDX12";
-    bool resizable = true;
+    int width = 1280;           ///< Initial window width in pixels
+    int height = 720;           ///< Initial window height in pixels
+    std::wstring title = L"TerminalDX12";  ///< Window title
+    bool resizable = true;      ///< Whether the window can be resized
 };
 
+/**
+ * @class Window
+ * @brief Win32 window wrapper with DPI awareness and event callbacks
+ *
+ * Window provides a clean C++ interface for Win32 window management including:
+ * - Per-monitor DPI awareness V2
+ * - Event callbacks for keyboard, mouse, and window events
+ * - Resize state tracking for smooth terminal resize handling
+ * - Window opacity control for transparency effects
+ *
+ * @example
+ * @code
+ * WindowDesc desc;
+ * desc.width = 1920;
+ * desc.height = 1080;
+ * desc.title = L"My Terminal";
+ *
+ * Window window;
+ * if (window.Create(desc)) {
+ *     window.OnResize = [](int w, int h) { HandleResize(w, h); };
+ *     window.Show();
+ * }
+ * @endcode
+ */
 class Window {
 public:
     Window();
     ~Window();
 
+    /**
+     * @brief Create the window with specified parameters
+     * @param desc Window configuration
+     * @return true if window was created successfully
+     */
     bool Create(const WindowDesc& desc);
+
+    /** @brief Show the window */
     void Show();
+
+    /** @brief Hide the window */
     void Hide();
+
+    /** @brief Close and destroy the window */
     void Close();
 
     // Getters

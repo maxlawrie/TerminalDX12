@@ -1,0 +1,52 @@
+# Doxyfile for TerminalDX12
+# Generate with: doxygen Doxyfile
+
+PROJECT_NAME           = "TerminalDX12"
+PROJECT_BRIEF          = "GPU-Accelerated Terminal Emulator for Windows"
+PROJECT_NUMBER         = "1.0"
+
+OUTPUT_DIRECTORY       = docs/api
+CREATE_SUBDIRS         = NO
+
+# Input settings
+INPUT                  = include src
+FILE_PATTERNS          = *.h *.hpp *.cpp
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */build/* */tests/*
+
+# Output settings
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+# Documentation extraction
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+
+# Source browsing
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+# Diagrams
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
+
+# Warnings
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+
+# Preprocessing
+ENABLE_PREPROCESSING   = YES
+PREDEFINED             = WIN32 _WIN64
+
+# Other
+QUIET                  = NO
+WARNINGS               = YES
