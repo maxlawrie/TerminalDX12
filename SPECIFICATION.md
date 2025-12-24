@@ -697,27 +697,31 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Open Search | Ctrl+Shift+F | NOT STARTED |
-| Search Box | Text input field | NOT STARTED |
-| Close Search | Escape | NOT STARTED |
-| Match Count | Display N of M | NOT STARTED |
+| Open Search | Ctrl+Shift+F | **COMPLETE** |
+| Search Box | Text input field | **COMPLETE** |
+| Close Search | Escape | **COMPLETE** |
+| Match Count | Display N of M | **COMPLETE** |
+
+**Implementation:** `src/core/Application.cpp` OpenSearch(), CloseSearch(), search bar rendering
 
 ### 13.2 Search Features
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Find Next | F3 or Enter | NOT STARTED |
-| Find Previous | Shift+F3 | NOT STARTED |
-| Case Sensitive | Toggle option | NOT STARTED |
+| Find Next | F3 or Enter | **COMPLETE** |
+| Find Previous | Shift+F3 | **COMPLETE** |
+| Case Sensitive | Toggle option | PARTIAL (case-insensitive only) |
 | Whole Word | Toggle option | NOT STARTED |
 | Regex | Regular expression search | NOT STARTED |
-| Highlight All | Highlight all matches | NOT STARTED |
+| Highlight All | Highlight all matches | **COMPLETE** |
+
+**Implementation:** `src/core/Application.cpp` SearchNext(), SearchPrevious(), UpdateSearchResults()
 
 ### 13.3 Search Scope
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Visible Area | Search current view | NOT STARTED |
+| Visible Area | Search current view | **COMPLETE** |
 | Scrollback | Search history | NOT STARTED |
 | All Tabs | Search all tabs | NOT STARTED |
 
@@ -1023,15 +1027,15 @@ This section tracks features required for running [Claude Code](https://claude.c
 3. ~~Color scheme support~~ ✓
 4. ~~Keybinding customization~~ ✓
 
-### Phase 3: Mouse Enhancement - PARTIAL
+### Phase 3: Mouse Enhancement - **COMPLETE**
 1. ~~Mouse reporting to applications~~ ✓
-2. Double/triple-click selection
-3. Right-click context menu
+2. ~~Double/triple-click selection~~ ✓
+3. ~~Right-click context menu~~ ✓
 
 ### Phase 4: Advanced Features - PARTIAL
 1. ~~Tab support~~ ✓
-2. Search functionality
-3. URL detection
+2. ~~Search functionality~~ ✓
+3. ~~URL detection~~ ✓
 4. Split panes
 
 ### Phase 5: Polish
