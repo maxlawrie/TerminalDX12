@@ -429,7 +429,7 @@ struct Cell {
 |---------|-------------|--------|
 | DECSTBM | Set top/bottom margins | **COMPLETE** |
 | Region Scroll | Scroll only within region | **COMPLETE** |
-| Origin Mode | Cursor relative to region | NOT STARTED |
+| Origin Mode | Cursor relative to region (DECOM) | **COMPLETE** |
 
 **Specification:**
 - DECSTBM `CSI t ; b r` sets scroll region from row t to row b

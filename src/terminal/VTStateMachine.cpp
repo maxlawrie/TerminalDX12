@@ -281,6 +281,7 @@ void VTStateMachine::HandleEscapeSequence(char ch) {
             m_savedCursor.x = m_screenBuffer->GetCursorX();
             m_savedCursor.y = m_screenBuffer->GetCursorY();
             m_savedCursor.attr = m_screenBuffer->GetCurrentAttributes();
+            m_savedCursor.originMode = m_originMode;
             m_savedCursor.autoWrap = m_autoWrap;
             m_savedCursor.valid = true;
             m_state = State::Ground;
@@ -290,6 +291,7 @@ void VTStateMachine::HandleEscapeSequence(char ch) {
             if (m_savedCursor.valid) {
                 m_screenBuffer->SetCursorPos(m_savedCursor.x, m_savedCursor.y);
                 m_screenBuffer->SetCurrentAttributes(m_savedCursor.attr);
+                m_originMode = m_savedCursor.originMode;
                 m_autoWrap = m_savedCursor.autoWrap;
             }
             m_state = State::Ground;
@@ -363,6 +365,13 @@ void VTStateMachine::HandleCSI() {
 void VTStateMachine::HandleCursorPosition() {
     int row = GetParam(0, 1) - 1;  // VT100 is 1-indexed
     int col = GetParam(1, 1) - 1;
+
+    // In origin mode, row is relative to scroll region and constrained to it
+    if (m_originMode) {
+        int scrollTop = m_screenBuffer->GetScrollRegionTop();
+        int scrollBottom = m_screenBuffer->GetScrollRegionBottom();
+        row = std::clamp(row + scrollTop, scrollTop, scrollBottom);
+    }
 
     m_screenBuffer->SetCursorPos(col, row);
 }
@@ -809,7 +818,18 @@ void VTStateMachine::HandleMode() {
                     m_applicationCursorKeys = set;
                     spdlog::debug("DECCKM: Application cursor keys {}", set ? "enabled" : "disabled");
                     break;
-                    
+
+                case 6:  // DECOM - Origin Mode
+                    m_originMode = set;
+                    // When origin mode is set/reset, cursor moves to home position
+                    if (set) {
+                        m_screenBuffer->SetCursorPos(0, m_screenBuffer->GetScrollRegionTop());
+                    } else {
+                        m_screenBuffer->SetCursorPos(0, 0);
+                    }
+                    spdlog::debug("DECOM: Origin mode {}", set ? "enabled" : "disabled");
+                    break;
+
                 case 7:  // DECAWM - Auto-wrap mode
                     m_autoWrap = set;
                     spdlog::debug("DECAWM: Auto-wrap {}", set ? "enabled" : "disabled");

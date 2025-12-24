@@ -65,6 +65,7 @@ public:
     bool IsBracketedPasteEnabled() const { return m_bracketedPaste; }
     bool IsKeypadApplicationModeEnabled() const { return m_keypadApplicationMode; }
     bool IsCursorBlinkEnabled() const { return m_cursorBlink; }
+    bool IsOriginModeEnabled() const { return m_originMode; }
     CursorStyle GetCursorStyle() const { return m_cursorStyle; }
 
     // Theme color accessors (OSC 10/11)
@@ -158,6 +159,7 @@ private:
 
     // Terminal modes
     bool m_applicationCursorKeys = false;  // DECCKM (mode 1)
+    bool m_originMode = false;             // DECOM (mode 6) - cursor relative to scroll region
     bool m_autoWrap = true;                // DECAWM (mode 7)
     bool m_bracketedPaste = false;         // Mode 2004
     bool m_keypadApplicationMode = false;  // DECKPAM/DECKPNM
