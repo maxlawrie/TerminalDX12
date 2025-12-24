@@ -602,6 +602,7 @@ void VTStateMachine::HandleSGR() {
                 attr.background = 0;   // Black
                 attr.flags = 0;
                 attr.flags2 = 0;
+                attr.underlineStyle = CellAttributes::UnderlineStyle::None;
                 break;
 
             case 1:  // Bold
@@ -616,7 +617,8 @@ void VTStateMachine::HandleSGR() {
                 attr.flags |= CellAttributes::FLAG_ITALIC;
                 break;
 
-            case 4:  // Underline
+            case 4:  // Underline (single)
+                attr.underlineStyle = CellAttributes::UnderlineStyle::Single;
                 attr.flags |= CellAttributes::FLAG_UNDERLINE;
                 break;
 
@@ -637,6 +639,11 @@ void VTStateMachine::HandleSGR() {
                 attr.flags |= CellAttributes::FLAG_STRIKETHROUGH;
                 break;
 
+            case 21:  // Double underline
+                attr.underlineStyle = CellAttributes::UnderlineStyle::Double;
+                attr.flags |= CellAttributes::FLAG_UNDERLINE;
+                break;
+
             case 22:  // Not bold/dim - clears both
                 attr.flags &= ~(CellAttributes::FLAG_BOLD | CellAttributes::FLAG_DIM);
                 break;
@@ -646,6 +653,7 @@ void VTStateMachine::HandleSGR() {
                 break;
 
             case 24:  // Not underline
+                attr.underlineStyle = CellAttributes::UnderlineStyle::None;
                 attr.flags &= ~CellAttributes::FLAG_UNDERLINE;
                 break;
 

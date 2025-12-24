@@ -220,7 +220,7 @@ SGR (Select Graphic Rendition) sequences: `CSI n m`
 | 7 | Inverse/Reverse | **COMPLETE** |
 | 8 | Hidden/Invisible | **COMPLETE** |
 | 9 | Strikethrough | **COMPLETE** |
-| 21 | Double Underline | NOT STARTED |
+| 21 | Double Underline | **COMPLETE** |
 | 22 | Normal Intensity (not bold/dim) | **COMPLETE** |
 | 23 | Not Italic | **COMPLETE** |
 | 24 | Not Underlined | **COMPLETE** |
@@ -236,14 +236,14 @@ SGR (Select Graphic Rendition) sequences: `CSI n m`
 
 | Code | Style | Status |
 |------|-------|--------|
-| 4:0 | No underline | NOT STARTED |
-| 4:1 | Single underline | NOT STARTED |
-| 4:2 | Double underline | NOT STARTED |
-| 4:3 | Curly underline | NOT STARTED |
-| 4:4 | Dotted underline | NOT STARTED |
-| 4:5 | Dashed underline | NOT STARTED |
+| 4:0 | No underline | PARTIAL (data structure ready) |
+| 4:1 | Single underline | PARTIAL (data structure ready) |
+| 4:2 | Double underline | PARTIAL (data structure ready) |
+| 4:3 | Curly underline | PARTIAL (data structure ready) |
+| 4:4 | Dotted underline | PARTIAL (data structure ready) |
+| 4:5 | Dashed underline | PARTIAL (data structure ready) |
 
-**Specification:** Extended underline styles use colon-separated parameters. Currently only basic `CSI 4 m` is supported.
+**Specification:** Extended underline styles use colon-separated parameters. UnderlineStyle enum and storage implemented; CSI parser update for colon sub-parameters pending.
 
 ---
 

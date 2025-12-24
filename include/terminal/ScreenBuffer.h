@@ -53,6 +53,17 @@ struct CellAttributes {
     static constexpr uint8_t FLAG2_HIDDEN       = 0x02;  // SGR 8 - Hidden/Invisible
     static constexpr uint8_t FLAG2_HYPERLINK    = 0x04;  // OSC 8 - Cell has hyperlink
 
+    // Underline styles (SGR 4, 21, 4:0-4:5)
+    enum class UnderlineStyle : uint8_t {
+        None = 0,
+        Single = 1,
+        Double = 2,
+        Curly = 3,
+        Dotted = 4,
+        Dashed = 5
+    };
+    UnderlineStyle underlineStyle = UnderlineStyle::None;
+
     // Hyperlink ID (index into ScreenBuffer's hyperlink table, 0 = no link)
     uint16_t hyperlinkId = 0;
 
@@ -68,7 +79,9 @@ struct CellAttributes {
     // Attribute queries
     bool IsBold() const { return (flags & FLAG_BOLD) != 0; }
     bool IsItalic() const { return (flags & FLAG_ITALIC) != 0; }
-    bool IsUnderline() const { return (flags & FLAG_UNDERLINE) != 0; }
+    bool IsUnderline() const { return underlineStyle != UnderlineStyle::None || (flags & FLAG_UNDERLINE) != 0; }
+    bool IsDoubleUnderline() const { return underlineStyle == UnderlineStyle::Double; }
+    UnderlineStyle GetUnderlineStyle() const { return underlineStyle; }
     bool IsInverse() const { return (flags & FLAG_INVERSE) != 0; }
     bool IsDim() const { return (flags & FLAG_DIM) != 0; }
     bool IsStrikethrough() const { return (flags & FLAG_STRIKETHROUGH) != 0; }
