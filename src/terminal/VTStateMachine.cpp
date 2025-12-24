@@ -901,6 +901,10 @@ void VTStateMachine::HandleOSC() {
         else if (type == "8") {
             HandleOSC8(value);
         }
+        // OSC 52 - Clipboard access
+        else if (type == "52") {
+            HandleOSC52(value);
+        }
         // OSC 0, 1, 2 are window title - we could handle these if desired
     }
 
@@ -1095,6 +1099,82 @@ void VTStateMachine::HandleOSC11(const std::string& param) {
             m_themeBgB = b;
             m_hasThemeBg = true;
             spdlog::debug("OSC 11: Set background color to #{:02x}{:02x}{:02x}", r, g, b);
+        }
+    }
+}
+
+// Base64 encoding table
+static const char base64_chars[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static std::string Base64Encode(const std::string& input) {
+    std::string output;
+    output.reserve(((input.size() + 2) / 3) * 4);
+
+    for (size_t i = 0; i < input.size(); i += 3) {
+        uint32_t n = static_cast<uint8_t>(input[i]) << 16;
+        if (i + 1 < input.size()) n |= static_cast<uint8_t>(input[i + 1]) << 8;
+        if (i + 2 < input.size()) n |= static_cast<uint8_t>(input[i + 2]);
+
+        output.push_back(base64_chars[(n >> 18) & 0x3F]);
+        output.push_back(base64_chars[(n >> 12) & 0x3F]);
+        output.push_back((i + 1 < input.size()) ? base64_chars[(n >> 6) & 0x3F] : '=');
+        output.push_back((i + 2 < input.size()) ? base64_chars[n & 0x3F] : '=');
+    }
+    return output;
+}
+
+static std::string Base64Decode(const std::string& input) {
+    std::string output;
+    std::vector<int> T(256, -1);
+    for (int i = 0; i < 64; i++) T[static_cast<unsigned char>(base64_chars[i])] = i;
+
+    int val = 0, valb = -8;
+    for (unsigned char c : input) {
+        if (T[c] == -1) break;
+        val = (val << 6) + T[c];
+        valb += 6;
+        if (valb >= 0) {
+            output.push_back(char((val >> valb) & 0xFF));
+            valb -= 8;
+        }
+    }
+    return output;
+}
+
+void VTStateMachine::HandleOSC52(const std::string& param) {
+    // OSC 52 - Clipboard access
+    // Format: OSC 52 ; Pc ; Pd ST
+    // Pc = clipboard selection ('c' for clipboard, 'p' for primary, 's' for select)
+    // Pd = base64 encoded data, or '?' to query
+
+    size_t semicolon = param.find(';');
+    if (semicolon == std::string::npos) {
+        spdlog::debug("OSC 52: Invalid format (no semicolon)");
+        return;
+    }
+
+    std::string selection = param.substr(0, semicolon);
+    std::string data = param.substr(semicolon + 1);
+
+    // We only support 'c' (system clipboard) on Windows
+    // Ignore selection parameter and always use system clipboard
+
+    if (data == "?") {
+        // Query clipboard
+        if (m_clipboardReadCallback) {
+            std::string clipboardContent = m_clipboardReadCallback();
+            std::string encoded = Base64Encode(clipboardContent);
+            std::string response = "]52;" + selection + ";" + encoded + "\x07";
+            SendResponse(response);
+            spdlog::debug("OSC 52: Query clipboard, {} bytes", clipboardContent.size());
+        }
+    } else if (!data.empty()) {
+        // Set clipboard
+        std::string decoded = Base64Decode(data);
+        if (m_clipboardWriteCallback && !decoded.empty()) {
+            m_clipboardWriteCallback(decoded);
+            spdlog::debug("OSC 52: Set clipboard, {} bytes", decoded.size());
         }
     }
 }

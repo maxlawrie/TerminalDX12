@@ -176,7 +176,7 @@ This document specifies all features for TerminalDX12, including current impleme
 | `OSC 8 ; params ; uri ST` | Hyperlink | **COMPLETE** |
 | `OSC 10 ; color ST` | Set Foreground Color | **COMPLETE** |
 | `OSC 11 ; color ST` | Set Background Color | **COMPLETE** |
-| `OSC 52 ; base64 ST` | Clipboard Access | NOT STARTED |
+| `OSC 52 ; base64 ST` | Clipboard Access | **COMPLETE** |
 | `OSC 133 ; A ST` | Shell Integration - Prompt Start | **COMPLETE** |
 | `OSC 133 ; B ST` | Shell Integration - Command Start | **COMPLETE** |
 | `OSC 133 ; C ST` | Shell Integration - Command End | **COMPLETE** |
@@ -534,10 +534,12 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Read | Application reads clipboard | NOT STARTED |
-| Write | Application writes clipboard | NOT STARTED |
+| Read | Application reads clipboard | **COMPLETE** |
+| Write | Application writes clipboard | **COMPLETE** |
 
 **Specification:** `OSC 52 ; c ; base64-data ST` for clipboard access from applications
+
+**Implementation:** `src/terminal/VTStateMachine.cpp` HandleOSC52() with base64 encoding/decoding
 
 ---
 
@@ -650,11 +652,11 @@ struct Cell {
 
 | Shortcut | Action | Status |
 |----------|--------|--------|
-| Ctrl+T | New tab | NOT STARTED |
-| Ctrl+W | Close tab | NOT STARTED |
-| Ctrl+Tab | Next tab | NOT STARTED |
-| Ctrl+Shift+Tab | Previous tab | NOT STARTED |
-| Ctrl+1-9 | Switch to tab N | NOT STARTED |
+| Ctrl+T | New tab | **COMPLETE** |
+| Ctrl+W | Close tab | **COMPLETE** |
+| Ctrl+Tab | Next tab | **COMPLETE** |
+| Ctrl+Shift+Tab | Previous tab | **COMPLETE** |
+| Ctrl+1-9 | Switch to tab N | **COMPLETE** |
 
 ### 11.3 Tab Persistence
 

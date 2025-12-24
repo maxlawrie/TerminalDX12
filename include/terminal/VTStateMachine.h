@@ -32,6 +32,14 @@ public:
         m_responseCallback = callback;
     }
 
+    // Clipboard callbacks for OSC 52
+    void SetClipboardReadCallback(std::function<std::string()> callback) {
+        m_clipboardReadCallback = callback;
+    }
+    void SetClipboardWriteCallback(std::function<void(const std::string&)> callback) {
+        m_clipboardWriteCallback = callback;
+    }
+
     // Cursor style enum
     enum class CursorStyle {
         BlinkingBlock = 0,    // Default
@@ -113,6 +121,7 @@ private:
     void HandleOSC8(const std::string& param);    // OSC 8 - hyperlinks
     void HandleOSC10(const std::string& param);   // OSC 10 - foreground color
     void HandleOSC11(const std::string& param);   // OSC 11 - background color
+    void HandleOSC52(const std::string& param);   // OSC 52 - clipboard access
     bool ParseOSCColor(const std::string& colorStr, uint8_t& r, uint8_t& g, uint8_t& b);
     void HandleCursorSave();         // CSI s - Save cursor position
     void HandleCursorRestore();      // CSI u - Restore cursor position
@@ -137,6 +146,10 @@ private:
 
     // Response callback
     std::function<void(const std::string&)> m_responseCallback;
+
+    // Clipboard callbacks (OSC 52)
+    std::function<std::string()> m_clipboardReadCallback;
+    std::function<void(const std::string&)> m_clipboardWriteCallback;
 
     // Saved cursor states
     SavedCursorState m_savedCursor;      // For DECSC/DECRC (ESC 7 / ESC 8)

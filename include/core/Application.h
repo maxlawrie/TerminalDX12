@@ -103,6 +103,8 @@ private:
     std::string GetSelectedText() const;
     void CopySelectionToClipboard();
     void PasteFromClipboard();
+    std::string GetClipboardText();          // For OSC 52 read
+    void SetClipboardText(const std::string& text);  // For OSC 52 write
     void ClearSelection();
 
     // Mouse reporting helpers

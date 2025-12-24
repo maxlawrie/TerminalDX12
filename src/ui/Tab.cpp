@@ -105,6 +105,18 @@ void Tab::SetProcessExitCallback(std::function<void(int)> callback) {
     m_processExitCallback = callback;
 }
 
+void Tab::SetClipboardReadCallback(std::function<std::string()> callback) {
+    if (m_vtParser) {
+        m_vtParser->SetClipboardReadCallback(callback);
+    }
+}
+
+void Tab::SetClipboardWriteCallback(std::function<void(const std::string&)> callback) {
+    if (m_vtParser) {
+        m_vtParser->SetClipboardWriteCallback(callback);
+    }
+}
+
 void Tab::Resize(int cols, int rows) {
     m_cols = cols;
     m_rows = rows;

@@ -40,6 +40,11 @@ Tab* TabManager::CreateTab(const std::wstring& shell, int cols, int rows, int sc
 
     spdlog::info("TabManager: Created tab {} (total: {})", tabId, m_tabs.size());
 
+    // Notify tab created callback (for configuring OSC 52 callbacks, etc.)
+    if (m_tabCreatedCallback) {
+        m_tabCreatedCallback(tabPtr);
+    }
+
     // Notify listeners
     if (m_tabChangedCallback) {
         m_tabChangedCallback();

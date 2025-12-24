@@ -65,6 +65,11 @@ public:
         m_processExitCallback = callback;
     }
 
+    // Set callback for when a new tab is created (to configure callbacks)
+    void SetTabCreatedCallback(std::function<void(Tab*)> callback) {
+        m_tabCreatedCallback = callback;
+    }
+
 private:
     std::vector<std::unique_ptr<Tab>> m_tabs;
     int m_activeTabIndex = -1;
@@ -73,6 +78,7 @@ private:
     std::function<void()> m_tabChangedCallback;
     std::function<void(Tab*)> m_activeTabChangedCallback;
     std::function<void(int, int)> m_processExitCallback;
+    std::function<void(Tab*)> m_tabCreatedCallback;
 };
 
 } // namespace TerminalDX12::UI

@@ -138,6 +138,18 @@ bool Application::Initialize(const std::wstring& shell) {
     // Create tab manager
     m_tabManager = std::make_unique<UI::TabManager>();
 
+    // Set tab created callback for OSC 52 clipboard access
+    m_tabManager->SetTabCreatedCallback([this](UI::Tab* tab) {
+        if (tab) {
+            tab->SetClipboardReadCallback([this]() {
+                return GetClipboardText();
+            });
+            tab->SetClipboardWriteCallback([this](const std::string& text) {
+                SetClipboardText(text);
+            });
+        }
+    });
+
     // Set process exit callback - close window when all processes have exited
     m_tabManager->SetProcessExitCallback([this](int tabId, int exitCode) {
         spdlog::info("Process in tab {} exited with code {}", tabId, exitCode);
@@ -899,6 +911,18 @@ void Application::OnKey(UINT key, bool isDown) {
             }
             return;
         }
+        // Ctrl+1-9: Switch to tab by number
+        if (key >= '1' && key <= '9') {
+            if (m_tabManager) {
+                int tabIndex = key - '1';  // '1' -> 0, '2' -> 1, etc.
+                const auto& tabs = m_tabManager->GetTabs();
+                if (tabIndex < static_cast<int>(tabs.size())) {
+                    m_tabManager->SwitchToTab(tabs[tabIndex]->GetId());
+                    spdlog::debug("Switched to tab {} via Ctrl+{}", tabIndex + 1, static_cast<char>(key));
+                }
+            }
+            return;
+        }
 
         // Ctrl+Up/Down: Navigate between shell prompts (OSC 133)
         if (key == VK_UP && screenBuffer) {
@@ -1411,6 +1435,59 @@ void Application::PasteFromClipboard() {
         GlobalUnlock(hData);
     }
 
+    CloseClipboard();
+}
+
+std::string Application::GetClipboardText() {
+    HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+    if (!hwnd) return "";
+
+    if (!OpenClipboard(hwnd)) {
+        return "";
+    }
+
+    std::string result;
+    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+    if (hData) {
+        const wchar_t* pData = static_cast<const wchar_t*>(GlobalLock(hData));
+        if (pData) {
+            int utf8Len = WideCharToMultiByte(CP_UTF8, 0, pData, -1, nullptr, 0, nullptr, nullptr);
+            if (utf8Len > 0) {
+                result.resize(utf8Len);
+                WideCharToMultiByte(CP_UTF8, 0, pData, -1, &result[0], utf8Len, nullptr, nullptr);
+                if (!result.empty() && result.back() == '\0') {
+                    result.pop_back();
+                }
+            }
+            GlobalUnlock(hData);
+        }
+    }
+    CloseClipboard();
+    return result;
+}
+
+void Application::SetClipboardText(const std::string& text) {
+    HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+    if (!hwnd) return;
+
+    // Convert UTF-8 to wide string
+    int wideLen = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), nullptr, 0);
+    if (wideLen <= 0) return;
+
+    if (!OpenClipboard(hwnd)) return;
+    EmptyClipboard();
+
+    HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, (wideLen + 1) * sizeof(wchar_t));
+    if (hGlobal) {
+        wchar_t* pGlobal = static_cast<wchar_t*>(GlobalLock(hGlobal));
+        if (pGlobal) {
+            MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), pGlobal, wideLen);
+            pGlobal[wideLen] = L'\0';
+            GlobalUnlock(hGlobal);
+            SetClipboardData(CF_UNICODETEXT, hGlobal);
+            spdlog::debug("OSC 52: Set clipboard with {} chars", text.size());
+        }
+    }
     CloseClipboard();
 }
 

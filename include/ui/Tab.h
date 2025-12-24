@@ -53,12 +53,16 @@ public:
     // Set process exit callback (called when shell process exits)
     void SetProcessExitCallback(std::function<void(int exitCode)> callback);
 
+    // Set clipboard callbacks for OSC 52
+    void SetClipboardReadCallback(std::function<std::string()> callback);
+    void SetClipboardWriteCallback(std::function<void(const std::string&)> callback);
+
     // Resize the terminal
     void Resize(int cols, int rows);
-    
+
     // Resize only screen buffer (for immediate visual feedback)
     void ResizeScreenBuffer(int cols, int rows);
-    
+
     // Resize only ConPTY (deferred to prevent scroll)
     void ResizeConPTY(int cols, int rows);
 
