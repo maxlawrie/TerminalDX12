@@ -2,19 +2,8 @@
 #include "terminal/ScreenBuffer.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
-#include <fstream>
 
 namespace TerminalDX12::Terminal {
-
-// Debug logging for VT mode tracking
-static void LogMode(int mode, bool set, char intermediateChar) {
-    static std::ofstream modeLog("C:\\Users\\maxla\\TerminalDX12\\vt_modes.log", std::ios::app);
-    if (modeLog.is_open()) {
-        modeLog << "Mode " << mode << " " << (set ? "SET" : "RESET")
-                << " (intermediate='" << (intermediateChar ? intermediateChar : '0') << "')" << std::endl;
-        modeLog.flush();
-    }
-}
 
 VTStateMachine::VTStateMachine(ScreenBuffer* screenBuffer)
     : m_screenBuffer(screenBuffer)
@@ -28,20 +17,6 @@ VTStateMachine::~VTStateMachine() {
 }
 
 void VTStateMachine::ProcessInput(const char* data, size_t size) {
-    // Log raw input to check for 1049 sequences
-    static std::ofstream rawLog("C:\\Users\\maxla\\TerminalDX12\\vt_raw.log", std::ios::app);
-    std::string input(data, size);
-    if (input.find("1049") != std::string::npos || input.find("?47") != std::string::npos) {
-        rawLog << "RAW[" << size << "]: ";
-        for (size_t j = 0; j < size && j < 100; ++j) {
-            unsigned char c = static_cast<unsigned char>(data[j]);
-            if (c >= 32 && c < 127) rawLog << c;
-            else rawLog << "\\x" << std::hex << (int)c << std::dec;
-        }
-        rawLog << std::endl;
-        rawLog.flush();
-    }
-
     for (size_t i = 0; i < size; ++i) {
         uint8_t byte = static_cast<uint8_t>(data[i]);
 
@@ -128,8 +103,7 @@ void VTStateMachine::ProcessCharacter(char ch) {
             break;
 
         case State::CSI_Entry:
-        case State::CSI_Param:
-            // Handle control characters during CSI sequence
+            // Just entered CSI - private mode indicators are only valid here
             if (ch == '\x1b') {
                 // ESC during CSI - abort and start new escape sequence
                 m_state = State::Escape;
@@ -141,6 +115,38 @@ void VTStateMachine::ProcessCharacter(char ch) {
                 m_paramBuffer += ch;
                 m_state = State::CSI_Param;
             } else if (ch == ';') {
+                // Empty first parameter
+                m_params.push_back(0);
+                m_state = State::CSI_Param;
+            } else if (ch == '?' || ch == '>' || ch == '!') {
+                // Private mode indicator - ONLY valid at CSI_Entry (immediately after ESC[)
+                m_intermediateChar = ch;
+                m_state = State::CSI_Param;
+            } else if (ch >= 0x20 && ch <= 0x2F) {  // Intermediate byte
+                m_intermediateChar = ch;
+                m_state = State::CSI_Intermediate;
+            } else if (ch >= 0x40 && ch <= 0x7E) {  // Final byte
+                m_finalChar = ch;
+                HandleCSI();
+                m_state = State::Ground;
+            } else {
+                // Invalid character - abort sequence and return to ground
+                m_state = State::Ground;
+            }
+            break;
+
+        case State::CSI_Param:
+            // Parsing CSI parameters - private mode indicators are NOT valid here
+            if (ch == '\x1b') {
+                // ESC during CSI - abort and start new escape sequence
+                m_state = State::Escape;
+                ResetState();
+            } else if (ch < 0x20 && ch != '\x1b') {
+                // C0 control characters - execute them (CR, LF, etc.)
+                ExecuteCharacter(ch);
+            } else if (ch >= '0' && ch <= '9') {
+                m_paramBuffer += ch;
+            } else if (ch == ';') {
                 // Parse current parameter
                 if (!m_paramBuffer.empty()) {
                     m_params.push_back(std::stoi(m_paramBuffer));
@@ -148,11 +154,12 @@ void VTStateMachine::ProcessCharacter(char ch) {
                 } else {
                     m_params.push_back(0);
                 }
-            } else if (ch == '?' || ch == '>' || ch == '!') {
-                // Private mode indicator - store as intermediate
-                m_intermediateChar = ch;
-                m_state = State::CSI_Param;
             } else if (ch >= 0x20 && ch <= 0x2F) {  // Intermediate byte
+                // Parse pending parameter first
+                if (!m_paramBuffer.empty()) {
+                    m_params.push_back(std::stoi(m_paramBuffer));
+                    m_paramBuffer.clear();
+                }
                 m_intermediateChar = ch;
                 m_state = State::CSI_Intermediate;
             } else if (ch >= 0x40 && ch <= 0x7E) {  // Final byte
@@ -164,7 +171,7 @@ void VTStateMachine::ProcessCharacter(char ch) {
                 HandleCSI();
                 m_state = State::Ground;
             } else {
-                // Invalid character - abort sequence and return to ground
+                // Invalid character (including ?, >, ! after parameters) - abort
                 m_state = State::Ground;
             }
             break;
@@ -728,9 +735,6 @@ void VTStateMachine::HandleMode() {
     bool set = (m_finalChar == 'h');
 
     for (int mode : m_params) {
-        // Log ALL modes for debugging
-        LogMode(mode, set, m_intermediateChar);
-
         if (m_intermediateChar == '?') {
             // Private modes (DEC)
             switch (mode) {

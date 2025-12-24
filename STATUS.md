@@ -74,7 +74,7 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 2. **Terminal doesn't close after session ends** - *(Fixed)* Window now automatically closes when all shell processes exit. Implemented process exit callbacks from ConPTY through TabManager to Application.
 
-3. **Intermittent red ">" character** - Occasionally appears due to escape sequence parsing edge case.
+3. **Intermittent red ">" character** - Occasionally appears due to escape sequence parsing edge case. VT parser CSI handling has been improved with stricter parsing (private mode indicators now only valid immediately after ESC[).
 
 ## Architecture
 
