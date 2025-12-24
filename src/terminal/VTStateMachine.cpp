@@ -295,6 +295,23 @@ void VTStateMachine::HandleEscapeSequence(char ch) {
             m_state = State::Ground;
             break;
 
+        case 'H':  // HTS - Horizontal Tab Set
+            m_screenBuffer->SetTabStop(m_screenBuffer->GetCursorX());
+            m_state = State::Ground;
+            break;
+
+        case '=':  // DECKPAM - Keypad Application Mode
+            m_keypadApplicationMode = true;
+            spdlog::debug("DECKPAM: Keypad application mode enabled");
+            m_state = State::Ground;
+            break;
+
+        case '>':  // DECKPNM - Keypad Numeric Mode
+            m_keypadApplicationMode = false;
+            spdlog::debug("DECKPNM: Keypad numeric mode enabled");
+            m_state = State::Ground;
+            break;
+
         default:
             // Unknown escape sequence, ignore
             m_state = State::Ground;
@@ -331,6 +348,7 @@ void VTStateMachine::HandleCSI() {
         case 'u': HandleCursorRestore(); break;             // RCP
         case 'S': HandleScrollUp(); break;                  // SU
         case 'T': HandleScrollDown(); break;                // SD
+        case 'g': HandleTabClear(); break;                  // TBC
         default:
             // Unhandled CSI sequence - silently ignore
             break;
@@ -930,6 +948,22 @@ void VTStateMachine::HandleScrollDown() {
     // CSI n T - Scroll down n lines within scroll region
     int count = GetParam(0, 1);
     m_screenBuffer->ScrollRegionDown(count);
+}
+
+void VTStateMachine::HandleTabClear() {
+    // CSI n g - Tab clear (TBC)
+    int mode = GetParam(0, 0);
+    switch (mode) {
+        case 0:  // Clear tab stop at current position
+            m_screenBuffer->ClearTabStop(m_screenBuffer->GetCursorX());
+            break;
+        case 3:  // Clear all tab stops
+            m_screenBuffer->ClearAllTabStops();
+            break;
+        default:
+            // Other modes not commonly used, ignore
+            break;
+    }
 }
 
 void VTStateMachine::SendResponse(const std::string& response) {

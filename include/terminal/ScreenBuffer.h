@@ -172,6 +172,12 @@ public:
     int GetNextPromptLine(int fromLine) const;
     const std::vector<PromptMarker>& GetPromptMarkers() const { return m_promptMarkers; }
 
+    // Tab stop management
+    void SetTabStop(int column);           // HTS - Set tab stop at column
+    void ClearTabStop(int column);         // TBC 0 - Clear tab stop at column
+    void ClearAllTabStops();               // TBC 3 - Clear all tab stops
+    void ResetTabStops();                  // Reset to default (every 8 columns)
+
 private:
     void NewLine();
     void CarriageReturn();
@@ -214,6 +220,9 @@ private:
     // OSC 133 shell integration
     SemanticZone m_currentZone = SemanticZone::None;
     std::vector<PromptMarker> m_promptMarkers;
+
+    // Tab stops (columns where tab stops are set)
+    std::vector<bool> m_tabStops;
 };
 
 } // namespace TerminalDX12::Terminal

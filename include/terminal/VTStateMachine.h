@@ -44,6 +44,7 @@ public:
     bool IsApplicationCursorKeysEnabled() const { return m_applicationCursorKeys; }
     bool IsAutoWrapEnabled() const { return m_autoWrap; }
     bool IsBracketedPasteEnabled() const { return m_bracketedPaste; }
+    bool IsKeypadApplicationModeEnabled() const { return m_keypadApplicationMode; }
     
     // Mouse mode accessors
     MouseMode GetMouseMode() const { return m_mouseMode; }
@@ -94,6 +95,7 @@ private:
     void HandleCursorRestore();      // CSI u - Restore cursor position
     void HandleScrollUp();           // CSI n S - Scroll up
     void HandleScrollDown();         // CSI n T - Scroll down
+    void HandleTabClear();           // CSI n g - Tab clear (TBC)
 
     // Utility
     int GetParam(size_t index, int defaultValue = 0) const;
@@ -120,6 +122,7 @@ private:
     bool m_applicationCursorKeys = false;  // DECCKM (mode 1)
     bool m_autoWrap = true;                // DECAWM (mode 7)
     bool m_bracketedPaste = false;         // Mode 2004
+    bool m_keypadApplicationMode = false;  // DECKPAM/DECKPNM
     
     // Mouse modes
     MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode

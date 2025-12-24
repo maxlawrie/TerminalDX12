@@ -22,6 +22,9 @@ ScreenBuffer::ScreenBuffer(int cols, int rows, int scrollbackLines)
     m_lineWrapped.resize(m_rows, false);
     m_scrollback.reserve(m_scrollbackLines);
 
+    // Initialize default tab stops (every 8 columns)
+    ResetTabStops();
+
     spdlog::info("ScreenBuffer created: {}x{} with {} scrollback lines",
                  m_cols, m_rows, m_scrollbackLines);
 }
@@ -475,9 +478,16 @@ void ScreenBuffer::CarriageReturn() {
 }
 
 void ScreenBuffer::Tab() {
-    // Move to next tab stop (every 8 columns)
-    int nextTab = ((m_cursorX / 8) + 1) * 8;
-    m_cursorX = std::min(nextTab, m_cols - 1);
+    // Move to next tab stop
+    for (int col = m_cursorX + 1; col < m_cols; ++col) {
+        if (col < static_cast<int>(m_tabStops.size()) && m_tabStops[col]) {
+            m_cursorX = col;
+            m_dirty = true;
+            return;
+        }
+    }
+    // No tab stop found, move to end of line
+    m_cursorX = m_cols - 1;
     m_dirty = true;
 }
 
@@ -487,6 +497,34 @@ void ScreenBuffer::Backspace() {
         m_dirty = true;
     }
 }
+
+void ScreenBuffer::SetTabStop(int column) {
+    if (column >= 0 && column < m_cols) {
+        if (column >= static_cast<int>(m_tabStops.size())) {
+            m_tabStops.resize(m_cols, false);
+        }
+        m_tabStops[column] = true;
+    }
+}
+
+void ScreenBuffer::ClearTabStop(int column) {
+    if (column >= 0 && column < static_cast<int>(m_tabStops.size())) {
+        m_tabStops[column] = false;
+    }
+}
+
+void ScreenBuffer::ClearAllTabStops() {
+    std::fill(m_tabStops.begin(), m_tabStops.end(), false);
+}
+
+void ScreenBuffer::ResetTabStops() {
+    // Default tab stops every 8 columns
+    m_tabStops.resize(m_cols, false);
+    for (int col = 8; col < m_cols; col += 8) {
+        m_tabStops[col] = true;
+    }
+}
+
 // Scroll region methods
 void ScreenBuffer::SetScrollRegion(int top, int bottom) {
     // Validate bounds

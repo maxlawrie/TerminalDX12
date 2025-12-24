@@ -43,12 +43,12 @@ This document specifies all features for TerminalDX12, including current impleme
 | `ESC c` | RIS | Full terminal reset | **COMPLETE** |
 | `ESC D` | IND | Index - move cursor down, scroll if at bottom | **COMPLETE** |
 | `ESC E` | NEL | Next Line - move to column 1 of next line | **COMPLETE** |
-| `ESC H` | HTS | Horizontal Tab Set | NOT STARTED |
+| `ESC H` | HTS | Horizontal Tab Set | **COMPLETE** |
 | `ESC M` | RI | Reverse Index - move cursor up, scroll if at top | **COMPLETE** |
 | `ESC 7` | DECSC | Save Cursor Position | **COMPLETE** |
 | `ESC 8` | DECRC | Restore Cursor Position | **COMPLETE** |
-| `ESC =` | DECKPAM | Keypad Application Mode | NOT STARTED |
-| `ESC >` | DECKPNM | Keypad Numeric Mode | NOT STARTED |
+| `ESC =` | DECKPAM | Keypad Application Mode | **COMPLETE** |
+| `ESC >` | DECKPNM | Keypad Numeric Mode | **COMPLETE** |
 
 **Implementation:** `src/terminal/VTStateMachine.cpp` lines 115-130
 
