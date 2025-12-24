@@ -25,12 +25,13 @@ struct CellAttributes {
     uint8_t foreground;      // Foreground color (0-255 palette index)
     uint8_t background;      // Background color (0-255 palette index)
     uint8_t flags;           // Bold, underline, etc.
+    uint8_t flags2;          // Additional flags (blink, hidden)
 
     // True color RGB (used when FLAG_TRUECOLOR_FG/BG is set)
     uint8_t fgR, fgG, fgB;   // Foreground RGB
     uint8_t bgR, bgG, bgB;   // Background RGB
 
-    // Flags
+    // Flags (flags byte)
     static constexpr uint8_t FLAG_BOLD          = 0x01;
     static constexpr uint8_t FLAG_ITALIC        = 0x02;
     static constexpr uint8_t FLAG_UNDERLINE     = 0x04;
@@ -40,10 +41,15 @@ struct CellAttributes {
     static constexpr uint8_t FLAG_TRUECOLOR_FG  = 0x40;  // Use fgR/fgG/fgB instead of palette
     static constexpr uint8_t FLAG_TRUECOLOR_BG  = 0x80;  // Use bgR/bgG/bgB instead of palette
 
+    // Flags2 (flags2 byte)
+    static constexpr uint8_t FLAG2_BLINK        = 0x01;  // SGR 5/6 - Blink
+    static constexpr uint8_t FLAG2_HIDDEN       = 0x02;  // SGR 8 - Hidden/Invisible
+
     CellAttributes()
         : foreground(7)      // White
         , background(0)      // Black
         , flags(0)
+        , flags2(0)
         , fgR(0), fgG(0), fgB(0)
         , bgR(0), bgG(0), bgB(0)
     {}
@@ -57,6 +63,8 @@ struct CellAttributes {
     bool IsStrikethrough() const { return (flags & FLAG_STRIKETHROUGH) != 0; }
     bool UsesTrueColorFg() const { return (flags & FLAG_TRUECOLOR_FG) != 0; }
     bool UsesTrueColorBg() const { return (flags & FLAG_TRUECOLOR_BG) != 0; }
+    bool IsBlink() const { return (flags2 & FLAG2_BLINK) != 0; }
+    bool IsHidden() const { return (flags2 & FLAG2_HIDDEN) != 0; }
 
     // Set foreground to true RGB color
     void SetForegroundRGB(uint8_t r, uint8_t g, uint8_t b) {

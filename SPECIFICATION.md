@@ -215,18 +215,18 @@ SGR (Select Graphic Rendition) sequences: `CSI n m`
 | 2 | Dim/Faint | **COMPLETE** |
 | 3 | Italic | **COMPLETE** |
 | 4 | Underline | **COMPLETE** |
-| 5 | Slow Blink | NOT STARTED |
-| 6 | Rapid Blink | NOT STARTED |
+| 5 | Slow Blink | **COMPLETE** |
+| 6 | Rapid Blink | **COMPLETE** |
 | 7 | Inverse/Reverse | **COMPLETE** |
-| 8 | Hidden/Invisible | NOT STARTED |
+| 8 | Hidden/Invisible | **COMPLETE** |
 | 9 | Strikethrough | **COMPLETE** |
 | 21 | Double Underline | NOT STARTED |
 | 22 | Normal Intensity (not bold/dim) | **COMPLETE** |
 | 23 | Not Italic | **COMPLETE** |
 | 24 | Not Underlined | **COMPLETE** |
-| 25 | Not Blinking | NOT STARTED |
+| 25 | Not Blinking | **COMPLETE** |
 | 27 | Not Inverse | **COMPLETE** |
-| 28 | Not Hidden | NOT STARTED |
+| 28 | Not Hidden | **COMPLETE** |
 | 29 | Not Strikethrough | **COMPLETE** |
 
 **Implementation:** `src/terminal/VTStateMachine.cpp` lines 280-310

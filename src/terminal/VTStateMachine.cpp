@@ -601,6 +601,7 @@ void VTStateMachine::HandleSGR() {
                 attr.foreground = 7;   // White
                 attr.background = 0;   // Black
                 attr.flags = 0;
+                attr.flags2 = 0;
                 break;
 
             case 1:  // Bold
@@ -619,8 +620,17 @@ void VTStateMachine::HandleSGR() {
                 attr.flags |= CellAttributes::FLAG_UNDERLINE;
                 break;
 
+            case 5:  // Slow Blink
+            case 6:  // Rapid Blink (treat same as slow blink)
+                attr.flags2 |= CellAttributes::FLAG2_BLINK;
+                break;
+
             case 7:  // Inverse
                 attr.flags |= CellAttributes::FLAG_INVERSE;
+                break;
+
+            case 8:  // Hidden/Invisible
+                attr.flags2 |= CellAttributes::FLAG2_HIDDEN;
                 break;
 
             case 9:  // Strikethrough
@@ -639,8 +649,16 @@ void VTStateMachine::HandleSGR() {
                 attr.flags &= ~CellAttributes::FLAG_UNDERLINE;
                 break;
 
+            case 25:  // Not blinking
+                attr.flags2 &= ~CellAttributes::FLAG2_BLINK;
+                break;
+
             case 27:  // Not inverse
                 attr.flags &= ~CellAttributes::FLAG_INVERSE;
+                break;
+
+            case 28:  // Not hidden
+                attr.flags2 &= ~CellAttributes::FLAG2_HIDDEN;
                 break;
 
             case 29:  // Not strikethrough
