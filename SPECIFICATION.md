@@ -62,8 +62,8 @@ This document specifies all features for TerminalDX12, including current impleme
 | `CSI n B` | CUD | Cursor Down n rows | **COMPLETE** |
 | `CSI n C` | CUF | Cursor Forward n columns | **COMPLETE** |
 | `CSI n D` | CUB | Cursor Back n columns | **COMPLETE** |
-| `CSI n E` | CNL | Cursor Next Line n times | NOT STARTED |
-| `CSI n F` | CPL | Cursor Previous Line n times | NOT STARTED |
+| `CSI n E` | CNL | Cursor Next Line n times | **COMPLETE** |
+| `CSI n F` | CPL | Cursor Previous Line n times | **COMPLETE** |
 | `CSI n G` | CHA | Cursor Horizontal Absolute to column n | **COMPLETE** |
 | `CSI n ; m H` | CUP | Cursor Position to row n, column m | **COMPLETE** |
 | `CSI n ; m f` | HVP | Horizontal Vertical Position (same as CUP) | **COMPLETE** |

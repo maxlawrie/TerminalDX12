@@ -308,6 +308,8 @@ void VTStateMachine::HandleCSI() {
         case 'B': HandleCursorDown(); break;
         case 'C': HandleCursorForward(); break;
         case 'D': HandleCursorBack(); break;
+        case 'E': HandleCursorNextLine(); break;            // CNL
+        case 'F': HandleCursorPreviousLine(); break;        // CPL
         case 'G': HandleCursorHorizontalAbsolute(); break;  // CHA
         case 'd': HandleCursorVerticalAbsolute(); break;    // VPA
         case 'H': HandleCursorPosition(); break;
@@ -368,6 +370,22 @@ void VTStateMachine::HandleCursorBack() {
     int x, y;
     m_screenBuffer->GetCursorPos(x, y);
     m_screenBuffer->SetCursorPos(std::max(0, x - count), y);
+}
+
+void VTStateMachine::HandleCursorNextLine() {
+    // ESC[nE - Move cursor to beginning of line n rows down
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+    m_screenBuffer->SetCursorPos(0, std::min(m_screenBuffer->GetRows() - 1, y + count));
+}
+
+void VTStateMachine::HandleCursorPreviousLine() {
+    // ESC[nF - Move cursor to beginning of line n rows up
+    int count = GetParam(0, 1);
+    int x, y;
+    m_screenBuffer->GetCursorPos(x, y);
+    m_screenBuffer->SetCursorPos(0, std::max(0, y - count));
 }
 
 void VTStateMachine::HandleCursorHorizontalAbsolute() {

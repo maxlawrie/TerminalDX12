@@ -72,6 +72,8 @@ private:
     void HandleCursorDown();         // CUD - ESC[#B
     void HandleCursorForward();      // CUF - ESC[#C
     void HandleCursorBack();         // CUB - ESC[#D
+    void HandleCursorNextLine();     // CNL - ESC[#E
+    void HandleCursorPreviousLine(); // CPL - ESC[#F
     void HandleCursorHorizontalAbsolute();  // CHA - ESC[#G
     void HandleCursorVerticalAbsolute();    // VPA - ESC[#d
     void HandleEraseInDisplay();     // ED - ESC[#J
