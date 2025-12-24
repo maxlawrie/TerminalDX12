@@ -56,6 +56,7 @@ set(UI_SOURCES
     src/ui/InputHandler.cpp
     src/ui/Tab.cpp
     src/ui/TabManager.cpp
+    src/ui/Pane.cpp
     src/ui/SettingsDialog.cpp
 )
 

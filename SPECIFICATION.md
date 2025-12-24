@@ -674,9 +674,9 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Vertical Split | Split pane left/right | NOT STARTED |
-| Horizontal Split | Split pane top/bottom | NOT STARTED |
-| Close Pane | Close pane, keep others | NOT STARTED |
+| Vertical Split | Split pane left/right (Ctrl+Shift+D) | **COMPLETE** |
+| Horizontal Split | Split pane top/bottom (Ctrl+Shift+E) | **COMPLETE** |
+| Close Pane | Close pane, keep others | **COMPLETE** |
 | Resize Pane | Drag divider | NOT STARTED |
 | Focus Pane | Click to focus | NOT STARTED |
 | Zoom Pane | Maximize single pane | NOT STARTED |
@@ -685,9 +685,9 @@ struct Cell {
 
 | Shortcut | Action | Status |
 |----------|--------|--------|
-| Alt+Arrow | Move focus between panes | NOT STARTED |
+| Alt+Arrow | Move focus between panes | **COMPLETE** |
 | Alt+Shift+Arrow | Resize pane | NOT STARTED |
-| Ctrl+Shift+W | Close focused pane | NOT STARTED |
+| Ctrl+Shift+W | Close focused pane | **COMPLETE** |
 
 ---
 

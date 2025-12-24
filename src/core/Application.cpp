@@ -4,6 +4,7 @@
 #include "rendering/DX12Renderer.h"
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
+#include "ui/Pane.h"
 #include "ui/SettingsDialog.h"
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
@@ -192,6 +193,11 @@ bool Application::Initialize(const std::wstring& shell) {
         spdlog::warn("Failed to start initial terminal session - continuing without ConPTY");
     } else {
         spdlog::info("Terminal session started successfully");
+
+        // Create root pane with the initial tab
+        m_rootPane = std::make_unique<UI::Pane>(initialTab);
+        m_focusedPane = m_rootPane.get();
+        UpdatePaneLayout();
     }
 
     // Apply window transparency from config
@@ -951,6 +957,45 @@ void Application::OnKey(UINT key, bool isDown) {
             return;
         }
 
+        // Ctrl+Shift+D: Split pane vertically (left/right)
+        if (key == 'D' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+            SplitPane(UI::SplitDirection::Horizontal);
+            return;
+        }
+        // Ctrl+Shift+E: Split pane horizontally (top/bottom)
+        if (key == 'E' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+            SplitPane(UI::SplitDirection::Vertical);
+            return;
+        }
+        // Ctrl+Shift+W: Close focused pane (if more than one pane)
+        if (key == 'W' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+            ClosePane();
+            return;
+        }
+    }
+
+    // Alt+Arrow: Navigate between panes
+    if (GetAsyncKeyState(VK_MENU) & 0x8000) {
+        if (key == VK_LEFT || key == VK_RIGHT) {
+            if (key == VK_LEFT) {
+                FocusPreviousPane();
+            } else {
+                FocusNextPane();
+            }
+            return;
+        }
+        if (key == VK_UP || key == VK_DOWN) {
+            if (key == VK_UP) {
+                FocusPreviousPane();
+            } else {
+                FocusNextPane();
+            }
+            return;
+        }
+    }
+
+    // Ctrl modifier handling continues
+    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
         // Ctrl+Up/Down: Navigate between shell prompts (OSC 133)
         if (key == VK_UP && screenBuffer) {
             // Calculate current absolute line position
@@ -1869,6 +1914,207 @@ void Application::ShowSettings() {
     if (changed) {
         spdlog::info("Settings were changed and saved");
     }
+}
+
+// Pane management
+void Application::SplitPane(UI::SplitDirection direction) {
+    if (!m_focusedPane || !m_focusedPane->IsLeaf()) {
+        spdlog::warn("Cannot split: no focused leaf pane");
+        return;
+    }
+
+    UI::Tab* currentTab = m_focusedPane->GetTab();
+    if (!currentTab) {
+        spdlog::warn("Cannot split: focused pane has no tab");
+        return;
+    }
+
+    // Get dimensions from current tab
+    Terminal::ScreenBuffer* screenBuffer = currentTab->GetScreenBuffer();
+    if (!screenBuffer) {
+        return;
+    }
+
+    int cols = screenBuffer->GetCols();
+    int rows = screenBuffer->GetRows();
+    int scrollbackLines = m_config->GetTerminal().scrollbackLines;
+
+    // Create a new tab for the new pane
+    UI::Tab* newTab = m_tabManager->CreateTab(m_shellCommand, cols, rows, scrollbackLines);
+    if (!newTab) {
+        spdlog::error("Failed to create new tab for split pane");
+        return;
+    }
+
+    // Split the focused pane
+    UI::Pane* newPane = m_focusedPane->Split(direction, newTab);
+    if (newPane) {
+        // Focus the new pane
+        m_focusedPane = newPane;
+        UpdatePaneLayout();
+        spdlog::info("Split pane {}", direction == UI::SplitDirection::Horizontal ? "horizontally" : "vertically");
+    }
+}
+
+void Application::ClosePane() {
+    if (!m_focusedPane || !m_rootPane) {
+        return;
+    }
+
+    // If there's only one pane, don't close it
+    std::vector<UI::Pane*> leaves;
+    m_rootPane->GetAllLeafPanes(leaves);
+    if (leaves.size() <= 1) {
+        spdlog::debug("Cannot close: only one pane remaining");
+        return;
+    }
+
+    UI::Pane* parent = m_focusedPane->GetParent();
+    if (!parent) {
+        // Focused pane is the root - shouldn't happen if leaves > 1
+        return;
+    }
+
+    // Get the tab from the pane we're closing
+    UI::Tab* tabToClose = m_focusedPane->GetTab();
+
+    // Find another pane to focus
+    UI::Pane* newFocus = m_rootPane->FindAdjacentPane(m_focusedPane, UI::SplitDirection::Horizontal, true);
+
+    // Close the child in the parent
+    if (parent->CloseChild(m_focusedPane)) {
+        // Close the tab
+        if (tabToClose) {
+            m_tabManager->CloseTab(tabToClose->GetId());
+        }
+
+        // Update focus
+        if (newFocus && newFocus != m_focusedPane) {
+            m_focusedPane = newFocus;
+        } else {
+            // Find any leaf pane
+            leaves.clear();
+            m_rootPane->GetAllLeafPanes(leaves);
+            m_focusedPane = leaves.empty() ? nullptr : leaves[0];
+        }
+
+        UpdatePaneLayout();
+        spdlog::info("Closed pane");
+    }
+}
+
+void Application::FocusNextPane() {
+    if (!m_rootPane || !m_focusedPane) {
+        return;
+    }
+
+    UI::Pane* next = m_rootPane->FindAdjacentPane(m_focusedPane, UI::SplitDirection::Horizontal, true);
+    if (next) {
+        m_focusedPane = next;
+        spdlog::debug("Focused next pane");
+    }
+}
+
+void Application::FocusPreviousPane() {
+    if (!m_rootPane || !m_focusedPane) {
+        return;
+    }
+
+    UI::Pane* prev = m_rootPane->FindAdjacentPane(m_focusedPane, UI::SplitDirection::Horizontal, false);
+    if (prev) {
+        m_focusedPane = prev;
+        spdlog::debug("Focused previous pane");
+    }
+}
+
+void Application::FocusPaneInDirection(UI::SplitDirection direction) {
+    if (!m_rootPane || !m_focusedPane) {
+        return;
+    }
+
+    // For now, use simple next/prev navigation
+    // TODO: Implement proper directional navigation based on layout
+    UI::Pane* target = m_rootPane->FindAdjacentPane(m_focusedPane, direction, true);
+    if (target) {
+        m_focusedPane = target;
+    }
+}
+
+void Application::UpdatePaneLayout() {
+    if (!m_rootPane || !m_window) {
+        return;
+    }
+
+    int width = m_window->GetWidth();
+    int height = m_window->GetHeight();
+
+    // Account for tab bar if multiple tabs
+    int tabBarHeight = (m_tabManager && m_tabManager->GetTabCount() > 1) ? 30 : 0;
+
+    UI::PaneRect availableSpace = {
+        0,
+        tabBarHeight,
+        width,
+        height - tabBarHeight
+    };
+
+    m_rootPane->CalculateLayout(availableSpace);
+
+    // Resize all panes' tabs to fit their new bounds
+    std::vector<UI::Pane*> leaves;
+    m_rootPane->GetAllLeafPanes(leaves);
+
+    const int charWidth = 10;
+    const int lineHeight = 25;
+
+    for (UI::Pane* pane : leaves) {
+        if (pane->GetTab() && pane->GetTab()->GetScreenBuffer()) {
+            const UI::PaneRect& bounds = pane->GetBounds();
+            int cols = std::max(10, bounds.width / charWidth);
+            int rows = std::max(5, bounds.height / lineHeight);
+            pane->GetTab()->Resize(cols, rows);
+        }
+    }
+}
+
+void Application::RenderPane(UI::Pane* pane, int windowWidth, int windowHeight) {
+    if (!pane || !pane->IsLeaf()) {
+        return;
+    }
+
+    UI::Tab* tab = pane->GetTab();
+    if (!tab) {
+        return;
+    }
+
+    Terminal::ScreenBuffer* screenBuffer = tab->GetScreenBuffer();
+    if (!screenBuffer) {
+        return;
+    }
+
+    const UI::PaneRect& bounds = pane->GetBounds();
+
+    // Draw pane border if this is the focused pane
+    bool isFocused = (pane == m_focusedPane);
+    if (isFocused) {
+        // Highlight focused pane with a subtle border
+        float borderColor = 0.4f;
+        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                               static_cast<float>(bounds.width), 2.0f,
+                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
+        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y + bounds.height - 2),
+                               static_cast<float>(bounds.width), 2.0f,
+                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
+        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                               2.0f, static_cast<float>(bounds.height),
+                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
+        m_renderer->RenderRect(static_cast<float>(bounds.x + bounds.width - 2), static_cast<float>(bounds.y),
+                               2.0f, static_cast<float>(bounds.height),
+                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
+    }
+
+    // The actual terminal content rendering is done in Render() using the screen buffer
+    // This method just renders pane-specific UI elements
 }
 
 } // namespace Core

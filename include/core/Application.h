@@ -30,6 +30,8 @@ namespace Terminal {
 namespace UI {
     class TabManager;
     class Tab;
+    class Pane;
+    enum class SplitDirection;
 }
 
 namespace Core {
@@ -136,10 +138,23 @@ private:
     // Settings dialog
     void ShowSettings();
 
+    // Pane management
+    void SplitPane(UI::SplitDirection direction);
+    void ClosePane();
+    void FocusNextPane();
+    void FocusPreviousPane();
+    void FocusPaneInDirection(UI::SplitDirection direction);
+    void RenderPane(UI::Pane* pane, int windowWidth, int windowHeight);
+    void UpdatePaneLayout();
+
     std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
     std::unique_ptr<UI::TabManager> m_tabManager;
+
+    // Pane tree (root pane contains all panes for current tab)
+    std::unique_ptr<UI::Pane> m_rootPane;
+    UI::Pane* m_focusedPane = nullptr;
 
     // Helper accessors for active tab's components
     Terminal::ScreenBuffer* GetActiveScreenBuffer();
