@@ -212,7 +212,7 @@ The `helpers.py` module provides reusable components:
 
 ## Current Test Status
 
-### C++ Unit Tests: 226/226 passing (100%)
+### C++ Unit Tests: 230/230 passing (100%)
 
 All C++ unit tests pass successfully, covering VT parser, screen buffer, Unicode, and performance.
 

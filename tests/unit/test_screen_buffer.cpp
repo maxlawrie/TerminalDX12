@@ -703,5 +703,83 @@ TEST_F(ScreenBufferTest, TabAtEndOfLine) {
     EXPECT_EQ(buffer->GetCursorX(), 79);
 }
 
+// ============================================================================
+// Alternate Buffer Tests
+// ============================================================================
+
+TEST_F(ScreenBufferTest, SwitchToAlternateBuffer) {
+    // Write content to main buffer
+    buffer->WriteString(U"Main buffer content");
+    EXPECT_FALSE(buffer->IsUsingAlternativeBuffer());
+
+    // Switch to alternate buffer
+    buffer->UseAlternativeBuffer(true);
+    EXPECT_TRUE(buffer->IsUsingAlternativeBuffer());
+
+    // Note: UseAlternativeBuffer swaps buffers but doesn't reset cursor
+    // The VT state machine handles cursor save/restore separately (ESC 7/8)
+}
+
+TEST_F(ScreenBufferTest, SwitchBackToMainBuffer) {
+    // Write content and save cursor position
+    buffer->WriteString(U"Main buffer");
+    [[maybe_unused]] int savedX = buffer->GetCursorX();
+    [[maybe_unused]] int savedY = buffer->GetCursorY();
+
+    // Switch to alternate, write different content
+    buffer->UseAlternativeBuffer(true);
+    buffer->WriteString(U"Alternate");
+
+    // Switch back to main
+    buffer->UseAlternativeBuffer(false);
+    EXPECT_FALSE(buffer->IsUsingAlternativeBuffer());
+
+    // Original content should be restored (check first char)
+    const Cell& cell = buffer->GetCell(0, 0);
+    EXPECT_EQ(cell.ch, U'M');
+}
+
+TEST_F(ScreenBufferTest, AlternateBufferResizeResetsScrollRegion) {
+    // Switch to alternate buffer (simulating TUI app like vim/htop)
+    buffer->UseAlternativeBuffer(true);
+
+    // Set a scroll region (like TUI apps do for fixed headers)
+    buffer->SetScrollRegion(2, 20);  // Rows 2-20 are scrollable, 0-1 is header
+
+    // Verify scroll region is set
+    EXPECT_EQ(buffer->GetScrollRegionTop(), 2);
+    EXPECT_EQ(buffer->GetScrollRegionBottom(), 20);
+
+    // Resize the buffer (simulating window resize)
+    buffer->Resize(100, 30);
+
+    // After resize, scroll region should be reset to full screen
+    // This is critical: if scroll region isn't reset, row 0 might be
+    // excluded from redraws, causing the "first row missing" bug
+    EXPECT_EQ(buffer->GetScrollRegionTop(), 0);
+    // GetScrollRegionBottom() returns m_rows-1 when m_scrollBottom == -1
+    EXPECT_EQ(buffer->GetScrollRegionBottom(), 29);  // 30 rows, so bottom is 29
+}
+
+TEST_F(ScreenBufferTest, AlternateBufferResizePreservesContent) {
+    buffer->UseAlternativeBuffer(true);
+
+    // Write some content at row 0 and row 5
+    buffer->SetCursorPos(0, 0);
+    buffer->WriteString(U"Header Row");
+    buffer->SetCursorPos(0, 5);
+    buffer->WriteString(U"Content Row");
+
+    // Resize to larger
+    buffer->Resize(100, 30);
+
+    // Content should be preserved
+    const Cell& headerCell = buffer->GetCell(0, 0);
+    EXPECT_EQ(headerCell.ch, U'H');
+
+    const Cell& contentCell = buffer->GetCell(0, 5);
+    EXPECT_EQ(contentCell.ch, U'C');
+}
+
 } // namespace Tests
 } // namespace TerminalDX12::Terminal

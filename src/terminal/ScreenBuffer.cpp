@@ -55,6 +55,15 @@ void ScreenBuffer::Resize(int cols, int rows) {
         m_rows = rows;
         m_lineWrapped.resize(rows, false);
         ClampCursor();
+
+        // Reset scroll region to full screen after resize
+        // This is critical: TUI apps set scroll regions, and after resize
+        // the old region bounds may be invalid, causing row 0 to be excluded
+        // from redraws. The app will re-establish its scroll region after
+        // receiving the resize notification.
+        m_scrollTop = 0;
+        m_scrollBottom = -1;  // -1 means full screen (no custom region)
+
         m_dirty = true;
         return;
     }

@@ -46,15 +46,15 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 | Test Suite | Tests | Status |
 |------------|-------|--------|
-| C++ Unit Tests | 226 | Passing |
+| C++ Unit Tests | 230 | Passing |
 | Python Integration Tests | 72 | Passing |
 | PowerShell Smoke Tests | 4 | Passing |
-| **Total** | **302** | **100%** |
+| **Total** | **306** | **100%** |
 
 ### C++ Test Breakdown
 - Configuration tests (23)
 - VT State Machine tests (100)
-- Screen Buffer tests (72)
+- Screen Buffer tests (76)
 - Unicode tests (31)
 
 ### Python Test Categories
@@ -70,7 +70,7 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 ## Known Issues
 
-1. **First row missing after resize** - When resizing while a TUI app is running, the first row may disappear after resize completes.
+1. **First row missing after resize** - *(Fix applied)* When resizing while a TUI app is running, the first row may disappear. Fixed by resetting scroll region after alternate buffer resize.
 
 2. **Terminal doesn't close after session ends** - Window remains open with cursor after shell exits.
 
