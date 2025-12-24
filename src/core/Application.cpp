@@ -1112,6 +1112,12 @@ void Application::OnMouseButton(int x, int y, int button, bool down) {
         return;
     }
 
+    // Middle-click paste (X11 style)
+    if (button == 2 && down) {
+        PasteFromClipboard();
+        return;
+    }
+
     // Report mouse to application if mouse mode is enabled
     if (ShouldReportMouse()) {
         SendMouseEvent(cellPos.x, cellPos.y, button, down, false);

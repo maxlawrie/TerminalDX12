@@ -881,6 +881,14 @@ void VTStateMachine::HandleOSC() {
         if (type == "133") {
             HandleOSC133(value);
         }
+        // OSC 10 - Set/Query foreground color
+        else if (type == "10") {
+            HandleOSC10(value);
+        }
+        // OSC 11 - Set/Query background color
+        else if (type == "11") {
+            HandleOSC11(value);
+        }
         // OSC 0, 1, 2 are window title - we could handle these if desired
     }
 
@@ -923,6 +931,107 @@ void VTStateMachine::HandleOSC133(const std::string& param) {
         default:
             spdlog::debug("Unknown OSC 133 marker: {}", marker);
             break;
+    }
+}
+
+bool VTStateMachine::ParseOSCColor(const std::string& colorStr, uint8_t& r, uint8_t& g, uint8_t& b) {
+    // Supported formats:
+    // rgb:RR/GG/BB - X11 format with 2 hex digits per component
+    // rgb:RRRR/GGGG/BBBB - X11 format with 4 hex digits per component
+    // #RRGGBB - CSS-style hex format
+
+    if (colorStr.empty()) return false;
+
+    if (colorStr[0] == '#' && colorStr.length() == 7) {
+        // #RRGGBB format
+        try {
+            r = static_cast<uint8_t>(std::stoi(colorStr.substr(1, 2), nullptr, 16));
+            g = static_cast<uint8_t>(std::stoi(colorStr.substr(3, 2), nullptr, 16));
+            b = static_cast<uint8_t>(std::stoi(colorStr.substr(5, 2), nullptr, 16));
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    if (colorStr.substr(0, 4) == "rgb:") {
+        std::string rgb = colorStr.substr(4);
+        size_t slash1 = rgb.find('/');
+        size_t slash2 = rgb.rfind('/');
+        if (slash1 != std::string::npos && slash2 != std::string::npos && slash1 != slash2) {
+            try {
+                std::string rStr = rgb.substr(0, slash1);
+                std::string gStr = rgb.substr(slash1 + 1, slash2 - slash1 - 1);
+                std::string bStr = rgb.substr(slash2 + 1);
+
+                // Handle both 2-digit and 4-digit formats
+                int rVal = std::stoi(rStr, nullptr, 16);
+                int gVal = std::stoi(gStr, nullptr, 16);
+                int bVal = std::stoi(bStr, nullptr, 16);
+
+                // If 4-digit format, scale down to 8-bit
+                if (rStr.length() == 4) rVal = rVal >> 8;
+                if (gStr.length() == 4) gVal = gVal >> 8;
+                if (bStr.length() == 4) bVal = bVal >> 8;
+
+                r = static_cast<uint8_t>(rVal);
+                g = static_cast<uint8_t>(gVal);
+                b = static_cast<uint8_t>(bVal);
+                return true;
+            } catch (...) {
+                return false;
+            }
+        }
+    }
+
+    return false;
+}
+
+void VTStateMachine::HandleOSC10(const std::string& param) {
+    // OSC 10 - Set/Query foreground color
+    // Query: OSC 10 ; ? ST -> respond with current color
+    // Set: OSC 10 ; color ST -> set foreground color
+
+    if (param == "?") {
+        // Query - respond with current foreground color
+        char response[32];
+        snprintf(response, sizeof(response), "]10;rgb:%02x%02x/%02x%02x/%02x%02x\x07",
+                 m_themeFgR, m_themeFgR, m_themeFgG, m_themeFgG, m_themeFgB, m_themeFgB);
+        SendResponse(response);
+    } else {
+        // Set foreground color
+        uint8_t r, g, b;
+        if (ParseOSCColor(param, r, g, b)) {
+            m_themeFgR = r;
+            m_themeFgG = g;
+            m_themeFgB = b;
+            m_hasThemeFg = true;
+            spdlog::debug("OSC 10: Set foreground color to #{:02x}{:02x}{:02x}", r, g, b);
+        }
+    }
+}
+
+void VTStateMachine::HandleOSC11(const std::string& param) {
+    // OSC 11 - Set/Query background color
+    // Query: OSC 11 ; ? ST -> respond with current color
+    // Set: OSC 11 ; color ST -> set background color
+
+    if (param == "?") {
+        // Query - respond with current background color
+        char response[32];
+        snprintf(response, sizeof(response), "]11;rgb:%02x%02x/%02x%02x/%02x%02x\x07",
+                 m_themeBgR, m_themeBgR, m_themeBgG, m_themeBgG, m_themeBgB, m_themeBgB);
+        SendResponse(response);
+    } else {
+        // Set background color
+        uint8_t r, g, b;
+        if (ParseOSCColor(param, r, g, b)) {
+            m_themeBgR = r;
+            m_themeBgG = g;
+            m_themeBgB = b;
+            m_hasThemeBg = true;
+            spdlog::debug("OSC 11: Set background color to #{:02x}{:02x}{:02x}", r, g, b);
+        }
     }
 }
 

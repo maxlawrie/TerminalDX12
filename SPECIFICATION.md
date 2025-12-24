@@ -174,8 +174,8 @@ This document specifies all features for TerminalDX12, including current impleme
 | `OSC 2 ; text ST` | Set Window Title | PARTIAL |
 | `OSC 4 ; index ; color ST` | Set Color Palette Entry | NOT STARTED |
 | `OSC 8 ; params ; uri ST` | Hyperlink | NOT STARTED |
-| `OSC 10 ; color ST` | Set Foreground Color | NOT STARTED |
-| `OSC 11 ; color ST` | Set Background Color | NOT STARTED |
+| `OSC 10 ; color ST` | Set Foreground Color | **COMPLETE** |
+| `OSC 11 ; color ST` | Set Background Color | **COMPLETE** |
 | `OSC 52 ; base64 ST` | Clipboard Access | NOT STARTED |
 | `OSC 133 ; A ST` | Shell Integration - Prompt Start | **COMPLETE** |
 | `OSC 133 ; B ST` | Shell Integration - Command Start | **COMPLETE** |
@@ -462,9 +462,9 @@ struct Cell {
 | Release to End | Mouse up finalizes selection | **COMPLETE** |
 | Visual Highlight | Blue highlight on selected text | **COMPLETE** |
 | Multi-line | Selection spans multiple lines | **COMPLETE** |
-| Double-click | Select word | NOT STARTED |
-| Triple-click | Select line | NOT STARTED |
-| Shift+Click | Extend selection | NOT STARTED |
+| Double-click | Select word | **COMPLETE** |
+| Triple-click | Select line | **COMPLETE** |
+| Shift+Click | Extend selection | **COMPLETE** |
 | Block/Rectangle | Alt+drag for block selection | NOT STARTED |
 
 **Implementation:** `src/core/Application.cpp` lines 509-590
@@ -474,8 +474,8 @@ struct Cell {
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Left Button | Selection start/end | **COMPLETE** |
-| Right Button | Context menu | NOT STARTED |
-| Middle Button | Paste (X11 style) | NOT STARTED |
+| Right Button | Context menu | **COMPLETE** |
+| Middle Button | Paste (X11 style) | **COMPLETE** |
 | Scroll Wheel | Scrollback navigation | **COMPLETE** |
 
 ### 7.3 Mouse Reporting
@@ -505,7 +505,7 @@ struct Cell {
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Ctrl+C | Copy selection to clipboard | **COMPLETE** |
-| Right-click Copy | Context menu copy | NOT STARTED |
+| Right-click Copy | Context menu copy | **COMPLETE** |
 | Copy as HTML | Preserve formatting | NOT STARTED |
 | Copy as Plain | Strip formatting | **COMPLETE** |
 | Trim Trailing | Remove trailing spaces | **COMPLETE** |
@@ -517,10 +517,10 @@ struct Cell {
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Ctrl+V | Paste from clipboard | **COMPLETE** |
-| Right-click Paste | Context menu paste | NOT STARTED |
+| Right-click Paste | Context menu paste | **COMPLETE** |
 | Ctrl+Shift+V | Paste without formatting | NOT STARTED |
 | Bracketed Paste | Wrap in ESC sequences | **COMPLETE** |
-| Middle Button | X11-style paste | NOT STARTED |
+| Middle Button | X11-style paste | **COMPLETE** |
 
 **Specification:**
 - Bracketed paste mode (DECSET 2004): Wrap pasted text in `ESC [ 200 ~` and `ESC [ 201 ~`

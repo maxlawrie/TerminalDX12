@@ -59,6 +59,12 @@ public:
     bool IsCursorBlinkEnabled() const { return m_cursorBlink; }
     CursorStyle GetCursorStyle() const { return m_cursorStyle; }
 
+    // Theme color accessors (OSC 10/11)
+    void GetThemeForeground(uint8_t& r, uint8_t& g, uint8_t& b) const { r = m_themeFgR; g = m_themeFgG; b = m_themeFgB; }
+    void GetThemeBackground(uint8_t& r, uint8_t& g, uint8_t& b) const { r = m_themeBgR; g = m_themeBgG; b = m_themeBgB; }
+    bool HasThemeForeground() const { return m_hasThemeFg; }
+    bool HasThemeBackground() const { return m_hasThemeBg; }
+
     // Mouse mode accessors
     MouseMode GetMouseMode() const { return m_mouseMode; }
     bool IsMouseReportingEnabled() const { return m_mouseMode != MouseMode::None; }
@@ -104,6 +110,9 @@ private:
     void HandleDeviceStatusReport(); // DSR - ESC[#n
     void HandleOSC();                // OSC - ESC]#;...BEL
     void HandleOSC133(const std::string& param);  // OSC 133 shell integration
+    void HandleOSC10(const std::string& param);   // OSC 10 - foreground color
+    void HandleOSC11(const std::string& param);   // OSC 11 - background color
+    bool ParseOSCColor(const std::string& colorStr, uint8_t& r, uint8_t& g, uint8_t& b);
     void HandleCursorSave();         // CSI s - Save cursor position
     void HandleCursorRestore();      // CSI u - Restore cursor position
     void HandleScrollUp();           // CSI n S - Scroll up
@@ -139,6 +148,12 @@ private:
     bool m_keypadApplicationMode = false;  // DECKPAM/DECKPNM
     bool m_cursorBlink = true;             // Mode 12 - Cursor blink (default on)
     CursorStyle m_cursorStyle = CursorStyle::BlinkingBlock;  // DECSCUSR cursor style
+
+    // Theme colors (OSC 10/11)
+    uint8_t m_themeFgR = 204, m_themeFgG = 204, m_themeFgB = 204;  // Default light gray
+    uint8_t m_themeBgR = 12, m_themeBgG = 12, m_themeBgB = 12;     // Default near black
+    bool m_hasThemeFg = false;  // True if OSC 10 was used to set foreground
+    bool m_hasThemeBg = false;  // True if OSC 11 was used to set background
     
     // Mouse modes
     MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode
