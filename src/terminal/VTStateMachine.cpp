@@ -889,6 +889,10 @@ void VTStateMachine::HandleOSC() {
         else if (type == "11") {
             HandleOSC11(value);
         }
+        // OSC 8 - Hyperlink
+        else if (type == "8") {
+            HandleOSC8(value);
+        }
         // OSC 0, 1, 2 are window title - we could handle these if desired
     }
 
@@ -931,6 +935,58 @@ void VTStateMachine::HandleOSC133(const std::string& param) {
         default:
             spdlog::debug("Unknown OSC 133 marker: {}", marker);
             break;
+    }
+}
+
+void VTStateMachine::HandleOSC8(const std::string& param) {
+    // OSC 8 - Hyperlink
+    // Format: OSC 8 ; params ; uri ST
+    // params can include id=xxx for link grouping
+    // Empty uri ends the hyperlink
+
+    // param format: "params;uri" where params can be empty
+    size_t semicolon = param.find(';');
+    if (semicolon == std::string::npos) {
+        // Invalid format - just ignore
+        return;
+    }
+
+    std::string params = param.substr(0, semicolon);
+    std::string uri = param.substr(semicolon + 1);
+
+    // Parse optional ID from params
+    std::string linkId;
+    if (!params.empty()) {
+        // params are key=value pairs separated by ':'
+        size_t pos = 0;
+        while (pos < params.length()) {
+            size_t colonPos = params.find(':', pos);
+            std::string kvPair = (colonPos == std::string::npos)
+                ? params.substr(pos)
+                : params.substr(pos, colonPos - pos);
+
+            size_t eqPos = kvPair.find('=');
+            if (eqPos != std::string::npos) {
+                std::string key = kvPair.substr(0, eqPos);
+                std::string value = kvPair.substr(eqPos + 1);
+                if (key == "id") {
+                    linkId = value;
+                }
+            }
+
+            if (colonPos == std::string::npos) break;
+            pos = colonPos + 1;
+        }
+    }
+
+    if (uri.empty()) {
+        // End hyperlink
+        m_screenBuffer->ClearCurrentHyperlink();
+        spdlog::debug("OSC 8: End hyperlink");
+    } else {
+        // Start hyperlink
+        m_screenBuffer->AddHyperlink(uri, linkId);
+        spdlog::debug("OSC 8: Start hyperlink uri=\"{}\" id=\"{}\"", uri, linkId);
     }
 }
 

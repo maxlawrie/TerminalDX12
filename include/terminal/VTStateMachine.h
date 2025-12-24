@@ -110,6 +110,7 @@ private:
     void HandleDeviceStatusReport(); // DSR - ESC[#n
     void HandleOSC();                // OSC - ESC]#;...BEL
     void HandleOSC133(const std::string& param);  // OSC 133 shell integration
+    void HandleOSC8(const std::string& param);    // OSC 8 - hyperlinks
     void HandleOSC10(const std::string& param);   // OSC 10 - foreground color
     void HandleOSC11(const std::string& param);   // OSC 11 - background color
     bool ParseOSCColor(const std::string& colorStr, uint8_t& r, uint8_t& g, uint8_t& b);

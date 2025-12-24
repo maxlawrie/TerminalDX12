@@ -657,4 +657,46 @@ int ScreenBuffer::GetNextPromptLine(int fromLine) const {
     return -1;
 }
 
+// OSC 8 Hyperlink support
+uint16_t ScreenBuffer::AddHyperlink(const std::string& url, const std::string& id) {
+    if (url.empty()) {
+        // Empty URL means end the current hyperlink
+        m_currentHyperlinkId = 0;
+        return 0;
+    }
+
+    // Check if we already have a hyperlink with the same URL and ID
+    for (const auto& [existingId, link] : m_hyperlinks) {
+        if (link.url == url && link.id == id) {
+            m_currentHyperlinkId = existingId;
+            return existingId;
+        }
+    }
+
+    // Create a new hyperlink entry
+    uint16_t newId = m_nextHyperlinkId++;
+    m_hyperlinks[newId] = Hyperlink{url, id};
+    m_currentHyperlinkId = newId;
+
+    // Update current attributes to include hyperlink flag
+    m_currentAttr.flags2 |= CellAttributes::FLAG2_HYPERLINK;
+    m_currentAttr.hyperlinkId = newId;
+
+    return newId;
+}
+
+void ScreenBuffer::ClearCurrentHyperlink() {
+    m_currentHyperlinkId = 0;
+    m_currentAttr.flags2 &= ~CellAttributes::FLAG2_HYPERLINK;
+    m_currentAttr.hyperlinkId = 0;
+}
+
+const Hyperlink* ScreenBuffer::GetHyperlink(uint16_t id) const {
+    auto it = m_hyperlinks.find(id);
+    if (it != m_hyperlinks.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
 } // namespace TerminalDX12::Terminal

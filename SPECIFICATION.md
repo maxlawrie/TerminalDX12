@@ -173,7 +173,7 @@ This document specifies all features for TerminalDX12, including current impleme
 | `OSC 1 ; text ST` | Set Icon Name | PARTIAL |
 | `OSC 2 ; text ST` | Set Window Title | PARTIAL |
 | `OSC 4 ; index ; color ST` | Set Color Palette Entry | NOT STARTED |
-| `OSC 8 ; params ; uri ST` | Hyperlink | NOT STARTED |
+| `OSC 8 ; params ; uri ST` | Hyperlink | **COMPLETE** |
 | `OSC 10 ; color ST` | Set Foreground Color | **COMPLETE** |
 | `OSC 11 ; color ST` | Set Background Color | **COMPLETE** |
 | `OSC 52 ; base64 ST` | Clipboard Access | NOT STARTED |

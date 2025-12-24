@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 namespace TerminalDX12::Terminal {
 
@@ -18,6 +19,12 @@ enum class SemanticZone {
 struct PromptMarker {
     int absoluteLine;    // Absolute line number (including scrollback)
     int exitCode = -1;   // Exit code from OSC 133;D;N (-1 if not set)
+};
+
+// Hyperlink data (OSC 8)
+struct Hyperlink {
+    std::string url;     // The URL/URI
+    std::string id;      // Optional ID for link grouping
 };
 
 // Cell attributes (SGR - Select Graphic Rendition)
@@ -44,6 +51,10 @@ struct CellAttributes {
     // Flags2 (flags2 byte)
     static constexpr uint8_t FLAG2_BLINK        = 0x01;  // SGR 5/6 - Blink
     static constexpr uint8_t FLAG2_HIDDEN       = 0x02;  // SGR 8 - Hidden/Invisible
+    static constexpr uint8_t FLAG2_HYPERLINK    = 0x04;  // OSC 8 - Cell has hyperlink
+
+    // Hyperlink ID (index into ScreenBuffer's hyperlink table, 0 = no link)
+    uint16_t hyperlinkId = 0;
 
     CellAttributes()
         : foreground(7)      // White
@@ -65,6 +76,7 @@ struct CellAttributes {
     bool UsesTrueColorBg() const { return (flags & FLAG_TRUECOLOR_BG) != 0; }
     bool IsBlink() const { return (flags2 & FLAG2_BLINK) != 0; }
     bool IsHidden() const { return (flags2 & FLAG2_HIDDEN) != 0; }
+    bool HasHyperlink() const { return (flags2 & FLAG2_HYPERLINK) != 0; }
 
     // Set foreground to true RGB color
     void SetForegroundRGB(uint8_t r, uint8_t g, uint8_t b) {
@@ -186,6 +198,12 @@ public:
     void ClearAllTabStops();               // TBC 3 - Clear all tab stops
     void ResetTabStops();                  // Reset to default (every 8 columns)
 
+    // Hyperlink management (OSC 8)
+    uint16_t AddHyperlink(const std::string& url, const std::string& id = "");
+    void ClearCurrentHyperlink();
+    const Hyperlink* GetHyperlink(uint16_t id) const;
+    uint16_t GetCurrentHyperlinkId() const { return m_currentHyperlinkId; }
+
 private:
     void NewLine();
     void CarriageReturn();
@@ -231,6 +249,11 @@ private:
 
     // Tab stops (columns where tab stops are set)
     std::vector<bool> m_tabStops;
+
+    // Hyperlinks (OSC 8)
+    std::unordered_map<uint16_t, Hyperlink> m_hyperlinks;
+    uint16_t m_nextHyperlinkId = 1;       // Next ID to assign (0 = no link)
+    uint16_t m_currentHyperlinkId = 0;    // Currently active hyperlink (for new cells)
 };
 
 } // namespace TerminalDX12::Terminal
