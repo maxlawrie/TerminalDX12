@@ -1020,6 +1020,43 @@ void Application::OnKey(UINT key, bool isDown) {
         case VK_DELETE:
             SendWin32InputKey(VK_DELETE, 0, true, controlState);
             return;
+        // Function keys F1-F12
+        case VK_F1:
+            SendWin32InputKey(VK_F1, 0, true, controlState);
+            return;
+        case VK_F2:
+            SendWin32InputKey(VK_F2, 0, true, controlState);
+            return;
+        case VK_F3:
+            SendWin32InputKey(VK_F3, 0, true, controlState);
+            return;
+        case VK_F4:
+            SendWin32InputKey(VK_F4, 0, true, controlState);
+            return;
+        case VK_F5:
+            SendWin32InputKey(VK_F5, 0, true, controlState);
+            return;
+        case VK_F6:
+            SendWin32InputKey(VK_F6, 0, true, controlState);
+            return;
+        case VK_F7:
+            SendWin32InputKey(VK_F7, 0, true, controlState);
+            return;
+        case VK_F8:
+            SendWin32InputKey(VK_F8, 0, true, controlState);
+            return;
+        case VK_F9:
+            SendWin32InputKey(VK_F9, 0, true, controlState);
+            return;
+        case VK_F10:
+            SendWin32InputKey(VK_F10, 0, true, controlState);
+            return;
+        case VK_F11:
+            SendWin32InputKey(VK_F11, 0, true, controlState);
+            return;
+        case VK_F12:
+            SendWin32InputKey(VK_F12, 0, true, controlState);
+            return;
     }
 }
 

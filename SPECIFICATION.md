@@ -565,12 +565,12 @@ struct Cell {
 | Right | `ESC [ D` | `ESC O D` | **COMPLETE** |
 | Home | `ESC [ H` | `ESC O H` | PARTIAL |
 | End | `ESC [ F` | `ESC O F` | PARTIAL |
-| Insert | `ESC [ 2 ~` | - | NOT STARTED |
-| Delete | `ESC [ 3 ~` | - | NOT STARTED |
+| Insert | `ESC [ 2 ~` | - | **COMPLETE** |
+| Delete | `ESC [ 3 ~` | - | **COMPLETE** |
 | PageUp | `ESC [ 5 ~` | - | **COMPLETE** |
 | PageDown | `ESC [ 6 ~` | - | **COMPLETE** |
-| F1-F4 | `ESC O P/Q/R/S` | - | NOT STARTED |
-| F5-F12 | `ESC [ 15/17/18/19/20/21/23/24 ~` | - | NOT STARTED |
+| F1-F4 | `ESC O P/Q/R/S` | - | **COMPLETE** |
+| F5-F12 | `ESC [ 15/17/18/19/20/21/23/24 ~` | - | **COMPLETE** |
 
 **Implementation:** `src/core/Application.cpp` WndProc WM_KEYDOWN handling
 
@@ -578,13 +578,13 @@ struct Cell {
 
 | Modifier | Format | Status |
 |----------|--------|--------|
-| Shift | `CSI 1 ; 2 X` | NOT STARTED |
-| Alt | `CSI 1 ; 3 X` | NOT STARTED |
-| Ctrl | `CSI 1 ; 5 X` | PARTIAL |
-| Ctrl+Shift | `CSI 1 ; 6 X` | NOT STARTED |
-| Alt+Shift | `CSI 1 ; 4 X` | NOT STARTED |
+| Shift | `CSI 1 ; 2 X` | **COMPLETE** (Win32 input) |
+| Alt | `CSI 1 ; 3 X` | **COMPLETE** (Win32 input) |
+| Ctrl | `CSI 1 ; 5 X` | **COMPLETE** (Win32 input) |
+| Ctrl+Shift | `CSI 1 ; 6 X` | **COMPLETE** (Win32 input) |
+| Alt+Shift | `CSI 1 ; 4 X` | **COMPLETE** (Win32 input) |
 
-**Specification:** Modified keys use `CSI 1 ; modifier final` format
+**Specification:** Modified keys use Win32 input mode format with control state flags
 
 ---
 
