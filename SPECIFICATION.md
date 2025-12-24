@@ -465,7 +465,7 @@ struct Cell {
 | Double-click | Select word | **COMPLETE** |
 | Triple-click | Select line | **COMPLETE** |
 | Shift+Click | Extend selection | **COMPLETE** |
-| Block/Rectangle | Alt+drag for block selection | NOT STARTED |
+| Block/Rectangle | Alt+drag for block selection | **COMPLETE** |
 
 **Implementation:** `src/core/Application.cpp` lines 509-590
 

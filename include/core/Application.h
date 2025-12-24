@@ -169,8 +169,9 @@ private:
     // Selection state
     CellPos m_selectionStart;
     CellPos m_selectionEnd;
-    bool m_selecting;      // Currently dragging to select
-    bool m_hasSelection;   // Valid selection exists
+    bool m_selecting;         // Currently dragging to select
+    bool m_hasSelection;      // Valid selection exists
+    bool m_rectangleSelection = false;  // Alt+drag rectangle selection mode
 
     // Mouse click tracking for double/triple click
     std::chrono::steady_clock::time_point m_lastClickTime;

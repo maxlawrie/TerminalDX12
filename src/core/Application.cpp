@@ -449,7 +449,11 @@ void Application::Render() {
     if (m_hasSelection) {
         selStartY = std::min(m_selectionStart.y, m_selectionEnd.y);
         selEndY = std::max(m_selectionStart.y, m_selectionEnd.y);
-        if (m_selectionStart.y < m_selectionEnd.y ||
+        // For rectangle selection, use min/max X; for normal selection, use order-based X
+        if (m_rectangleSelection) {
+            selStartX = std::min(m_selectionStart.x, m_selectionEnd.x);
+            selEndX = std::max(m_selectionStart.x, m_selectionEnd.x);
+        } else if (m_selectionStart.y < m_selectionEnd.y ||
             (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
             selStartX = m_selectionStart.x;
             selEndX = m_selectionEnd.x;
@@ -462,8 +466,16 @@ void Application::Render() {
     for (int y = 0; y < rows; ++y) {
         // Selection highlight pass (render blue highlight for selected text)
         if (m_hasSelection && y >= selStartY && y <= selEndY) {
-            int rowSelStart = (y == selStartY) ? selStartX : 0;
-            int rowSelEnd = (y == selEndY) ? selEndX : cols - 1;
+            int rowSelStart, rowSelEnd;
+            if (m_rectangleSelection) {
+                // Rectangle selection: same column range for all rows
+                rowSelStart = selStartX;
+                rowSelEnd = selEndX;
+            } else {
+                // Normal selection: variable range per row
+                rowSelStart = (y == selStartY) ? selStartX : 0;
+                rowSelEnd = (y == selEndY) ? selEndX : cols - 1;
+            }
 
             for (int x = rowSelStart; x <= rowSelEnd; ++x) {
                 float posX = static_cast<float>(startX + x * charWidth);
@@ -1315,6 +1327,8 @@ void Application::OnMouseButton(int x, int y, int button, bool down) {
                 m_hasSelection = true;
             } else {
                 // Start new selection
+                // Alt+drag enables rectangle selection mode
+                m_rectangleSelection = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
                 m_selectionStart = cellPos;
                 m_selectionEnd = cellPos;
                 m_hasSelection = false;
@@ -1365,6 +1379,7 @@ void Application::OnMouseMove(int x, int y) {
 void Application::ClearSelection() {
     m_hasSelection = false;
     m_selecting = false;
+    m_rectangleSelection = false;
     m_selectionStart = {0, 0};
     m_selectionEnd = {0, 0};
 }
@@ -1378,36 +1393,58 @@ std::string Application::GetSelectedText() const {
     // Normalize selection (ensure start <= end)
     int startY = std::min(m_selectionStart.y, m_selectionEnd.y);
     int endY = std::max(m_selectionStart.y, m_selectionEnd.y);
-    int startX, endX;
-
-    if (m_selectionStart.y < m_selectionEnd.y ||
-        (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
-        startX = m_selectionStart.x;
-        endX = m_selectionEnd.x;
-    } else {
-        startX = m_selectionEnd.x;
-        endX = m_selectionStart.x;
-    }
+    int startX = std::min(m_selectionStart.x, m_selectionEnd.x);
+    int endX = std::max(m_selectionStart.x, m_selectionEnd.x);
 
     std::u32string text;
     int cols = screenBuffer->GetCols();
 
-    for (int y = startY; y <= endY; ++y) {
-        int rowStartX = (y == startY) ? startX : 0;
-        int rowEndX = (y == endY) ? endX : cols - 1;
-
-        for (int x = rowStartX; x <= rowEndX; ++x) {
-            const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
-            text += cell.ch;
+    if (m_rectangleSelection) {
+        // Rectangle selection: same column range for all rows
+        for (int y = startY; y <= endY; ++y) {
+            for (int x = startX; x <= endX; ++x) {
+                const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+                text += cell.ch;
+            }
+            // Add newline between rows (but not after last row)
+            if (y < endY) {
+                // Trim trailing spaces from line before adding newline
+                while (!text.empty() && text.back() == U' ') {
+                    text.pop_back();
+                }
+                text += U'\n';
+            }
+        }
+    } else {
+        // Normal line selection
+        // For normal selection, use full coordinates
+        int normalStartX, normalEndX;
+        if (m_selectionStart.y < m_selectionEnd.y ||
+            (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
+            normalStartX = m_selectionStart.x;
+            normalEndX = m_selectionEnd.x;
+        } else {
+            normalStartX = m_selectionEnd.x;
+            normalEndX = m_selectionStart.x;
         }
 
-        // Add newline between rows (but not after last row)
-        if (y < endY) {
-            // Trim trailing spaces from line before adding newline
-            while (!text.empty() && text.back() == U' ') {
-                text.pop_back();
+        for (int y = startY; y <= endY; ++y) {
+            int rowStartX = (y == startY) ? normalStartX : 0;
+            int rowEndX = (y == endY) ? normalEndX : cols - 1;
+
+            for (int x = rowStartX; x <= rowEndX; ++x) {
+                const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+                text += cell.ch;
             }
-            text += U'\n';
+
+            // Add newline between rows (but not after last row)
+            if (y < endY) {
+                // Trim trailing spaces from line before adding newline
+                while (!text.empty() && text.back() == U' ') {
+                    text.pop_back();
+                }
+                text += U'\n';
+            }
         }
     }
 
