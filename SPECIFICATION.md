@@ -41,10 +41,10 @@ This document specifies all features for TerminalDX12, including current impleme
 | Sequence | Name | Description | Status |
 |----------|------|-------------|--------|
 | `ESC c` | RIS | Full terminal reset | **COMPLETE** |
-| `ESC D` | IND | Index - move cursor down, scroll if at bottom | NOT STARTED |
+| `ESC D` | IND | Index - move cursor down, scroll if at bottom | **COMPLETE** |
 | `ESC E` | NEL | Next Line - move to column 1 of next line | **COMPLETE** |
 | `ESC H` | HTS | Horizontal Tab Set | NOT STARTED |
-| `ESC M` | RI | Reverse Index - move cursor up, scroll if at top | NOT STARTED |
+| `ESC M` | RI | Reverse Index - move cursor up, scroll if at top | **COMPLETE** |
 | `ESC 7` | DECSC | Save Cursor Position | **COMPLETE** |
 | `ESC 8` | DECRC | Restore Cursor Position | **COMPLETE** |
 | `ESC =` | DECKPAM | Keypad Application Mode | NOT STARTED |
@@ -133,7 +133,7 @@ This document specifies all features for TerminalDX12, including current impleme
 | 7 | DECAWM | Auto-Wrap Mode | **COMPLETE** |
 | 12 | - | Cursor Blink | NOT STARTED |
 | 25 | DECTCEM | Cursor Visible | **COMPLETE** |
-| 47 | - | Alternate Screen Buffer | NOT STARTED |
+| 47 | - | Alternate Screen Buffer | **COMPLETE** |
 | 1000 | - | Mouse Click Tracking | **COMPLETE** |
 | 1002 | - | Mouse Cell Motion Tracking | **COMPLETE** |
 | 1003 | - | Mouse All Motion Tracking | **COMPLETE** |
@@ -154,7 +154,7 @@ This document specifies all features for TerminalDX12, including current impleme
 | Sequence | Name | Description | Status |
 |----------|------|-------------|--------|
 | `CSI c` | DA | Primary Device Attributes | **COMPLETE** |
-| `CSI > c` | DA2 | Secondary Device Attributes | NOT STARTED |
+| `CSI > c` | DA2 | Secondary Device Attributes | **COMPLETE** |
 | `CSI 5 n` | DSR | Device Status Report | **COMPLETE** |
 | `CSI 6 n` | CPR | Cursor Position Report | **COMPLETE** |
 
@@ -607,21 +607,21 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Shell Selection | Choose shell (cmd, PowerShell, WSL) | NOT STARTED |
-| Working Directory | Set initial directory | NOT STARTED |
+| Shell Selection | Choose shell (cmd, PowerShell, WSL) | **COMPLETE** |
+| Working Directory | Set initial directory | **COMPLETE** |
 | Environment | Pass environment variables | NOT STARTED |
 | Arguments | Shell command-line arguments | NOT STARTED |
 
-**Current Implementation:** Hardcoded to PowerShell.exe
+**Current Implementation:** Configurable via config.json or command-line argument
 
 ### 10.3 OSC 133 Shell Integration
 
 | Marker | Description | Status |
 |--------|-------------|--------|
-| FinalTerm A | Prompt started | NOT STARTED |
-| FinalTerm B | Command started | NOT STARTED |
-| FinalTerm C | Command executed | NOT STARTED |
-| FinalTerm D | Command finished with exit code | NOT STARTED |
+| FinalTerm A | Prompt started | **COMPLETE** |
+| FinalTerm B | Command started | **COMPLETE** |
+| FinalTerm C | Command executed | **COMPLETE** |
+| FinalTerm D | Command finished with exit code | **COMPLETE** |
 
 **Specification:** Used by VS Code, iTerm2, Windows Terminal for:
 - Command detection and navigation
@@ -637,14 +637,14 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Create Tab | New terminal session in tab | NOT STARTED |
-| Close Tab | Close tab and session | NOT STARTED |
-| Switch Tab | Click or keyboard shortcut | NOT STARTED |
+| Create Tab | New terminal session in tab | **COMPLETE** |
+| Close Tab | Close tab and session | **COMPLETE** |
+| Switch Tab | Click or keyboard shortcut | **COMPLETE** |
 | Reorder Tabs | Drag to reorder | NOT STARTED |
-| Tab Titles | Display tab title | NOT STARTED |
+| Tab Titles | Display tab title | **COMPLETE** |
 | Tab Icons | Display shell icon | NOT STARTED |
 
-**Current Implementation:** `src/ui/TabManager.cpp` (11 lines, stub only)
+**Current Implementation:** `src/ui/TabManager.cpp` (165 lines), `src/ui/Tab.cpp` (fully implemented)
 
 ### 11.2 Tab Keyboard Shortcuts
 
@@ -794,13 +794,13 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Font Family | Select font by name | NOT STARTED |
-| Font Size | Configurable size | NOT STARTED |
+| Font Family | Select font by name | **COMPLETE** |
+| Font Size | Configurable size | **COMPLETE** |
 | Line Height | Configurable line spacing | NOT STARTED |
 | Letter Spacing | Configurable character spacing | NOT STARTED |
 | DPI Scaling | High-DPI support | **COMPLETE** |
 
-**Current Implementation:** Hardcoded to Consolas 16px
+**Current Implementation:** Configurable via config.json (family, size, weight)
 
 ---
 
@@ -810,10 +810,10 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| File Format | JSON/YAML/TOML config | NOT STARTED |
+| File Format | JSON config | **COMPLETE** |
 | Auto-reload | Watch for changes | NOT STARTED |
-| Defaults | Sensible default values | NOT STARTED |
-| Validation | Validate config values | NOT STARTED |
+| Defaults | Sensible default values | **COMPLETE** |
+| Validation | Validate config values | **COMPLETE** |
 
 **Proposed Format (JSON):**
 ```json
@@ -844,17 +844,17 @@ struct Cell {
 
 | Setting | Description | Status |
 |---------|-------------|--------|
-| Font Family | Font name | NOT STARTED |
-| Font Size | Size in points | NOT STARTED |
-| Color Scheme | Named color schemes | NOT STARTED |
-| Cursor Style | Block/underline/bar | NOT STARTED |
-| Cursor Blink | Enable/disable | NOT STARTED |
-| Scrollback Lines | History size | NOT STARTED |
+| Font Family | Font name | **COMPLETE** |
+| Font Size | Size in points | **COMPLETE** |
+| Color Scheme | Named color schemes | **COMPLETE** |
+| Cursor Style | Block/underline/bar | **COMPLETE** |
+| Cursor Blink | Enable/disable | **COMPLETE** |
+| Scrollback Lines | History size | **COMPLETE** |
 | Bell | Audible/visual/none | NOT STARTED |
 | Window Size | Initial dimensions | NOT STARTED |
-| Key Bindings | Custom shortcuts | NOT STARTED |
-| Shell | Default shell path | NOT STARTED |
-| Working Directory | Initial directory | NOT STARTED |
+| Key Bindings | Custom shortcuts | **COMPLETE** |
+| Shell | Default shell path | **COMPLETE** |
+| Working Directory | Initial directory | **COMPLETE** |
 
 ### 16.3 Settings UI
 
@@ -1011,19 +1011,19 @@ This section tracks features required for running [Claude Code](https://claude.c
 9. ~~Bracketed paste mode~~ ✓
 10. ~~OSC 133 shell integration~~ ✓
 
-### Phase 2: Configuration
-1. JSON configuration file
-2. Font selection
-3. Color scheme support
-4. Keybinding customization
+### Phase 2: Configuration - **COMPLETE**
+1. ~~JSON configuration file~~ ✓
+2. ~~Font selection~~ ✓
+3. ~~Color scheme support~~ ✓
+4. ~~Keybinding customization~~ ✓
 
-### Phase 3: Mouse Enhancement
+### Phase 3: Mouse Enhancement - PARTIAL
 1. ~~Mouse reporting to applications~~ ✓
 2. Double/triple-click selection
 3. Right-click context menu
 
-### Phase 4: Advanced Features
-1. Tab support
+### Phase 4: Advanced Features - PARTIAL
+1. ~~Tab support~~ ✓
 2. Search functionality
 3. URL detection
 4. Split panes
