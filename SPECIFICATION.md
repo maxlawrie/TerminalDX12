@@ -678,8 +678,8 @@ struct Cell {
 | Horizontal Split | Split pane top/bottom (Ctrl+Shift+E) | **COMPLETE** |
 | Close Pane | Close pane, keep others | **COMPLETE** |
 | Resize Pane | Drag divider | NOT STARTED |
-| Focus Pane | Click to focus | NOT STARTED |
-| Zoom Pane | Maximize single pane | NOT STARTED |
+| Focus Pane | Click to focus | **COMPLETE** |
+| Zoom Pane | Maximize single pane (Ctrl+Shift+Z) | **COMPLETE** |
 
 ### 12.2 Pane Navigation
 

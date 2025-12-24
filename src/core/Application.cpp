@@ -972,6 +972,15 @@ void Application::OnKey(UINT key, bool isDown) {
             ClosePane();
             return;
         }
+        // Ctrl+Shift+Z: Toggle zoom on focused pane
+        if (key == 'Z' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+            if (m_rootPane && !m_rootPane->IsLeaf()) {
+                m_paneZoomed = !m_paneZoomed;
+                UpdatePaneLayout();
+                spdlog::info("Pane zoom {}", m_paneZoomed ? "enabled" : "disabled");
+            }
+            return;
+        }
     }
 
     // Alt+Arrow: Navigate between panes
@@ -1226,6 +1235,15 @@ void Application::OnMouseButton(int x, int y, int button, bool down) {
             tabX += tabWidth + 5.0f;
         }
         return;  // Click was in tab bar but not on a tab
+    }
+
+    // Click to focus pane
+    if (button == 0 && down && m_rootPane && !m_rootPane->IsLeaf()) {
+        UI::Pane* clickedPane = m_rootPane->FindPaneAt(x, y);
+        if (clickedPane && clickedPane != m_focusedPane && clickedPane->IsLeaf()) {
+            m_focusedPane = clickedPane;
+            spdlog::info("Focused pane at ({}, {})", x, y);
+        }
     }
 
     CellPos cellPos = ScreenToCell(x, y);
@@ -2058,14 +2076,25 @@ void Application::UpdatePaneLayout() {
         height - tabBarHeight
     };
 
+    const int charWidth = 10;
+    const int lineHeight = 25;
+
+    // If zoomed, only the focused pane gets the full space
+    if (m_paneZoomed && m_focusedPane && m_focusedPane->IsLeaf()) {
+        m_focusedPane->SetBounds(availableSpace);
+        if (m_focusedPane->GetTab() && m_focusedPane->GetTab()->GetScreenBuffer()) {
+            int cols = std::max(10, availableSpace.width / charWidth);
+            int rows = std::max(5, availableSpace.height / lineHeight);
+            m_focusedPane->GetTab()->Resize(cols, rows);
+        }
+        return;
+    }
+
     m_rootPane->CalculateLayout(availableSpace);
 
     // Resize all panes' tabs to fit their new bounds
     std::vector<UI::Pane*> leaves;
     m_rootPane->GetAllLeafPanes(leaves);
-
-    const int charWidth = 10;
-    const int lineHeight = 25;
 
     for (UI::Pane* pane : leaves) {
         if (pane->GetTab() && pane->GetTab()->GetScreenBuffer()) {

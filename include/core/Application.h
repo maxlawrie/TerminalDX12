@@ -155,6 +155,7 @@ private:
     // Pane tree (root pane contains all panes for current tab)
     std::unique_ptr<UI::Pane> m_rootPane;
     UI::Pane* m_focusedPane = nullptr;
+    bool m_paneZoomed = false;  // Is focused pane maximized
 
     // Helper accessors for active tab's components
     Terminal::ScreenBuffer* GetActiveScreenBuffer();
