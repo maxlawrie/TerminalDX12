@@ -24,6 +24,11 @@ jobs:
         vcpkg install gtest:x64-windows
         vcpkg install spdlog:x64-windows
 
+    - name: Install OpenCppCoverage
+      run: |
+        choco install opencppcoverage -y
+        echo "C:\Program Files\OpenCppCoverage" >> $env:GITHUB_PATH
+
     - name: Configure CMake
       run: |
         cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
@@ -31,10 +36,33 @@ jobs:
     - name: Build
       run: cmake --build build --config Release
 
-    - name: Run C++ Unit Tests
+    - name: Run C++ Unit Tests with Coverage
       run: |
-        cd build
-        ctest --output-on-failure -C Release
+        OpenCppCoverage `
+          --sources "${{ github.workspace }}\src" `
+          --sources "${{ github.workspace }}\include" `
+          --excluded_sources "${{ github.workspace }}\build" `
+          --excluded_sources "${{ github.workspace }}\tests" `
+          --excluded_sources "${{ github.workspace }}\vcpkg_installed" `
+          --export_type cobertura:coverage.xml `
+          --export_type html:coverage_report `
+          -- build\tests\Release\TerminalDX12Tests.exe
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage.xml
+        fail_ci_if_error: false
+        verbose: true
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload coverage report artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage_report/
+        retention-days: 14
 
   # Python visual tests require a GUI and cannot run in CI
   # They are intended for local development only

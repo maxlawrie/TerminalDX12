@@ -1,5 +1,8 @@
 # TerminalDX12
 
+[![Tests](https://github.com/maxlawrie/TerminalDX12/actions/workflows/tests.yml/badge.svg)](https://github.com/maxlawrie/TerminalDX12/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/maxlawrie/TerminalDX12/graph/badge.svg)](https://codecov.io/gh/maxlawrie/TerminalDX12)
+
 A GPU-accelerated terminal emulator for Windows using DirectX 12.
 
 ## Features
