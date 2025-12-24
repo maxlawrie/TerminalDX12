@@ -321,13 +321,40 @@ void Application::Render() {
     m_renderer->BeginFrame();
     m_renderer->ClearText();
 
-    // Get color palette from config
+    // Get color palette from config, with OSC 4 overrides from ScreenBuffer
     const auto& colorConfig = m_config->GetColors();
-    float colorPalette[16][3];
-    for (int i = 0; i < 16; ++i) {
-        colorPalette[i][0] = colorConfig.palette[i].r / 255.0f;
-        colorPalette[i][1] = colorConfig.palette[i].g / 255.0f;
-        colorPalette[i][2] = colorConfig.palette[i].b / 255.0f;
+    float colorPalette[256][3];
+    for (int i = 0; i < 256; ++i) {
+        // Check if this color was modified via OSC 4
+        if (screenBuffer && screenBuffer->IsPaletteColorModified(i)) {
+            const auto& paletteColor = screenBuffer->GetPaletteColor(i);
+            colorPalette[i][0] = paletteColor.r / 255.0f;
+            colorPalette[i][1] = paletteColor.g / 255.0f;
+            colorPalette[i][2] = paletteColor.b / 255.0f;
+        } else if (i < 16) {
+            // Use config palette for first 16 colors
+            colorPalette[i][0] = colorConfig.palette[i].r / 255.0f;
+            colorPalette[i][1] = colorConfig.palette[i].g / 255.0f;
+            colorPalette[i][2] = colorConfig.palette[i].b / 255.0f;
+        } else {
+            // Generate 256-color palette (colors 16-255)
+            if (i < 232) {
+                // 6x6x6 color cube (indices 16-231)
+                int idx = i - 16;
+                int r = idx / 36;
+                int g = (idx / 6) % 6;
+                int b = idx % 6;
+                colorPalette[i][0] = r ? (r * 40 + 55) / 255.0f : 0.0f;
+                colorPalette[i][1] = g ? (g * 40 + 55) / 255.0f : 0.0f;
+                colorPalette[i][2] = b ? (b * 40 + 55) / 255.0f : 0.0f;
+            } else {
+                // Grayscale (indices 232-255)
+                int gray = (i - 232) * 10 + 8;
+                colorPalette[i][0] = gray / 255.0f;
+                colorPalette[i][1] = gray / 255.0f;
+                colorPalette[i][2] = gray / 255.0f;
+            }
+        }
     }
     
     // Cursor color from config

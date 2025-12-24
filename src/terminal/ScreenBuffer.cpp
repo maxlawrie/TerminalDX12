@@ -699,4 +699,38 @@ const Hyperlink* ScreenBuffer::GetHyperlink(uint16_t id) const {
     return nullptr;
 }
 
+// OSC 4 Palette management
+void ScreenBuffer::SetPaletteColor(int index, uint8_t r, uint8_t g, uint8_t b) {
+    if (index < 0 || index >= 256) return;
+    m_palette[index].r = r;
+    m_palette[index].g = g;
+    m_palette[index].b = b;
+    m_palette[index].modified = true;
+    m_dirty = true;
+}
+
+const PaletteColor& ScreenBuffer::GetPaletteColor(int index) const {
+    static PaletteColor defaultColor;
+    if (index < 0 || index >= 256) return defaultColor;
+    return m_palette[index];
+}
+
+bool ScreenBuffer::IsPaletteColorModified(int index) const {
+    if (index < 0 || index >= 256) return false;
+    return m_palette[index].modified;
+}
+
+void ScreenBuffer::ResetPaletteColor(int index) {
+    if (index < 0 || index >= 256) return;
+    m_palette[index].modified = false;
+    m_dirty = true;
+}
+
+void ScreenBuffer::ResetAllPaletteColors() {
+    for (int i = 0; i < 256; ++i) {
+        m_palette[i].modified = false;
+    }
+    m_dirty = true;
+}
+
 } // namespace TerminalDX12::Terminal

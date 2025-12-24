@@ -122,6 +122,7 @@ private:
     void HandleOSC10(const std::string& param);   // OSC 10 - foreground color
     void HandleOSC11(const std::string& param);   // OSC 11 - background color
     void HandleOSC52(const std::string& param);   // OSC 52 - clipboard access
+    void HandleOSC4(const std::string& param);    // OSC 4 - set color palette
     bool ParseOSCColor(const std::string& colorStr, uint8_t& r, uint8_t& g, uint8_t& b);
     void HandleCursorSave();         // CSI s - Save cursor position
     void HandleCursorRestore();      // CSI u - Restore cursor position

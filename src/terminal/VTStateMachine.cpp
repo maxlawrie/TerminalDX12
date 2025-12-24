@@ -905,6 +905,10 @@ void VTStateMachine::HandleOSC() {
         else if (type == "52") {
             HandleOSC52(value);
         }
+        // OSC 4 - Set/Query palette color
+        else if (type == "4") {
+            HandleOSC4(value);
+        }
         // OSC 0, 1, 2 are window title - we could handle these if desired
     }
 
@@ -1175,6 +1179,67 @@ void VTStateMachine::HandleOSC52(const std::string& param) {
         if (m_clipboardWriteCallback && !decoded.empty()) {
             m_clipboardWriteCallback(decoded);
             spdlog::debug("OSC 52: Set clipboard, {} bytes", decoded.size());
+        }
+    }
+}
+
+void VTStateMachine::HandleOSC4(const std::string& param) {
+    // OSC 4 - Set/Query palette color
+    // Format: OSC 4 ; index ; color ST
+    // Query: OSC 4 ; index ; ? ST -> respond with rgb:RRRR/GGGG/BBBB
+    // Multiple colors: OSC 4 ; index1 ; color1 ; index2 ; color2 ; ... ST
+
+    // Parse pairs of index;color
+    size_t pos = 0;
+    while (pos < param.length()) {
+        // Find the index
+        size_t semicolon1 = param.find(';', pos);
+        if (semicolon1 == std::string::npos) break;
+
+        std::string indexStr = param.substr(pos, semicolon1 - pos);
+        int index = 0;
+        try {
+            index = std::stoi(indexStr);
+        } catch (...) {
+            spdlog::debug("OSC 4: Invalid index: {}", indexStr);
+            break;
+        }
+
+        if (index < 0 || index >= 256) {
+            spdlog::debug("OSC 4: Index out of range: {}", index);
+            break;
+        }
+
+        // Find the color (or next semicolon for another pair)
+        size_t semicolon2 = param.find(';', semicolon1 + 1);
+        std::string colorStr;
+        if (semicolon2 == std::string::npos) {
+            colorStr = param.substr(semicolon1 + 1);
+            pos = param.length();
+        } else {
+            colorStr = param.substr(semicolon1 + 1, semicolon2 - semicolon1 - 1);
+            pos = semicolon2 + 1;
+        }
+
+        if (colorStr == "?") {
+            // Query color - respond with current color
+            const auto& paletteColor = m_screenBuffer->GetPaletteColor(index);
+            // Format response as rgb:RRRR/GGGG/BBBB (16-bit components)
+            char response[64];
+            snprintf(response, sizeof(response), "]4;%d;rgb:%04x/%04x/%04x\x07",
+                     index,
+                     paletteColor.r * 257,  // Scale 8-bit to 16-bit
+                     paletteColor.g * 257,
+                     paletteColor.b * 257);
+            SendResponse(response);
+            spdlog::debug("OSC 4: Query color {}", index);
+        } else {
+            // Set color
+            uint8_t r, g, b;
+            if (ParseOSCColor(colorStr, r, g, b)) {
+                m_screenBuffer->SetPaletteColor(index, r, g, b);
+                spdlog::debug("OSC 4: Set color {} to #{:02x}{:02x}{:02x}", index, r, g, b);
+            }
         }
     }
 }

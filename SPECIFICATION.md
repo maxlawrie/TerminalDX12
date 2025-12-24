@@ -172,7 +172,7 @@ This document specifies all features for TerminalDX12, including current impleme
 | `OSC 0 ; text ST` | Set Window Title and Icon Name | PARTIAL |
 | `OSC 1 ; text ST` | Set Icon Name | PARTIAL |
 | `OSC 2 ; text ST` | Set Window Title | PARTIAL |
-| `OSC 4 ; index ; color ST` | Set Color Palette Entry | NOT STARTED |
+| `OSC 4 ; index ; color ST` | Set Color Palette Entry | **COMPLETE** |
 | `OSC 8 ; params ; uri ST` | Hyperlink | **COMPLETE** |
 | `OSC 10 ; color ST` | Set Foreground Color | **COMPLETE** |
 | `OSC 11 ; color ST` | Set Background Color | **COMPLETE** |
@@ -729,19 +729,23 @@ struct Cell {
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| HTTP/HTTPS | Detect web URLs | NOT STARTED |
-| File Paths | Detect file:// URLs | NOT STARTED |
+| HTTP/HTTPS | Detect web URLs | **COMPLETE** |
+| File Paths | Detect file:// URLs | **COMPLETE** |
 | Email | Detect mailto: links | NOT STARTED |
 | Custom Schemes | Configurable patterns | NOT STARTED |
+
+**Implementation:** `src/core/Application.cpp` DetectUrlAt() detects http://, https://, file://, ftp:// URLs
 
 ### 14.2 URL Interaction
 
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Underline | Show underline on hover | NOT STARTED |
-| Ctrl+Click | Open in browser | NOT STARTED |
+| Ctrl+Click | Open in browser | **COMPLETE** |
 | Right-Click | Copy URL option | NOT STARTED |
-| OSC 8 | Explicit hyperlinks | NOT STARTED |
+| OSC 8 | Explicit hyperlinks | **COMPLETE** |
+
+**Implementation:** `src/core/Application.cpp` OnMouseButton() handles Ctrl+Click, OpenUrl() uses ShellExecute
 
 **Specification:**
 - Detect URLs using regex patterns
@@ -985,7 +989,7 @@ This section tracks features required for running [Claude Code](https://claude.c
 - [X] Auto-wrap mode (DECAWM mode 7)
 
 **Low Priority (Nice to have):**
-- [ ] OSC 8 hyperlinks (clickable URLs in output)
+- [X] OSC 8 hyperlinks (clickable URLs in output)
 - [X] OSC 133 shell integration (command tracking)
 
 ### Notes

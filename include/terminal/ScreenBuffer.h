@@ -27,6 +27,14 @@ struct Hyperlink {
     std::string id;      // Optional ID for link grouping
 };
 
+// Color palette entry (OSC 4)
+struct PaletteColor {
+    uint8_t r = 0;
+    uint8_t g = 0;
+    uint8_t b = 0;
+    bool modified = false;  // True if this entry was set via OSC 4
+};
+
 // Cell attributes (SGR - Select Graphic Rendition)
 struct CellAttributes {
     uint8_t foreground;      // Foreground color (0-255 palette index)
@@ -217,6 +225,13 @@ public:
     const Hyperlink* GetHyperlink(uint16_t id) const;
     uint16_t GetCurrentHyperlinkId() const { return m_currentHyperlinkId; }
 
+    // Palette management (OSC 4)
+    void SetPaletteColor(int index, uint8_t r, uint8_t g, uint8_t b);
+    const PaletteColor& GetPaletteColor(int index) const;
+    bool IsPaletteColorModified(int index) const;
+    void ResetPaletteColor(int index);
+    void ResetAllPaletteColors();
+
 private:
     void NewLine();
     void CarriageReturn();
@@ -267,6 +282,9 @@ private:
     std::unordered_map<uint16_t, Hyperlink> m_hyperlinks;
     uint16_t m_nextHyperlinkId = 1;       // Next ID to assign (0 = no link)
     uint16_t m_currentHyperlinkId = 0;    // Currently active hyperlink (for new cells)
+
+    // Color palette (OSC 4) - 256 colors
+    PaletteColor m_palette[256];
 };
 
 } // namespace TerminalDX12::Terminal
