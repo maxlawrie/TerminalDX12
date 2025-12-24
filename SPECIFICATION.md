@@ -122,8 +122,8 @@ This document specifies all features for TerminalDX12, including current impleme
 |----------|------|-------------|--------|
 | `CSI ? n h` | DECSET | Enable private mode n | **COMPLETE** |
 | `CSI ? n l` | DECRST | Disable private mode n | **COMPLETE** |
-| `CSI n h` | SM | Set ANSI mode n | NOT STARTED |
-| `CSI n l` | RM | Reset ANSI mode n | NOT STARTED |
+| `CSI n h` | SM | Set ANSI mode n | **COMPLETE** |
+| `CSI n l` | RM | Reset ANSI mode n | **COMPLETE** |
 
 **Private Modes (DECSET/DECRST):**
 

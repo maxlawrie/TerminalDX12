@@ -882,6 +882,23 @@ void VTStateMachine::HandleMode() {
                     spdlog::debug("Unknown private mode: {}", mode);
                     break;
             }
+        } else {
+            // ANSI (non-private) modes
+            switch (mode) {
+                case 4:  // IRM - Insert/Replace Mode
+                    m_insertMode = set;
+                    spdlog::debug("IRM: Insert mode {}", set ? "enabled" : "disabled");
+                    break;
+
+                case 20:  // LNM - Line Feed/New Line Mode
+                    m_lineFeedNewLineMode = set;
+                    spdlog::debug("LNM: Line feed/new line mode {}", set ? "enabled" : "disabled");
+                    break;
+
+                default:
+                    spdlog::debug("Unknown ANSI mode: {}", mode);
+                    break;
+            }
         }
     }
 }

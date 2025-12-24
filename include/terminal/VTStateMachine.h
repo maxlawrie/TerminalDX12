@@ -66,6 +66,8 @@ public:
     bool IsKeypadApplicationModeEnabled() const { return m_keypadApplicationMode; }
     bool IsCursorBlinkEnabled() const { return m_cursorBlink; }
     bool IsOriginModeEnabled() const { return m_originMode; }
+    bool IsInsertModeEnabled() const { return m_insertMode; }
+    bool IsLineFeedNewLineModeEnabled() const { return m_lineFeedNewLineMode; }
     CursorStyle GetCursorStyle() const { return m_cursorStyle; }
 
     // Theme color accessors (OSC 10/11)
@@ -165,6 +167,10 @@ private:
     bool m_keypadApplicationMode = false;  // DECKPAM/DECKPNM
     bool m_cursorBlink = true;             // Mode 12 - Cursor blink (default on)
     CursorStyle m_cursorStyle = CursorStyle::BlinkingBlock;  // DECSCUSR cursor style
+
+    // ANSI modes (non-private)
+    bool m_insertMode = false;             // IRM (mode 4) - insert vs replace
+    bool m_lineFeedNewLineMode = false;    // LNM (mode 20) - LF implies CR
 
     // Theme colors (OSC 10/11)
     uint8_t m_themeFgR = 204, m_themeFgG = 204, m_themeFgB = 204;  // Default light gray
