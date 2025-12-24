@@ -51,6 +51,8 @@ tests/
     test_vt_parser.cpp         # VTStateMachine tests (68 tests)
     test_unicode.cpp           # Unicode handling tests (27 tests)
     test_performance.cpp       # Performance benchmarks (20 tests)
+    contract/                  # Contract tests
+      test_conpty_contract.cpp # ConPTY interface contract tests (35+ tests)
   baselines/                   # Visual regression baseline images
   test_terminal.py             # Main Python visual tests
   test_visual_regression.py    # Visual regression tests
@@ -93,7 +95,57 @@ ctest --output-on-failure -C Release
 | test_config.cpp | 23 | Configuration parsing, validation, keybindings |
 | test_unicode.cpp | 31 | CJK, emoji, box drawing, symbols, edge cases |
 
-**Total: 226 C++ unit tests**
+**Total: 230 C++ unit tests**
+
+## Contract Tests
+
+Contract tests verify the ConPTY interface behavior according to Windows API expectations.
+
+### Running Contract Tests
+
+```bash
+# Run contract tests only
+cd build/tests/Release
+./TerminalDX12ContractTests.exe
+
+# Or via CTest
+ctest -R Contract --output-on-failure -C Release
+```
+
+### Contract Test Coverage
+
+| Contract | Tests | Description |
+|----------|-------|-------------|
+| Session Lifecycle | 7 | Start/Stop/Restart behavior |
+| Input Handling | 4 | WriteInput validation |
+| Output Handling | 4 | Output callback contracts |
+| Resize Operations | 5 | Resize behavior and edge cases |
+| Process Exit | 3 | Exit callback and exit codes |
+| Terminal Dimensions | 3 | Dimension validation |
+| Unicode Support | 2 | UTF-8 input/output |
+| Stress/Edge Cases | 3 | Rapid calls, large data, restart |
+
+**Total: 31 contract tests**
+
+### Contract Test Format
+
+Tests follow Given/When/Then BDD format:
+
+```cpp
+/**
+ * CONTRACT: Start() with valid command returns true and sets IsRunning()
+ *
+ * Given: A new ConPtySession instance
+ * When: Start() is called with a valid command
+ * Then: Returns true and IsRunning() returns true
+ */
+TEST_F(ConPtyContractTest, Start_ValidCommand_ReturnsTrue) {
+    EXPECT_FALSE(session->IsRunning());
+    bool result = session->Start(L"cmd.exe", 80, 24);
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(session->IsRunning());
+}
+```
 
 ## Python Integration Tests
 

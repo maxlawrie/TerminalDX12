@@ -54,3 +54,42 @@ target_link_libraries(TerminalDX12Tests PRIVATE
 # Register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(TerminalDX12Tests)
+
+# ============================================================================
+# Contract Tests (require ConPTY - Windows 10 1809+)
+# ============================================================================
+
+# Create ConPTY library for contract testing
+add_library(ConPtyLib STATIC
+    ${CMAKE_SOURCE_DIR}/src/pty/ConPtySession.cpp
+)
+
+target_include_directories(ConPtyLib PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(ConPtyLib PRIVATE
+    spdlog::spdlog
+)
+
+# Contract test sources
+set(CONTRACT_TEST_SOURCES
+    unit/contract/test_conpty_contract.cpp
+)
+
+# Create contract test executable
+add_executable(TerminalDX12ContractTests ${CONTRACT_TEST_SOURCES})
+
+target_include_directories(TerminalDX12ContractTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(TerminalDX12ContractTests PRIVATE
+    ConPtyLib
+    GTest::gtest
+    GTest::gtest_main
+    spdlog::spdlog
+)
+
+# Register contract tests with CTest
+gtest_discover_tests(TerminalDX12ContractTests)
