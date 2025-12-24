@@ -349,6 +349,11 @@ void VTStateMachine::HandleCSI() {
         case 'S': HandleScrollUp(); break;                  // SU
         case 'T': HandleScrollDown(); break;                // SD
         case 'g': HandleTabClear(); break;                  // TBC
+        case 'q':
+            if (m_intermediateChar == ' ') {
+                HandleCursorStyle();                        // DECSCUSR
+            }
+            break;
         default:
             // Unhandled CSI sequence - silently ignore
             break;
@@ -784,11 +789,16 @@ void VTStateMachine::HandleMode() {
                     spdlog::debug("DECAWM: Auto-wrap {}", set ? "enabled" : "disabled");
                     break;
                     
+                case 12:  // Cursor blink
+                    m_cursorBlink = set;
+                    spdlog::debug("Cursor blink {}", set ? "enabled" : "disabled");
+                    break;
+
                 case 25:  // DECTCEM - Cursor visible
                     m_screenBuffer->SetCursorVisible(set);
                     spdlog::debug("DECTCEM: Cursor {}", set ? "visible" : "hidden");
                     break;
-                    
+
                 case 47:    // Alternate screen buffer (simple)
                 case 1047:  // Alternate screen buffer (like 47)
                 case 1049:  // Alternate screen buffer (save cursor, switch, clear)
@@ -964,6 +974,53 @@ void VTStateMachine::HandleTabClear() {
             // Other modes not commonly used, ignore
             break;
     }
+}
+
+void VTStateMachine::HandleCursorStyle() {
+    // CSI n SP q - Set cursor style (DECSCUSR)
+    // 0 or default: Blinking block (default)
+    // 1: Blinking block
+    // 2: Steady block
+    // 3: Blinking underline
+    // 4: Steady underline
+    // 5: Blinking bar
+    // 6: Steady bar
+    int style = GetParam(0, 0);
+
+    switch (style) {
+        case 0:
+        case 1:
+            m_cursorStyle = CursorStyle::BlinkingBlock;
+            m_cursorBlink = true;
+            break;
+        case 2:
+            m_cursorStyle = CursorStyle::SteadyBlock;
+            m_cursorBlink = false;
+            break;
+        case 3:
+            m_cursorStyle = CursorStyle::BlinkingUnderline;
+            m_cursorBlink = true;
+            break;
+        case 4:
+            m_cursorStyle = CursorStyle::SteadyUnderline;
+            m_cursorBlink = false;
+            break;
+        case 5:
+            m_cursorStyle = CursorStyle::BlinkingBar;
+            m_cursorBlink = true;
+            break;
+        case 6:
+            m_cursorStyle = CursorStyle::SteadyBar;
+            m_cursorBlink = false;
+            break;
+        default:
+            // Unknown style, use default
+            m_cursorStyle = CursorStyle::BlinkingBlock;
+            m_cursorBlink = true;
+            break;
+    }
+
+    spdlog::debug("DECSCUSR: Cursor style set to {} (blink={})", style, m_cursorBlink);
 }
 
 void VTStateMachine::SendResponse(const std::string& response) {

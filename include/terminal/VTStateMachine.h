@@ -32,6 +32,17 @@ public:
         m_responseCallback = callback;
     }
 
+    // Cursor style enum
+    enum class CursorStyle {
+        BlinkingBlock = 0,    // Default
+        BlinkingBlock1 = 1,   // Blinking block
+        SteadyBlock = 2,      // Steady block
+        BlinkingUnderline = 3,
+        SteadyUnderline = 4,
+        BlinkingBar = 5,
+        SteadyBar = 6
+    };
+
     // Mouse mode enum
     enum class MouseMode {
         None,           // No mouse reporting
@@ -45,7 +56,9 @@ public:
     bool IsAutoWrapEnabled() const { return m_autoWrap; }
     bool IsBracketedPasteEnabled() const { return m_bracketedPaste; }
     bool IsKeypadApplicationModeEnabled() const { return m_keypadApplicationMode; }
-    
+    bool IsCursorBlinkEnabled() const { return m_cursorBlink; }
+    CursorStyle GetCursorStyle() const { return m_cursorStyle; }
+
     // Mouse mode accessors
     MouseMode GetMouseMode() const { return m_mouseMode; }
     bool IsMouseReportingEnabled() const { return m_mouseMode != MouseMode::None; }
@@ -96,6 +109,7 @@ private:
     void HandleScrollUp();           // CSI n S - Scroll up
     void HandleScrollDown();         // CSI n T - Scroll down
     void HandleTabClear();           // CSI n g - Tab clear (TBC)
+    void HandleCursorStyle();        // CSI n SP q - Set cursor style (DECSCUSR)
 
     // Utility
     int GetParam(size_t index, int defaultValue = 0) const;
@@ -123,6 +137,8 @@ private:
     bool m_autoWrap = true;                // DECAWM (mode 7)
     bool m_bracketedPaste = false;         // Mode 2004
     bool m_keypadApplicationMode = false;  // DECKPAM/DECKPNM
+    bool m_cursorBlink = true;             // Mode 12 - Cursor blink (default on)
+    CursorStyle m_cursorStyle = CursorStyle::BlinkingBlock;  // DECSCUSR cursor style
     
     // Mouse modes
     MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode

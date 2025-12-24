@@ -131,7 +131,7 @@ This document specifies all features for TerminalDX12, including current impleme
 |------|------|-------------|--------|
 | 1 | DECCKM | Application Cursor Keys | **COMPLETE** |
 | 7 | DECAWM | Auto-Wrap Mode | **COMPLETE** |
-| 12 | - | Cursor Blink | NOT STARTED |
+| 12 | - | Cursor Blink | **COMPLETE** |
 | 25 | DECTCEM | Cursor Visible | **COMPLETE** |
 | 47 | - | Alternate Screen Buffer | **COMPLETE** |
 | 1000 | - | Mouse Click Tracking | **COMPLETE** |
@@ -387,11 +387,11 @@ struct Cell {
 | Style | Description | Status |
 |-------|-------------|--------|
 | Block | Solid block cursor | **COMPLETE** |
-| Underline | Thin line under character | NOT STARTED |
-| Bar | Thin vertical line | NOT STARTED |
-| Blinking variants | Blinking versions of each | NOT STARTED |
+| Underline | Thin line under character | **COMPLETE** |
+| Bar | Thin vertical line | **COMPLETE** |
+| Blinking variants | Blinking versions of each | **COMPLETE** |
 
-**Specification:** Should support `CSI n SP q` to set cursor style (n=0-6)
+**Specification:** Supports `CSI n SP q` (DECSCUSR) to set cursor style (n=0-6)
 
 ### 5.4 Cursor Save/Restore
 
