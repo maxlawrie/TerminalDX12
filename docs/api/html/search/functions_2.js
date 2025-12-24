@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['calculatelayout_0',['CalculateLayout',['../class_terminal_d_x12_1_1_u_i_1_1_pane.html#a01f10bb89c885c38186438e5ab792144',1,'TerminalDX12::UI::Pane']]],
+  ['cell_1',['Cell',['../struct_terminal_d_x12_1_1_terminal_1_1_cell.html#ab3274a8f0e044f7ce81e12802043ebb5',1,'TerminalDX12::Terminal::Cell::Cell()'],['../struct_terminal_d_x12_1_1_terminal_1_1_cell.html#ad48d15a3225e2f0fd60147d384615dbf',1,'TerminalDX12::Terminal::Cell::Cell(char32_t c, const CellAttributes &amp;a)']]],
+  ['cellattributes_2',['CellAttributes',['../struct_terminal_d_x12_1_1_terminal_1_1_cell_attributes.html#a1b980cf2bb28cf9c047f7229a8d064c3',1,'TerminalDX12::Terminal::CellAttributes']]],
+  ['clear_3',['Clear',['../class_terminal_d_x12_1_1_rendering_1_1_text_renderer.html#a09b146a335fc105585abfee547f1dd11',1,'TerminalDX12::Rendering::TextRenderer::Clear()'],['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a3934d3266f3f2d5a9d66add289eef9f6',1,'TerminalDX12::Terminal::ScreenBuffer::Clear()']]],
+  ['clearactivity_4',['ClearActivity',['../class_terminal_d_x12_1_1_u_i_1_1_tab.html#a8cfaea90f303b2871c66654b9b9d3630',1,'TerminalDX12::UI::Tab']]],
+  ['clearalltabstops_5',['ClearAllTabStops',['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a13f8619d6fa99e696352aab5113c1b31',1,'TerminalDX12::Terminal::ScreenBuffer']]],
+  ['clearcurrenthyperlink_6',['ClearCurrentHyperlink',['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a5e33d8a8194bc49c1fe407269bdd141b',1,'TerminalDX12::Terminal::ScreenBuffer']]],
+  ['cleardirty_7',['ClearDirty',['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a6001d83f5151c6182939e72ddaca6411',1,'TerminalDX12::Terminal::ScreenBuffer']]],
+  ['clearline_8',['ClearLine',['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a2f628d9c2f800e9a876413f6b1513e50',1,'TerminalDX12::Terminal::ScreenBuffer::ClearLine(int y)'],['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a11d295dd4d5c8a65fb53bc9623738191',1,'TerminalDX12::Terminal::ScreenBuffer::ClearLine(int y, int startX, int endX)']]],
+  ['clearrect_9',['ClearRect',['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#ab96e01908827d6cd18fe863305415325',1,'TerminalDX12::Terminal::ScreenBuffer']]],
+  ['cleartabstop_10',['ClearTabStop',['../class_terminal_d_x12_1_1_terminal_1_1_screen_buffer.html#a0f99035761074db09c27849beb2b5369',1,'TerminalDX12::Terminal::ScreenBuffer']]],
+  ['cleartext_11',['ClearText',['../class_terminal_d_x12_1_1_rendering_1_1_d_x12_renderer.html#ad8a62c08a94cc9571b5f8252f92c3234',1,'TerminalDX12::Rendering::DX12Renderer']]],
+  ['close_12',['Close',['../class_terminal_d_x12_1_1_core_1_1_window.html#abde8976105e7d098ae7d4a628c6fec56',1,'TerminalDX12::Core::Window']]],
+  ['closeactivetab_13',['CloseActiveTab',['../class_terminal_d_x12_1_1_u_i_1_1_tab_manager.html#a16b05bcd46e2b3cad345df5a029c9e45',1,'TerminalDX12::UI::TabManager']]],
+  ['closechild_14',['CloseChild',['../class_terminal_d_x12_1_1_u_i_1_1_pane.html#a111e0a578127cf778dea922b6d7be072',1,'TerminalDX12::UI::Pane']]],
+  ['closetab_15',['CloseTab',['../class_terminal_d_x12_1_1_u_i_1_1_tab_manager.html#a41f8d0cbcb9a9a5e7e128994e9130541',1,'TerminalDX12::UI::TabManager']]],
+  ['color_16',['Color',['../struct_terminal_d_x12_1_1_core_1_1_color.html#a5cf34cabf57463beeb1c91d8fa93c299',1,'TerminalDX12::Core::Color::Color()=default'],['../struct_terminal_d_x12_1_1_core_1_1_color.html#abe46cbf9a5abf2f2cfe1694dc88df886',1,'TerminalDX12::Core::Color::Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255)']]],
+  ['config_17',['Config',['../class_terminal_d_x12_1_1_core_1_1_config.html#ab446953968860f54de1c9cc99defd500',1,'TerminalDX12::Core::Config']]],
+  ['conptysession_18',['ConPtySession',['../class_terminal_d_x12_1_1_pty_1_1_con_pty_session.html#a37f4f0b38d6718a6b147f41fa70047c2',1,'TerminalDX12::Pty::ConPtySession']]],
+  ['create_19',['Create',['../class_terminal_d_x12_1_1_core_1_1_window.html#a2c1eda8cfa391bbcce6451f5089e98d3',1,'TerminalDX12::Core::Window']]],
+  ['createdefaultifmissing_20',['CreateDefaultIfMissing',['../class_terminal_d_x12_1_1_core_1_1_config.html#aa063359fdd708abc53c79716bfbc6336',1,'TerminalDX12::Core::Config']]],
+  ['createtab_21',['CreateTab',['../class_terminal_d_x12_1_1_u_i_1_1_tab_manager.html#acd65c32a38e51ef0f5f6e79abfa35124',1,'TerminalDX12::UI::TabManager']]]
+];
