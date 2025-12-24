@@ -46,25 +46,28 @@ cmd.exe /c "cd /d C:\\Temp\\TerminalDX12Test && python test_terminal.py"
 
 ```
 tests/
-  unit/                    # C++ unit tests (GTest)
-    test_screen_buffer.cpp # ScreenBuffer tests (61 tests)
-    test_vt_parser.cpp     # VTStateMachine tests (68 tests)
-    test_unicode.cpp       # Unicode handling tests (27 tests)
-    test_performance.cpp   # Performance benchmarks (20 tests)
-  test_terminal.py         # Main Python visual tests
-  test_mouse.py            # Mouse interaction tests
-  test_resize.py           # Window resize tests
-  test_e2e.py              # End-to-end workflow tests
-  test_stress.py           # Stress and stability tests
-  test_clipboard.py        # Clipboard copy/paste tests
-  test_keyboard.py         # Keyboard shortcut tests
-  test_colors.py           # ANSI color rendering tests
-  test_attributes.py       # Text attribute tests (bold, underline, inverse)
-  test_unicode.py          # Unicode visual rendering tests
-  conftest.py              # pytest fixtures
-  config.py                # Test configuration
-  helpers.py               # Extracted helper classes
-  requirements.txt         # Python dependencies
+  unit/                        # C++ unit tests (GTest)
+    test_screen_buffer.cpp     # ScreenBuffer tests (61 tests)
+    test_vt_parser.cpp         # VTStateMachine tests (68 tests)
+    test_unicode.cpp           # Unicode handling tests (27 tests)
+    test_performance.cpp       # Performance benchmarks (20 tests)
+  baselines/                   # Visual regression baseline images
+  test_terminal.py             # Main Python visual tests
+  test_visual_regression.py    # Visual regression tests
+  test_mouse.py                # Mouse interaction tests
+  test_resize.py               # Window resize tests
+  test_e2e.py                  # End-to-end workflow tests
+  test_stress.py               # Stress and stability tests
+  test_clipboard.py            # Clipboard copy/paste tests
+  test_keyboard.py             # Keyboard shortcut tests
+  test_colors.py               # ANSI color rendering tests
+  test_attributes.py           # Text attribute tests (bold, underline, inverse)
+  test_unicode.py              # Unicode visual rendering tests
+  conftest.py                  # pytest fixtures
+  config.py                    # Test configuration
+  helpers.py                   # Extracted helper classes
+  visual_regression.py         # Visual regression testing utilities
+  requirements.txt             # Python dependencies
 ```
 
 ## C++ Unit Tests
@@ -175,6 +178,60 @@ def test_my_feature(self):
     assert red_pixels > 100
 ```
 
+## Visual Regression Testing
+
+Visual regression tests compare screenshots against stored baselines to detect unintended rendering changes.
+
+### Running Visual Regression Tests
+
+```bash
+# Compare against baselines
+pytest test_visual_regression.py -v
+
+# Update baselines (when changes are intentional)
+pytest test_visual_regression.py -v --update-baselines
+
+# Adjust threshold (default 0.1%)
+pytest test_visual_regression.py -v --visual-threshold=0.5
+```
+
+### How It Works
+
+1. **First run**: Creates baseline images in `tests/baselines/`
+2. **Subsequent runs**: Compares current screenshots against baselines
+3. **On failure**: Saves diff images to `screenshots/diffs/` showing changes
+4. **Update baselines**: Use `--update-baselines` when visual changes are intentional
+
+### Test Coverage
+
+| Test | Description | Threshold |
+|------|-------------|-----------|
+| `startup_screen` | Terminal startup rendering | 0.1% |
+| `basic_text` | Text character rendering | 0.1% |
+| `ansi_colors` | ANSI color output | 0.1% |
+| `unicode_chars` | Unicode character rendering | 0.1% |
+| `cursor` | Cursor rendering | 1.0% (blink) |
+| `scrollback` | Scrollback buffer | 0.1% |
+| `prompt` | Command prompt | 5.0% (path varies) |
+
+### Baseline Management
+
+```python
+# In tests
+from visual_regression import VisualRegressionTester
+
+tester = VisualRegressionTester()
+
+# List all baselines
+baselines = tester.list_baselines()
+
+# Delete a baseline
+tester.delete_baseline("test_name")
+
+# Clean up old diff images
+tester.cleanup_diffs(max_age_hours=24)
+```
+
 ## Helper Classes
 
 The `helpers.py` module provides reusable components:
@@ -184,6 +241,7 @@ The `helpers.py` module provides reusable components:
 - **OCRVerifier** - OCR-based text verification
 - **WindowHelper** - Window management utilities
 - **TerminalTester** - Main test driver class
+- **VisualRegressionTester** - Visual regression baseline comparison
 
 ## Troubleshooting
 

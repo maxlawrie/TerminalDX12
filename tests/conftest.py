@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from config import TestConfig
 from helpers import ScreenAnalyzer, KeyboardController, OCRVerifier, WindowHelper, TerminalTester
+from visual_regression import VisualRegressionTester, BASELINES_DIR, DIFFS_DIR
 
 __all__ = [
     'terminal_session',
@@ -33,6 +34,8 @@ __all__ = [
     'screen_analyzer',
     'keyboard_controller',
     'ocr_verifier',
+    'visual_regression',
+    'update_baselines',
 ]
 
 
@@ -61,6 +64,19 @@ def pytest_addoption(parser):
         default=None,
         help="Path to terminal executable"
     )
+    parser.addoption(
+        "--update-baselines",
+        action="store_true",
+        default=False,
+        help="Update visual regression baselines instead of comparing"
+    )
+    parser.addoption(
+        "--visual-threshold",
+        action="store",
+        type=float,
+        default=0.1,
+        help="Visual regression threshold percentage (default: 0.1)"
+    )
 
 
 def pytest_configure(config):
@@ -82,6 +98,9 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "ocr: marks tests that require OCR"
+    )
+    config.addinivalue_line(
+        "markers", "visual: marks visual regression tests"
     )
 
     # Override terminal path if provided
@@ -242,3 +261,41 @@ def keyboard_controller(terminal) -> KeyboardController:
 def ocr_verifier() -> OCRVerifier:
     """Session-scoped OCR verifier for text verification."""
     return OCRVerifier()
+
+
+# ============================================================================
+# Visual Regression Fixtures
+# ============================================================================
+
+@pytest.fixture(scope="session")
+def visual_regression(request) -> VisualRegressionTester:
+    """
+    Session-scoped visual regression tester.
+
+    Provides methods to compare screenshots against baselines.
+
+    Usage:
+        def test_rendering(terminal, visual_regression):
+            screenshot, _ = terminal.wait_and_screenshot("test")
+            result = visual_regression.compare("test_rendering", screenshot)
+            assert result, result.message
+    """
+    threshold = request.config.getoption("--visual-threshold")
+    return VisualRegressionTester(threshold=threshold)
+
+
+@pytest.fixture
+def update_baselines(request) -> bool:
+    """
+    Fixture indicating whether to update baselines.
+
+    Usage:
+        def test_visual(terminal, visual_regression, update_baselines):
+            screenshot, _ = terminal.wait_and_screenshot("test")
+            if update_baselines:
+                visual_regression.update_baseline("test_visual", screenshot)
+            else:
+                result = visual_regression.compare("test_visual", screenshot)
+                assert result, result.message
+    """
+    return request.config.getoption("--update-baselines")

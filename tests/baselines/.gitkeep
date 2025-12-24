@@ -1,0 +1,2 @@
+# Visual regression baseline images are stored here.
+# Run `pytest test_visual_regression.py --update-baselines` to generate baselines.
