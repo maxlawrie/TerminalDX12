@@ -70,9 +70,9 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 ## Known Issues
 
-1. **First row missing after resize** - *(Fix applied)* When resizing while a TUI app is running, the first row may disappear. Fixed by resetting scroll region after alternate buffer resize.
+1. **First row missing after resize** - *(Fixed)* When resizing while a TUI app is running, the first row may disappear. Fixed by resetting scroll region after alternate buffer resize.
 
-2. **Terminal doesn't close after session ends** - Window remains open with cursor after shell exits.
+2. **Terminal doesn't close after session ends** - *(Fixed)* Window now automatically closes when all shell processes exit. Implemented process exit callbacks from ConPTY through TabManager to Application.
 
 3. **Intermittent red ">" character** - Occasionally appears due to escape sequence parsing edge case.
 

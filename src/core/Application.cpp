@@ -138,6 +138,26 @@ bool Application::Initialize(const std::wstring& shell) {
     // Create tab manager
     m_tabManager = std::make_unique<UI::TabManager>();
 
+    // Set process exit callback - close window when all processes have exited
+    m_tabManager->SetProcessExitCallback([this](int tabId, int exitCode) {
+        spdlog::info("Process in tab {} exited with code {}", tabId, exitCode);
+
+        // Check if any tabs still have running processes
+        bool anyRunning = false;
+        for (const auto& tab : m_tabManager->GetTabs()) {
+            if (tab && tab->IsRunning()) {
+                anyRunning = true;
+                break;
+            }
+        }
+
+        // If no tabs have running processes, close the window
+        if (!anyRunning) {
+            spdlog::info("All shell processes have exited, closing window");
+            m_running = false;
+        }
+    });
+
     // Calculate terminal size based on window dimensions
     const int charWidth = 10;
     const int lineHeight = 25;

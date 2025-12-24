@@ -17,6 +17,14 @@ Tab* TabManager::CreateTab(const std::wstring& shell, int cols, int rows, int sc
 
     auto tab = std::make_unique<Tab>(tabId, cols, rows, scrollbackLines);
 
+    // Set up process exit callback before starting
+    tab->SetProcessExitCallback([this, tabId](int exitCode) {
+        spdlog::info("TabManager: Tab {} process exited with code {}", tabId, exitCode);
+        if (m_processExitCallback) {
+            m_processExitCallback(tabId, exitCode);
+        }
+    });
+
     if (!tab->Start(shell)) {
         spdlog::error("TabManager: Failed to create tab {}", tabId);
         return nullptr;

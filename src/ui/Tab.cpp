@@ -57,6 +57,14 @@ bool Tab::Start(const std::wstring& shell) {
         }
     });
 
+    // Wire up process exit callback
+    m_terminal->SetProcessExitCallback([this](int exitCode) {
+        spdlog::info("Tab {}: Process exited with code {}", m_id, exitCode);
+        if (m_processExitCallback) {
+            m_processExitCallback(exitCode);
+        }
+    });
+
     // Start the shell
     if (!m_terminal->Start(shell, m_cols, m_rows)) {
         spdlog::error("Tab {}: Failed to start shell: {}", m_id,
@@ -91,6 +99,10 @@ void Tab::WriteInput(const char* data, size_t size) {
 
 void Tab::SetOutputCallback(std::function<void(const char*, size_t)> callback) {
     m_outputCallback = callback;
+}
+
+void Tab::SetProcessExitCallback(std::function<void(int)> callback) {
+    m_processExitCallback = callback;
 }
 
 void Tab::Resize(int cols, int rows) {

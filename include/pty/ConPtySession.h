@@ -18,6 +18,9 @@ public:
     // Callback for when data is received from the terminal
     using OutputCallback = std::function<void(const char* data, size_t size)>;
 
+    // Callback for when the shell process exits
+    using ProcessExitCallback = std::function<void(int exitCode)>;
+
     // Initialize and start the pseudoconsole session
     bool Start(const std::wstring& commandline, int cols, int rows);
 
@@ -33,6 +36,9 @@ public:
 
     // Set callback for terminal output
     void SetOutputCallback(OutputCallback callback);
+
+    // Set callback for process exit
+    void SetProcessExitCallback(ProcessExitCallback callback);
 
     // Check if session is running
     bool IsRunning() const { return m_running; }
@@ -60,6 +66,9 @@ private:
 
     // Output callback
     OutputCallback m_outputCallback;
+
+    // Process exit callback
+    ProcessExitCallback m_processExitCallback;
 
     // Terminal size
     int m_cols;

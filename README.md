@@ -184,10 +184,6 @@ See [SPECIFICATION.md](SPECIFICATION.md) for a complete list of supported VT esc
 
 ## Known Issues
 
-- **First row missing after resize** - When resizing the terminal window while a TUI application (like Claude Code) is running, the first row of content may disappear. The live resize works smoothly, but the app's header line gets lost after resize completes. This appears to be related to how resize notifications are handled between the terminal and the application.
-
-- **Terminal doesn't close after session ends** - When the shell process exits, the terminal window remains open with a green cursor instead of closing automatically.
-
 - **Intermittent red ">" character** - A red ">" character occasionally appears unexpectedly in the terminal output. This appears to be related to escape sequence parsing.
 
 ## License

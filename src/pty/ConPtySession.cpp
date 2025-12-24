@@ -248,6 +248,10 @@ void ConPtySession::SetOutputCallback(OutputCallback callback) {
     m_outputCallback = callback;
 }
 
+void ConPtySession::SetProcessExitCallback(ProcessExitCallback callback) {
+    m_processExitCallback = callback;
+}
+
 void ConPtySession::ReadOutputThread() {
     spdlog::debug("Output read thread started");
 
@@ -281,15 +285,21 @@ void ConPtySession::ReadOutputThread() {
 void ConPtySession::ProcessMonitorThread() {
     spdlog::debug("Process monitor thread started");
 
+    DWORD exitCode = 0;
     if (m_hProcess != INVALID_HANDLE_VALUE) {
         WaitForSingleObject(m_hProcess, INFINITE);
 
-        DWORD exitCode = 0;
         GetExitCodeProcess(m_hProcess, &exitCode);
         spdlog::info("Process exited with code: {}", exitCode);
     }
 
     m_running = false;
+
+    // Notify callback that process has exited
+    if (m_processExitCallback) {
+        m_processExitCallback(static_cast<int>(exitCode));
+    }
+
     spdlog::debug("Process monitor thread stopped");
 }
 

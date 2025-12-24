@@ -50,6 +50,9 @@ public:
     // Set output callback (called when shell produces output)
     void SetOutputCallback(std::function<void(const char*, size_t)> callback);
 
+    // Set process exit callback (called when shell process exits)
+    void SetProcessExitCallback(std::function<void(int exitCode)> callback);
+
     // Resize the terminal
     void Resize(int cols, int rows);
     
@@ -72,6 +75,7 @@ private:
     std::unique_ptr<Pty::ConPtySession> m_terminal;
 
     std::function<void(const char*, size_t)> m_outputCallback;
+    std::function<void(int)> m_processExitCallback;
 };
 
 } // namespace UI

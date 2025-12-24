@@ -60,6 +60,11 @@ public:
         m_activeTabChangedCallback = callback;
     }
 
+    // Set callback for when a tab's process exits (passes tab ID and exit code)
+    void SetProcessExitCallback(std::function<void(int tabId, int exitCode)> callback) {
+        m_processExitCallback = callback;
+    }
+
 private:
     std::vector<std::unique_ptr<Tab>> m_tabs;
     int m_activeTabIndex = -1;
@@ -67,6 +72,7 @@ private:
 
     std::function<void()> m_tabChangedCallback;
     std::function<void(Tab*)> m_activeTabChangedCallback;
+    std::function<void(int, int)> m_processExitCallback;
 };
 
 } // namespace TerminalDX12::UI
