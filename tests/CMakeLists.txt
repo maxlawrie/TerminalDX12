@@ -93,6 +93,7 @@ target_link_libraries(UILib PRIVATE
 set(CONTRACT_TEST_SOURCES
     unit/contract/test_conpty_contract.cpp
     unit/contract/test_tab_manager.cpp
+    unit/contract/test_tab.cpp
 )
 
 # Create contract test executable
