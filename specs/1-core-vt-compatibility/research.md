@@ -1,7 +1,7 @@
 # Technical Research: Core VT Compatibility
 
 **Feature**: Core VT Compatibility  
-**Date**: 2024-12-21
+**Date**: 2025-12-21
 
 ## Decision 1: True Color Storage
 

@@ -1,6 +1,6 @@
 # Implementation Plan: Core VT Compatibility
 
-**Branch**: `1-core-vt-compatibility` | **Date**: 2024-12-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `1-core-vt-compatibility` | **Date**: 2025-12-21 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 
