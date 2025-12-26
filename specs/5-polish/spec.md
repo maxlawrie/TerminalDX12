@@ -1,9 +1,19 @@
 # Feature Specification: Polish & Refinement
 
-**Feature Branch**: `5-polish`  
-**Created**: 2024-12-21  
-**Status**: Partial  
-**Priority**: Low  
+**Feature Branch**: `5-polish`
+**Created**: 2024-12-21
+**Status**: Partial
+**Priority**: Low
+
+## Implementation Status
+
+| User Story | Status | Notes |
+|------------|--------|-------|
+| US1 - Settings UI | Not Started | Planned for Phase 5 |
+| US2 - Programming ligatures | Not Started | Requires HarfBuzz integration |
+| US3 - Shell integration | **Complete** | OSC 133 implemented in VTStateMachine.cpp |
+| US4 - Multiple windows | Not Started | Architecture refactor required |
+| US5 - Window transparency | Not Started | Quick win, start here |
 
 ## Overview
 
@@ -45,11 +55,13 @@ A developer uses a font with ligatures (Fira Code, JetBrains Mono) and sees comb
 
 ---
 
-### User Story 3 - Shell integration (Priority: P2)
+### User Story 3 - Shell integration (Priority: P2) - COMPLETE
 
 The terminal tracks command execution using OSC 133 markers, enabling features like command duration and click-to-rerun.
 
 **Why this priority**: Modern shell integration improves workflow efficiency.
+
+**Status**: Complete. OSC 133 parsing implemented in VTStateMachine.cpp.
 
 **Independent Test**: Run a command, verify prompt is marked, command duration shown.
 
@@ -116,7 +128,7 @@ A user enables window transparency to see content behind the terminal.
 - **FR-006**: Terminal MUST support enabling/disabling ligatures in config
 - **FR-007**: Terminal MUST gracefully handle fonts without ligature support
 
-#### Shell Integration
+#### Shell Integration (COMPLETE)
 - **FR-008**: Terminal MUST parse OSC 133 shell integration markers
 - **FR-009**: Terminal MUST track command boundaries (start, end, exit code)
 - **FR-010**: Terminal MUST display command duration when available

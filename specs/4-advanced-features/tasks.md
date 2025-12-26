@@ -2,6 +2,7 @@
 
 **Input**: Design documents from `/specs/4-advanced-features/`
 **Prerequisites**: plan.md, spec.md
+**Task ID Scope**: `4-Txxx` (IDs are scoped to this phase; use prefix when cross-referencing)
 
 ## Format: `[ID] [P?] [Story] Description`
 

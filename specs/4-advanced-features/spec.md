@@ -1,9 +1,18 @@
 # Feature Specification: Advanced Features
 
-**Feature Branch**: `4-advanced-features`  
-**Created**: 2024-12-21  
-**Status**: Partial  
-**Priority**: Medium  
+**Feature Branch**: `4-advanced-features`
+**Created**: 2024-12-21
+**Status**: Partial
+**Priority**: Medium
+
+## Implementation Status
+
+| User Story | Status | Notes |
+|------------|--------|-------|
+| US1 - Multiple tabs | Complete | Core functionality done; persistence/reordering in progress |
+| US2 - Search | Partial | Basic search complete; regex and scrollback in progress |
+| US3 - Clickable URLs | Complete | Detection, hover, Ctrl+click all working |
+| US4 - Split panes | **Deferred** | Out of scope for current phase; future enhancement |
 
 ## Overview
 
@@ -62,11 +71,13 @@ A user Ctrl+clicks a URL in terminal output to open it in their default browser.
 
 ---
 
-### User Story 4 - Split panes (Priority: P3)
+### User Story 4 - Split panes (Priority: P3) - DEFERRED
 
 A user splits the terminal to view multiple sessions side-by-side.
 
 **Why this priority**: Power user feature for complex workflows.
+
+**Status**: Deferred to future phase. Tabs and multi-window provide similar functionality.
 
 **Independent Test**: Press Ctrl+Shift+D to split, verify two panes with independent shells.
 
@@ -110,7 +121,7 @@ A user splits the terminal to view multiple sessions side-by-side.
 - **FR-014**: Terminal MUST open URLs with Ctrl+Click
 - **FR-015**: Terminal MUST support OSC 8 hyperlinks
 
-#### Split Panes
+#### Split Panes (DEFERRED)
 - **FR-016**: Terminal MUST support vertical split (Ctrl+Shift+D)
 - **FR-017**: Terminal MUST support horizontal split (Ctrl+Shift+E)
 - **FR-018**: Terminal MUST support pane navigation (Alt+Arrow)

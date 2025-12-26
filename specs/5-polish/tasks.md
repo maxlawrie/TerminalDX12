@@ -2,6 +2,7 @@
 
 **Input**: Design documents from `/specs/5-polish/`
 **Prerequisites**: plan.md, spec.md
+**Task ID Scope**: `5-Txxx` (IDs are scoped to this phase; use prefix when cross-referencing)
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -28,6 +29,24 @@
 - [ ] T008 [P] [US5] Add opacity slider to future settings dialog (placeholder)
 
 **Checkpoint**: Terminal window is semi-transparent based on config
+
+---
+
+## Phase 1b: Window Modes (Priority: P3)
+
+**Goal**: Support always-on-top and borderless/fullscreen modes
+
+**Independent Test**: Toggle always-on-top, verify window stays above others
+
+### Implementation for Window Modes
+
+- [ ] T071 [P] [US5] Add Window::SetAlwaysOnTop(bool) using SetWindowPos with HWND_TOPMOST
+- [ ] T072 [P] [US5] Add Window::SetBorderless(bool) toggling WS_OVERLAPPEDWINDOW style
+- [ ] T073 [US5] Add Window::ToggleFullscreen() using monitor dimensions
+- [ ] T074 [US5] Add config fields: window.alwaysOnTop, window.borderless
+- [ ] T075 [US5] Add window mode options to Terminal tab in settings dialog (after T028)
+
+**Checkpoint**: Window modes configurable and functional
 
 ---
 
@@ -206,11 +225,12 @@ T037-T041 (HarfBuzz wrapper) then T042-T046 (Integration)
 | Phase | Tasks | Priority | Complexity |
 |-------|-------|----------|------------|
 | US5: Transparency | 8 | P3 | Low |
+| US5: Window Modes | 5 | P3 | Low |
 | US1: Settings Dialog | 25 | P1 | Medium |
 | US2: Ligatures | 16 | P2 | High |
 | US4: Multi-window | 15 | P3 | High |
 | Polish | 6 | - | Low |
-| **Total** | **70** | | |
+| **Total** | **75** | | |
 
 ---
 
