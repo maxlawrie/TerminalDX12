@@ -13,7 +13,7 @@ Implement complete VT100/ANSI escape sequence support for Claude Code, vim, and 
 
 ## Technical Context
 
-**Language/Version**: C++17 (Visual Studio 2022)  
+**Language/Version**: C++20 (Visual Studio 2022)  
 **Primary Dependencies**: FreeType, spdlog, DirectX 12  
 **Storage**: In-memory screen buffer with scrollback  
 **Testing**: Google Test (gtest), Python integration tests  
