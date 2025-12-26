@@ -72,9 +72,27 @@ target_link_libraries(ConPtyLib PRIVATE
     spdlog::spdlog
 )
 
+# Create UI library for contract testing (requires ConPTY)
+add_library(UILib STATIC
+    ${CMAKE_SOURCE_DIR}/src/ui/TabManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/Tab.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/Pane.cpp
+)
+
+target_include_directories(UILib PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(UILib PRIVATE
+    ConPtyLib
+    TerminalCore
+    spdlog::spdlog
+)
+
 # Contract test sources
 set(CONTRACT_TEST_SOURCES
     unit/contract/test_conpty_contract.cpp
+    unit/contract/test_tab_manager.cpp
 )
 
 # Create contract test executable
@@ -85,7 +103,9 @@ target_include_directories(TerminalDX12ContractTests PRIVATE
 )
 
 target_link_libraries(TerminalDX12ContractTests PRIVATE
+    UILib
     ConPtyLib
+    TerminalCore
     GTest::gtest
     GTest::gtest_main
     spdlog::spdlog

@@ -553,7 +553,7 @@ TEST_F(ConPtyContractTest, WriteInput_UTF8Data_Accepted) {
     std::this_thread::sleep_for(500ms);
 
     // UTF-8 encoded Unicode text
-    std::string utf8Text = u8"echo 你好世界\r\n";
+    std::string utf8Text = "echo \xE4\xBD\xA0\xE5\xA5\xBD\xE4\xB8\x96\xE7\x95\x8C\r\n";
     bool result = session->WriteInput(utf8Text);
 
     EXPECT_TRUE(result);
