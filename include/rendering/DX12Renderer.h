@@ -93,6 +93,12 @@ private:
     int m_height;
     bool m_vsyncEnabled;
 
+    // Resize state - defer resize if in a frame
+    bool m_inFrame = false;
+    bool m_pendingResize = false;
+    int m_pendingWidth = 0;
+    int m_pendingHeight = 0;
+
     // Text rendering
     std::unique_ptr<GlyphAtlas> m_glyphAtlas;
     std::unique_ptr<TextRenderer> m_textRenderer;

@@ -33,6 +33,7 @@ ScreenBuffer::~ScreenBuffer() {
 }
 
 void ScreenBuffer::Resize(int cols, int rows) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (cols == m_cols && rows == m_rows) {
         return;
     }
@@ -185,6 +186,7 @@ void ScreenBuffer::WriteChar(char32_t ch) {
 }
 
 void ScreenBuffer::WriteChar(char32_t ch, const CellAttributes& attr) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     // Handle control characters
     switch (ch) {
         case U'\n':
@@ -248,6 +250,7 @@ void ScreenBuffer::WriteString(const std::u32string& str) {
 }
 
 void ScreenBuffer::ScrollUp(int lines) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (lines <= 0) return;
 
     lines = std::min(lines, m_rows);
@@ -305,6 +308,7 @@ void ScreenBuffer::ScrollUp(int lines) {
 }
 
 void ScreenBuffer::ScrollDown(int lines) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (lines <= 0) return;
 
     lines = std::min(lines, m_rows);
@@ -333,6 +337,7 @@ void ScreenBuffer::SetScrollOffset(int offset) {
 }
 
 void ScreenBuffer::Clear() {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     spdlog::info("ScreenBuffer::Clear() called, altBuffer={}, rows={}", m_useAltBuffer ? "yes" : "no", m_rows);
     std::fill(m_buffer.begin(), m_buffer.end(), Cell());
     std::fill(m_lineWrapped.begin(), m_lineWrapped.end(), false);
@@ -389,6 +394,7 @@ Cell& ScreenBuffer::GetCellMutable(int x, int y) {
 }
 
 const Cell& ScreenBuffer::GetCellWithScrollback(int x, int y) const {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     static Cell emptyCell;
 
     if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
@@ -418,6 +424,7 @@ const Cell& ScreenBuffer::GetCellWithScrollback(int x, int y) const {
 
 
 void ScreenBuffer::UseAlternativeBuffer(bool use) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     if (use == m_useAltBuffer) {
         return;

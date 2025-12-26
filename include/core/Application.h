@@ -166,6 +166,11 @@ private:
     bool m_minimized;
     std::wstring m_shellCommand;
 
+    // Pending resize - defer to start of next frame
+    bool m_pendingResize = false;
+    int m_pendingWidth = 0;
+    int m_pendingHeight = 0;
+
     // Selection state
     CellPos m_selectionStart;
     CellPos m_selectionEnd;

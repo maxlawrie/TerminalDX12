@@ -318,6 +318,40 @@ void Application::Render() {
         return;
     }
 
+    // Apply any pending resize BEFORE starting the frame
+    // This ensures both renderer and buffers are resized together
+    if (m_pendingResize) {
+        m_pendingResize = false;
+        int width = m_pendingWidth;
+        int height = m_pendingHeight;
+
+        spdlog::info("Applying deferred resize: {}x{}", width, height);
+
+        // Resize the renderer first
+        m_renderer->Resize(width, height);
+
+        // Calculate new terminal dimensions
+        const int charWidth = 10;
+        const int lineHeight = 25;
+        const int startX = 10;
+        const int startY = GetTerminalStartY();
+        const int padding = 10;
+
+        int availableWidth = width - startX - padding;
+        int availableHeight = height - startY - padding;
+        int newCols = std::max(20, availableWidth / charWidth);
+        int newRows = std::max(5, availableHeight / lineHeight);
+
+        // Resize all tabs
+        if (m_tabManager) {
+            for (const auto& tab : m_tabManager->GetTabs()) {
+                if (tab) {
+                    tab->Resize(newCols, newRows);
+                }
+            }
+        }
+    }
+
     static int frameCount = 0;
     if (frameCount < 5) {
         spdlog::info("Render() called - frame {}", frameCount);
@@ -716,49 +750,13 @@ void Application::OnWindowResize(int width, int height) {
     m_minimized = (width == 0 || height == 0);
 
     if (!m_minimized && m_renderer) {
-        // Resize the renderer to match window size
-        m_renderer->Resize(width, height);
+        // Defer resize to the start of next frame to avoid mid-frame resource conflicts
+        // This prevents crashes when maximizing while a TUI app is running
+        m_pendingResize = true;
+        m_pendingWidth = width;
+        m_pendingHeight = height;
 
-        // Calculate new terminal dimensions based on window size
-        const int charWidth = 10;
-        const int lineHeight = 25;
-        const int startX = 10;
-        const int startY = GetTerminalStartY();  // Use centralized calculation
-        const int padding = 10;  // Right/bottom padding
-
-        // Calculate available space for terminal
-        int availableWidth = width - startX - padding;
-        int availableHeight = height - startY - padding;
-
-        // Calculate new cols and rows
-        int newCols = std::max(20, availableWidth / charWidth);
-        int newRows = std::max(5, availableHeight / lineHeight);
-
-
-        spdlog::info("OnWindowResize: window={}x{}, startY={}, availableHeight={}, newRows={}",
-                     width, height, startY, availableHeight, newRows);
-
-        // Resize all tabs to new dimensions
-        if (m_tabManager) {
-            for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) {
-
-                    // Check if we're in live resize mode
-                    bool isLiveResize = m_window && m_window->IsResizing();
-                    
-                    if (isLiveResize) {
-                        // During live resize: only resize screen buffer for visual feedback
-                        // Skip ConPTY resize to prevent scroll-to-cursor behavior
-                        tab->ResizeScreenBuffer(newCols, newRows);
-                    } else {
-                        // Final resize: resize both screen buffer and ConPTY
-                        tab->Resize(newCols, newRows);
-                    }
-
-                }
-            }
-            spdlog::debug("Terminal resized to {}x{}", newCols, newRows);
-        }
+        spdlog::info("OnWindowResize: queued deferred resize {}x{}", width, height);
     }
 }
 

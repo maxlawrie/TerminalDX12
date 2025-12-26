@@ -87,6 +87,11 @@ bool DX12Renderer::Initialize(Core::Window* window) {
 }
 
 void DX12Renderer::Shutdown() {
+    if (!m_swapChain) {
+        spdlog::error("DX12Renderer::Resize - no swap chain");
+        return;
+    }
+
     // Wait for GPU to finish
     WaitForGPU();
 
@@ -284,6 +289,7 @@ bool DX12Renderer::CreateFence() {
 }
 
 void DX12Renderer::BeginFrame() {
+    m_inFrame = true;
     auto& frame = GetCurrentFrameResource();
 
     // Wait if GPU is still working on this frame
@@ -369,15 +375,48 @@ void DX12Renderer::Present() {
 
     // Signal fence
     MoveToNextFrame();
+
+    // Clear in-frame flag
+    m_inFrame = false;
+
+    // Apply any pending resize now that we're out of the frame
+    if (m_pendingResize) {
+        m_pendingResize = false;
+        spdlog::info("DX12Renderer::Present - applying deferred resize {}x{}", m_pendingWidth, m_pendingHeight);
+        Resize(m_pendingWidth, m_pendingHeight);
+    }
 }
 
 void DX12Renderer::Resize(int width, int height) {
+    spdlog::info("DX12Renderer::Resize START {}x{}, inFrame={}", width, height, m_inFrame);
+    // Validate dimensions
+    if (width <= 0 || height <= 0) {
+        spdlog::warn("DX12Renderer::Resize invalid size {}x{}", width, height);
+        return;
+    }
     if (width == m_width && height == m_height) {
         return;
     }
 
-    // Wait for GPU to finish
-    WaitForGPU();
+    // If we're in a frame, defer the resize until EndFrame
+    if (m_inFrame) {
+        spdlog::info("DX12Renderer::Resize - deferring (in frame)");
+        m_pendingResize = true;
+        m_pendingWidth = width;
+        m_pendingHeight = height;
+        return;
+    }
+
+    if (!m_swapChain) {
+        spdlog::error("DX12Renderer::Resize - no swap chain");
+        return;
+    }
+
+    // Wait for ALL frames to complete before resizing (triple buffering)
+    // Each WaitForGPU() signals and waits for one fence, we need to drain all 3 frames
+    for (UINT i = 0; i < FRAME_COUNT; ++i) {
+        WaitForGPU();
+    }
 
     // Release render targets
     for (auto& frame : m_frameResources) {
@@ -424,6 +463,7 @@ void DX12Renderer::Resize(int width, int height) {
 }
 
 void DX12Renderer::WaitForGPU() {
+    if (!m_commandQueue || !m_fence || !m_fenceEvent) return;
     // Signal fence
     m_commandQueue->Signal(m_fence.Get(), m_fenceValue);
 

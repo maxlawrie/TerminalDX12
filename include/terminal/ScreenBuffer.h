@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <mutex>
 
 namespace TerminalDX12::Terminal {
 
@@ -285,6 +286,9 @@ private:
 
     // Color palette (OSC 4) - 256 colors
     PaletteColor m_palette[256];
+
+    // Thread safety for buffer access
+    mutable std::recursive_mutex m_mutex;
 };
 
 } // namespace TerminalDX12::Terminal
