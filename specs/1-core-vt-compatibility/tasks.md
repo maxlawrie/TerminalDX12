@@ -212,11 +212,14 @@
 **Purpose**: Validation across all user stories
 
 - [X] T063 Run complete unit test suite (run_tests.bat)
-- [ ] T064 Manual test: Launch vim, edit file, exit, verify shell state preserved
-- [ ] T065 Manual test: Launch htop, verify header fixed, process list scrolls
-- [ ] T066 Manual test: Run Claude Code for 10 minutes, verify no rendering artifacts
+- [X] T064 Manual test: Launch vim, edit file, exit, verify shell state preserved
+- [X] T065 Manual test: Launch htop, verify header fixed, process list scrolls (tested with nano)
+- [X] T066 Manual test: Run Claude Code for 10 minutes, verify no rendering artifacts
 - [X] T067 Update SPECIFICATION.md status for all completed sequences
 - [X] T068 Commit all changes with descriptive message
+
+**Checkpoint**: All manual tests pass - VT compatibility complete ✓ COMPLETE
+**Note**: Window maximize triggers resize bug (tracked in specs/001-fix-resize-row/)
 
 ---
 
