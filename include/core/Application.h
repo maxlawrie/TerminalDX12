@@ -168,6 +168,7 @@ private:
 
     // Pending resize - defer to start of next frame
     bool m_pendingResize = false;
+    bool m_pendingConPTYResize = false;  // Resize ConPTY after DX12 resize completes
     int m_pendingWidth = 0;
     int m_pendingHeight = 0;
 

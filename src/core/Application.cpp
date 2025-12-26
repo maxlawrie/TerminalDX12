@@ -319,34 +319,42 @@ void Application::Render() {
     }
 
     // Apply any pending resize BEFORE starting the frame
-    // This ensures both renderer and buffers are resized together
     if (m_pendingResize) {
         m_pendingResize = false;
-        int width = m_pendingWidth;
-        int height = m_pendingHeight;
 
-        spdlog::info("Applying deferred resize: {}x{}", width, height);
+        spdlog::info("Applying deferred DX12 resize: {}x{}", m_pendingWidth, m_pendingHeight);
 
-        // Resize the renderer first
-        m_renderer->Resize(width, height);
+        // Resize renderer only, skip buffer resize for this frame
+        m_renderer->Resize(m_pendingWidth, m_pendingHeight);
 
-        // Calculate new terminal dimensions
+        // Queue ConPTY resize for next frame
+        m_pendingConPTYResize = true;
+
+        // Skip rest of frame to let DX12 stabilize
+        return;
+    }
+
+    // Resize ConPTY after DX12 has stabilized (one frame later)
+    if (m_pendingConPTYResize) {
+        m_pendingConPTYResize = false;
+
         const int charWidth = 10;
         const int lineHeight = 25;
         const int startX = 10;
         const int startY = GetTerminalStartY();
         const int padding = 10;
 
-        int availableWidth = width - startX - padding;
-        int availableHeight = height - startY - padding;
+        int availableWidth = m_pendingWidth - startX - padding;
+        int availableHeight = m_pendingHeight - startY - padding;
         int newCols = std::max(20, availableWidth / charWidth);
         int newRows = std::max(5, availableHeight / lineHeight);
 
-        // Resize all tabs
+        spdlog::info("Applying deferred ConPTY resize: {}x{}", newCols, newRows);
+
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
                 if (tab) {
-                    tab->Resize(newCols, newRows);
+                    tab->ResizeConPTY(newCols, newRows);
                 }
             }
         }
@@ -750,13 +758,33 @@ void Application::OnWindowResize(int width, int height) {
     m_minimized = (width == 0 || height == 0);
 
     if (!m_minimized && m_renderer) {
-        // Defer resize to the start of next frame to avoid mid-frame resource conflicts
-        // This prevents crashes when maximizing while a TUI app is running
+        // Defer DX12 renderer resize to next frame start
         m_pendingResize = true;
         m_pendingWidth = width;
         m_pendingHeight = height;
 
         spdlog::info("OnWindowResize: queued deferred resize {}x{}", width, height);
+
+        // Resize terminal buffers immediately (protected by mutex)
+        const int charWidth = 10;
+        const int lineHeight = 25;
+        const int startX = 10;
+        const int startY = GetTerminalStartY();
+        const int padding = 10;
+
+        int availableWidth = width - startX - padding;
+        int availableHeight = height - startY - padding;
+        int newCols = std::max(20, availableWidth / charWidth);
+        int newRows = std::max(5, availableHeight / lineHeight);
+
+        if (m_tabManager) {
+            for (const auto& tab : m_tabManager->GetTabs()) {
+                if (tab) {
+                    // Only resize screen buffer, not ConPTY (to avoid TUI app issues)
+                    tab->ResizeScreenBuffer(newCols, newRows);
+                }
+            }
+        }
     }
 }
 
