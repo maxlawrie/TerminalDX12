@@ -16,9 +16,13 @@
 
 ## Bugs
 
-| Issue | Description | Priority |
+No open bugs.
+
+### Fixed
+
+| Issue | Description | Fixed In |
 |-------|-------------|----------|
-| [#2](https://github.com/maxlawrie/TerminalDX12/issues/2) | Alternate buffer resize does not preserve content | - |
+| [#2](https://github.com/maxlawrie/TerminalDX12/issues/2) | Window maximize crash (race condition in ScreenBuffer) | a4c3a08, 1d845b8 |
 
 ---
 
