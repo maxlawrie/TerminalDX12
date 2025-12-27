@@ -263,8 +263,8 @@ Test each key and observe behavior:
 
 ## Test 20: Split Panes
 **Steps:**
-1. Press `Alt+Shift+Plus` (or `Alt+Shift+=`) for vertical split
-2. Press `Alt+Shift+Minus` for horizontal split
+1. Press `Ctrl+Shift+D` for vertical split (side-by-side)
+2. Press `Ctrl+Shift+E` for horizontal split (top/bottom)
 3. Press `Alt+Arrow` keys to navigate between panes
 4. Click on a pane to focus it
 5. Press `Ctrl+Shift+W` to close current pane
@@ -281,7 +281,7 @@ Test each key and observe behavior:
 ## Test 21: In-Terminal Search
 **Steps:**
 1. Generate some output (e.g., `Get-ChildItem -Recurse`)
-2. Press `Ctrl+F` to open search
+2. Press `Ctrl+Shift+F` to open search
 3. Type a search term
 4. Press `Enter` or `F3` to find next match
 5. Press `Shift+F3` to find previous match
@@ -316,8 +316,8 @@ Test each key and observe behavior:
 - [ ] Window resize
 - [ ] Long sessions are stable
 - [ ] Tab management (Ctrl+T, Ctrl+W)
-- [ ] Split panes (Alt+Shift+Plus/Minus)
-- [ ] In-terminal search (Ctrl+F)
+- [ ] Split panes (Ctrl+Shift+D/E)
+- [ ] In-terminal search (Ctrl+Shift+F)
 
 **Performance:**
 - [ ] Renders quickly
