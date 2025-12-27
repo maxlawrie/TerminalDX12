@@ -59,6 +59,7 @@ Full Unicode support is non-negotiable:
 - SPECIFICATION.md updated if adding new VT sequences
 
 ### Bug Fixes
+- Before investigating, check if a similar bug or issue was already identified (even if closed)
 - Unit tests must pass before manual testing
 - **Manual testing is required** before closing any bug issue
 - Reproduce the original bug scenario to confirm the fix
