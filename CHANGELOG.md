@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Crash on window maximize while TUI apps (nano, vim) are running
+  - Root cause: Buffer overrun when dimensions updated before buffer swap during resize
+  - Fix: Swap buffer BEFORE updating dimensions to maintain thread-safe invariant
+  - Added `GetCellWithScrollback()` return-by-value to prevent dangling references
+  - Added bounds check against actual buffer size for defense-in-depth
 - Thread safety: Added mutex locks to scroll region operations (SetScrollRegion, ResetScrollRegion, ScrollRegionUp, ScrollRegionDown) to prevent race conditions when VT parser and resize occur concurrently
 - DX12 swap chain resize timing issues with triple buffering
 

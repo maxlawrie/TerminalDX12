@@ -142,10 +142,41 @@ WM_SIZE → Window → Application → ConPtySession (resize PTY)
 ## Threading Model
 
 - **Main Thread**: Window messages, rendering, UI
-- **PTY Read Thread**: Reads shell output, posts to main thread
-- **Rendering**: Single-threaded (main thread only)
+- **PTY Read Thread**: Reads shell output, calls VT parser which writes to ScreenBuffer
+- **Rendering**: Runs on main thread
 
-All terminal state mutations happen on the main thread to avoid synchronization complexity.
+### Thread Safety in ScreenBuffer
+
+The `ScreenBuffer` uses a `std::recursive_mutex` to protect concurrent access from:
+- Main thread: Reading cells for rendering, handling resize
+- PTY thread: Writing cells via VT parser
+
+**Critical invariant**: When resizing the buffer, the buffer must be swapped BEFORE
+dimensions are updated. This prevents a race condition where:
+
+```cpp
+// WRONG - causes buffer overrun crash:
+m_cols = newCols;    // Thread B sees new dimensions
+m_rows = newRows;    // Thread B passes bounds check with new dims
+m_buffer = newBuf;   // But buffer is still old size → crash!
+
+// CORRECT - safe ordering:
+m_buffer = newBuf;   // Buffer swapped first (larger)
+m_cols = newCols;    // Now dimensions match buffer
+m_rows = newRows;
+```
+
+This bug manifested as crashes when maximizing the window with TUI apps (nano, vim)
+running, because:
+1. Main thread started resize, updated dimensions
+2. PTY thread wrote to cell position valid for new dimensions
+3. But old smaller buffer was still in place → buffer overrun
+
+### Cell Access Safety
+
+`GetCellWithScrollback()` returns cells by value (not reference) to prevent dangling
+references when the buffer is reallocated during resize. Additional bounds checking
+against the actual buffer size provides defense-in-depth.
 
 ## Memory Management
 
