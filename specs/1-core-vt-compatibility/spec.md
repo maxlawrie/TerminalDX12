@@ -130,7 +130,7 @@ Applications can define scroll regions to scroll content within a portion of the
 - **SC-001**: Claude Code runs without rendering artifacts for 30-minute sessions
 - **SC-002**: vim opens, allows editing, and exits cleanly preserving shell state
 - **SC-003**: htop displays correctly with fixed header and scrolling process list
-- **SC-004**: All 176 existing unit tests continue to pass
+- **SC-004**: All 333 existing unit tests continue to pass
 - **SC-005**: New unit tests achieve 100% coverage of implemented VT sequences
 
 ## Assumptions
