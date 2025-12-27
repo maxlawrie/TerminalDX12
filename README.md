@@ -18,7 +18,14 @@ A GPU-accelerated terminal emulator for Windows using DirectX 12.
 
 ## Screenshots
 
-The terminal renders text using a GPU-accelerated glyph atlas with proper color and attribute support.
+*Screenshots coming soon.*
+
+The terminal renders text using a GPU-accelerated glyph atlas with proper color and attribute support:
+
+- ANSI 16-color, 256-color, and true color (24-bit RGB)
+- Bold, italic, underline, strikethrough text styles
+- Mouse text selection with blue highlight
+- Tab bar for multiple terminal sessions
 
 ## Requirements
 
@@ -195,4 +202,6 @@ GPL v2 License - See [LICENSE.md](LICENSE.md)
 
 ## Contributing
 
-Contributions and suggestions are welcome!
+Contributions and suggestions are welcome\! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+

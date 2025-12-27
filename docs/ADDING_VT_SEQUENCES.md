@@ -141,10 +141,10 @@ void ScreenBuffer::SwitchToMainBuffer() {
 
 ### Step 4: Add Tests
 
-Create or update test file `tests/test_vt_sequences.cpp`:
+Create or update test file `tests/unit/test_vt_sequences.cpp`:
 
 ```cpp
-TEST_CASE("Alternate screen buffer", "[vt][screen]") {
+TEST(VTScreenBufferTest, AlternateScreenBuffer) {
     ScreenBuffer buffer(80, 24);
     VTStateMachine vt(&buffer);
 
@@ -153,18 +153,18 @@ TEST_CASE("Alternate screen buffer", "[vt][screen]") {
 
     // Switch to alternate buffer
     vt.ProcessString("\x1b[?1049h");
-    REQUIRE(buffer.IsAlternateBuffer() == true);
+    EXPECT_TRUE(buffer.IsAlternateBuffer());
 
     // Write to alternate
     vt.ProcessString("Hello Alternate\r\n");
 
     // Switch back to main
     vt.ProcessString("\x1b[?1049l");
-    REQUIRE(buffer.IsAlternateBuffer() == false);
+    EXPECT_FALSE(buffer.IsAlternateBuffer());
 
     // Verify main content is preserved
     std::string content = buffer.GetLine(0);
-    REQUIRE(content.find("Hello Main") != std::string::npos);
+    EXPECT_NE(content.find("Hello Main"), std::string::npos);
 }
 ```
 
@@ -203,7 +203,7 @@ Write-Host "`e[?1049l" -NoNewline  # Switch back
 
 ```bash
 # Run C++ tests
-./build/tests/Release/TerminalDX12Tests.exe --reporter compact "[vt]"
+./build/tests/Release/TerminalDX12Tests.exe --gtest_filter="VT*"
 
 # Run Python tests
 python -m pytest tests/ -k "vt" -v
@@ -255,3 +255,5 @@ case 1000: m_mouseMode = (finalByte == 'h') ? MouseMode::Normal : MouseMode::Non
 - [ECMA-48 Standard](https://www.ecma-international.org/publications-and-standards/standards/ecma-48/)
 - [VT100 User Guide](https://vt100.net/docs/vt100-ug/)
 - [Microsoft Console Virtual Terminal Sequences](https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences)
+
+
