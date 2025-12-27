@@ -4,10 +4,11 @@
 **Prerequisites**: plan.md, spec.md
 **Task ID Scope**: `4-Txxx` (IDs are scoped to this phase; use prefix when cross-referencing)
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `[ID] [P?] [Story] Description @agent`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (US1=Tabs, US2=Search, US3=URL)
+- **@agent**: Recommended agent for this task
 
 ---
 
@@ -19,24 +20,24 @@
 
 ### Tests for User Story 1
 
-- [ ] T001 [P] [US1] Unit test for TabManager::SaveState() in tests/unit/test_tab_manager.cpp
-- [ ] T002 [P] [US1] Unit test for TabManager::RestoreState() in tests/unit/test_tab_manager.cpp
-- [ ] T003 [P] [US1] Unit test for TabManager::MoveTab() in tests/unit/test_tab_manager.cpp
+- [ ] T001 [P] [US1] Unit test for TabManager::SaveState() in tests/unit/test_tab_manager.cpp @test-automator
+- [ ] T002 [P] [US1] Unit test for TabManager::RestoreState() in tests/unit/test_tab_manager.cpp @test-automator
+- [ ] T003 [P] [US1] Unit test for TabManager::MoveTab() in tests/unit/test_tab_manager.cpp @test-automator
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Add SaveState()/RestoreState() declarations to include/ui/TabManager.h
-- [ ] T005 [US1] Implement TabManager::SaveState() - serialize to %APPDATA%\TerminalDX12\tabs.json
-- [ ] T006 [US1] Implement TabManager::RestoreState() - deserialize and create tabs
-- [ ] T007 [US1] Call SaveState() from Application::Shutdown()
-- [ ] T008 [US1] Call RestoreState() from Application::Initialize() after TabManager creation
-- [ ] T009 [US1] Add MoveTab(fromIndex, toIndex) declaration to include/ui/TabManager.h
-- [ ] T010 [US1] Implement TabManager::MoveTab() - reorder tabs in vector
-- [ ] T011 [US1] Add drag state tracking to Application (m_draggingTab, m_dragStartX)
-- [ ] T012 [US1] Handle WM_LBUTTONDOWN on tab bar - start drag if on tab
-- [ ] T013 [US1] Handle WM_MOUSEMOVE during drag - update visual feedback
-- [ ] T014 [US1] Handle WM_LBUTTONUP - complete drag, call MoveTab()
-- [ ] T015 [US1] Render drag indicator (highlight drop position)
+- [ ] T004 [US1] Add SaveState()/RestoreState() declarations to include/ui/TabManager.h @cpp-pro
+- [ ] T005 [US1] Implement TabManager::SaveState() - serialize to %APPDATA%\TerminalDX12\tabs.json @cpp-pro
+- [ ] T006 [US1] Implement TabManager::RestoreState() - deserialize and create tabs @cpp-pro
+- [ ] T007 [US1] Call SaveState() from Application::Shutdown() @cpp-pro
+- [ ] T008 [US1] Call RestoreState() from Application::Initialize() after TabManager creation @cpp-pro
+- [ ] T009 [US1] Add MoveTab(fromIndex, toIndex) declaration to include/ui/TabManager.h @cpp-pro
+- [ ] T010 [US1] Implement TabManager::MoveTab() - reorder tabs in vector @cpp-pro
+- [ ] T011 [US1] Add drag state tracking to Application (m_draggingTab, m_dragStartX) @cpp-pro
+- [ ] T012 [US1] Handle WM_LBUTTONDOWN on tab bar - start drag if on tab @cpp-pro
+- [ ] T013 [US1] Handle WM_MOUSEMOVE during drag - update visual feedback @cpp-pro
+- [ ] T014 [US1] Handle WM_LBUTTONUP - complete drag, call MoveTab() @cpp-pro
+- [ ] T015 [US1] Render drag indicator (highlight drop position) @cpp-pro
 
 **Checkpoint**: Tabs persist across restart, can be reordered by drag
 
@@ -50,21 +51,21 @@
 
 ### Tests for User Story 2
 
-- [ ] T016 [P] [US2] Unit test for regex search in tests/unit/test_search.cpp
-- [ ] T017 [P] [US2] Unit test for scrollback search in tests/unit/test_search.cpp
-- [ ] T018 [P] [US2] Unit test for search edge cases (empty pattern, invalid regex)
+- [ ] T016 [P] [US2] Unit test for regex search in tests/unit/test_search.cpp @test-automator
+- [ ] T017 [P] [US2] Unit test for scrollback search in tests/unit/test_search.cpp @test-automator
+- [ ] T018 [P] [US2] Unit test for search edge cases (empty pattern, invalid regex) @test-automator
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Add m_searchRegexEnabled flag to Application class
-- [ ] T020 [US2] Add regex toggle UI element to search bar
-- [ ] T021 [US2] Modify UpdateSearchResults() to use std::regex when enabled
-- [ ] T022 [US2] Add try/catch for regex compilation errors, show error in search bar
-- [ ] T023 [US2] Extend UpdateSearchResults() to search scrollback via GetCellWithScrollback()
-- [ ] T024 [US2] Update search match positions to include scrollback offset
-- [ ] T025 [US2] Modify SearchNext()/SearchPrevious() to scroll to scrollback matches
-- [ ] T026 [US2] Add match count display showing "X of Y matches"
-- [ ] T027 [P] [US2] Add keyboard shortcut for regex toggle (Alt+R or Ctrl+Alt+R)
+- [ ] T019 [US2] Add m_searchRegexEnabled flag to Application class @cpp-pro
+- [ ] T020 [US2] Add regex toggle UI element to search bar @cpp-pro
+- [ ] T021 [US2] Modify UpdateSearchResults() to use std::regex when enabled @cpp-pro
+- [ ] T022 [US2] Add try/catch for regex compilation errors, show error in search bar @cpp-pro
+- [ ] T023 [US2] Extend UpdateSearchResults() to search scrollback via GetCellWithScrollback() @cpp-pro
+- [ ] T024 [US2] Update search match positions to include scrollback offset @cpp-pro
+- [ ] T025 [US2] Modify SearchNext()/SearchPrevious() to scroll to scrollback matches @cpp-pro
+- [ ] T026 [US2] Add match count display showing "X of Y matches" @cpp-pro
+- [ ] T027 [P] [US2] Add keyboard shortcut for regex toggle (Alt+R or Ctrl+Alt+R) @cpp-pro
 
 **Checkpoint**: Can search with regex, finds matches in scrollback history
 
@@ -78,12 +79,12 @@
 
 ### Implementation for User Story 2b
 
-- [ ] T028 [US2] Add m_searchAllTabs flag to Application class
-- [ ] T029 [US2] Add "All Tabs" toggle button to search UI
-- [ ] T030 [US2] Modify UpdateSearchResults() to iterate all tabs when enabled
-- [ ] T031 [US2] Store tab index with each search match result
-- [ ] T032 [US2] Modify SearchNext() to switch tabs when navigating to match in different tab
-- [ ] T033 [US2] Update match count to show "X of Y (across N tabs)"
+- [ ] T028 [US2] Add m_searchAllTabs flag to Application class @cpp-pro
+- [ ] T029 [US2] Add "All Tabs" toggle button to search UI @cpp-pro
+- [ ] T030 [US2] Modify UpdateSearchResults() to iterate all tabs when enabled @cpp-pro
+- [ ] T031 [US2] Store tab index with each search match result @cpp-pro
+- [ ] T032 [US2] Modify SearchNext() to switch tabs when navigating to match in different tab @cpp-pro
+- [ ] T033 [US2] Update match count to show "X of Y (across N tabs)" @cpp-pro
 
 **Checkpoint**: Search finds and navigates to matches across all tabs
 
@@ -97,11 +98,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] Modify ShowContextMenu() to detect if click is on URL
-- [ ] T035 [US3] Add "Copy URL" menu item when URL detected at click position
-- [ ] T036 [US3] Implement CopyUrlToClipboard() helper function
-- [ ] T037 [US3] Handle "Copy URL" menu selection - call CopyUrlToClipboard()
-- [ ] T038 [P] [US3] Add "Open URL" as secondary option in URL context menu
+- [ ] T034 [US3] Modify ShowContextMenu() to detect if click is on URL @cpp-pro
+- [ ] T035 [US3] Add "Copy URL" menu item when URL detected at click position @cpp-pro
+- [ ] T036 [US3] Implement CopyUrlToClipboard() helper function @cpp-pro
+- [ ] T037 [US3] Handle "Copy URL" menu selection - call CopyUrlToClipboard() @cpp-pro
+- [ ] T038 [P] [US3] Add "Open URL" as secondary option in URL context menu @cpp-pro
 
 **Checkpoint**: Right-click on URL provides Copy URL option
 
@@ -109,11 +110,11 @@
 
 ## Phase 5: Polish & Documentation
 
-- [ ] T039 [P] Update SPECIFICATION.md with new feature statuses
-- [ ] T040 [P] Update CHANGELOG.md with Phase 4 completion
-- [ ] T041 [P] Add user documentation for new search features
-- [ ] T042 Run full test suite, fix any regressions
-- [ ] T043 Update spec.md status to Complete
+- [ ] T039 [P] Update SPECIFICATION.md with new feature statuses @documentation-engineer
+- [ ] T040 [P] Update CHANGELOG.md with Phase 4 completion @documentation-engineer
+- [ ] T041 [P] Add user documentation for new search features @documentation-engineer
+- [ ] T042 Run full test suite, fix any regressions @test-automator
+- [ ] T043 Update spec.md status to Complete @documentation-engineer
 
 ---
 
@@ -129,13 +130,13 @@
 
 ### Recommended Execution Order
 
-1. Start T001-T003 (tests) and T016-T018 (search tests) in parallel
-2. Implement T004-T008 (tab save/restore) - quick win
-3. Implement T019-T027 (enhanced search) - highest value
-4. Implement T009-T015 (tab drag) - UX polish
-5. Implement T028-T033 (search all tabs) - nice to have
-6. Implement T034-T038 (URL context menu) - quick addition
-7. Complete T039-T043 (polish)
+1. Start T001-T003 (tests) and T016-T018 (search tests) in parallel @test-automator @test-automator
+2. Implement T004-T008 (tab save/restore) - quick win @cpp-pro
+3. Implement T019-T027 (enhanced search) - highest value @cpp-pro
+4. Implement T009-T015 (tab drag) - UX polish @cpp-pro
+5. Implement T028-T033 (search all tabs) - nice to have @cpp-pro
+6. Implement T034-T038 (URL context menu) - quick addition @cpp-pro
+7. Complete T039-T043 (polish) @documentation-engineer
 
 ### Parallel Opportunities
 
@@ -148,6 +149,16 @@ Phase 4 implementation (T034-T038)
 # After tests pass:
 Tab persistence (T004-T008) || Enhanced search (T019-T027)
 ```
+
+---
+
+## Agent Assignments Summary
+
+| Agent | Task Count | Responsibility |
+|-------|------------|----------------|
+| @test-automator | 7 | Unit tests for TabManager, Search, regression testing |
+| @cpp-pro | 32 | All C++ implementation tasks |
+| @documentation-engineer | 4 | SPECIFICATION.md, CHANGELOG.md, user docs |
 
 ---
 
