@@ -4,9 +4,9 @@ This guide explains how to build TerminalDX12 on Windows.
 
 ## Prerequisites
 
-### 1. Visual Studio 2022
+### 1. Visual Studio 2026
 
-Download and install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) with the following components:
+Download and install [Visual Studio 2026](https://visualstudio.microsoft.com/downloads/) with the following components:
 
 - **Desktop development with C++**
 - **Windows 10 SDK (10.0.19041.0 or later)**
@@ -85,7 +85,7 @@ mkdir build
 cd build
 
 # Configure with CMake
-cmake .. -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 17 2022" -A x64
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 18 2026" -A x64
 
 # Build Release
 cmake --build . --config Release
@@ -96,7 +96,7 @@ cmake --build . --config Debug
 
 ### Method 3: Visual Studio IDE
 
-1. Open Visual Studio 2022
+1. Open Visual Studio 2026
 2. Select **"Open a local folder"**
 3. Navigate to and select the `TerminalDX12` folder
 4. Visual Studio will automatically detect CMakeLists.txt
@@ -173,7 +173,7 @@ mkdir build
 
 # Reconfigure
 cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 17 2022" -A x64
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 18 2026" -A x64
 ```
 
 ## Build Outputs
@@ -196,7 +196,7 @@ For debugging with Visual Studio:
 ```powershell
 # Configure and build Debug
 cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 17 2022" -A x64
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 18 2026" -A x64
 cmake --build . --config Debug
 
 # Executable at: build\bin\Debug\TerminalDX12.exe
@@ -229,3 +229,4 @@ Once the application builds and runs successfully:
 - [DirectX 12 Programming Guide](https://docs.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide)
 - [vcpkg Documentation](https://vcpkg.io/)
 - [CMake Documentation](https://cmake.org/documentation/)
+

@@ -58,7 +58,6 @@ TerminalDX12 is a GPU-accelerated terminal emulator for Windows using DirectX 12
 - Comprehensive troubleshooting section
 
 **Weaknesses:**
-- References "Visual Studio 2026" (should be 2022)
 - No build time estimates
 
 ### SPECIFICATION.md - Grade: A+ (98/100)
@@ -127,3 +126,4 @@ TerminalDX12 now has **strong documentation** with excellent foundational materi
 
 **Previous Grade:** C+ (71.4/100)
 **Current Grade:** B+ (87.6/100)
+

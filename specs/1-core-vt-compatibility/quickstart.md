@@ -5,7 +5,7 @@
 
 ## Prerequisites
 
-- Visual Studio 2022 with C++20 support
+- Visual Studio 2026 with C++20 support
 - vcpkg with dependencies installed
 - Existing TerminalDX12 builds successfully
 - All 176 unit tests passing
@@ -81,4 +81,5 @@ Run unit tests, test with vim, htop, and Claude Code.
 - [ ] Strikethrough line renders through text
 - [ ] Cursor hide/show works
 - [ ] Cursor position reports correctly
+
 

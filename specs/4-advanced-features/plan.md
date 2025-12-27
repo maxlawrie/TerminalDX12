@@ -38,7 +38,7 @@ Complete the remaining advanced features for TerminalDX12. Most of Phase 4 is al
 
 ## Technical Context
 
-**Language/Version**: C++20 (Visual Studio 2022/2026)
+**Language/Version**: C++20 (Visual Studio 2026)
 **Primary Dependencies**: FreeType, spdlog, DirectX 12, nlohmann/json
 **Storage**: JSON config file for tab persistence
 **Testing**: Google Test (gtest), Python integration tests
@@ -145,3 +145,4 @@ tests/unit/
 - `std::regex` (C++ standard library) for regex search
 - `nlohmann/json` (already available) for tab state persistence
 - Existing Win32 context menu infrastructure for URL copy
+

@@ -26,7 +26,7 @@ Add polish features to TerminalDX12: a graphical settings dialog, font ligature 
 
 ## Technical Context
 
-**Language/Version**: C++20 (Visual Studio 2022/2026)
+**Language/Version**: C++20 (Visual Studio 2026)
 **Primary Dependencies**: FreeType, spdlog, DirectX 12, nlohmann/json
 **New Dependencies**:
 - HarfBuzz (for ligatures) - available via vcpkg
@@ -224,3 +224,4 @@ resources/
 2. **Settings Dialog** (high value for users)
 3. **Font Ligatures** (complex, can be deferred)
 4. **Multi-Window** (architecture change, lowest priority)
+

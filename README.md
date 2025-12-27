@@ -31,7 +31,7 @@ The terminal renders text using a GPU-accelerated glyph atlas with proper color 
 
 - Windows 10 1809 or later (for ConPTY support)
 - DirectX 12 capable GPU
-- Visual Studio 2022 or later
+- Visual Studio 2026 or later
 - CMake 3.20+
 - vcpkg package manager
 
@@ -203,5 +203,6 @@ GPL v2 License - See [LICENSE.md](LICENSE.md)
 ## Contributing
 
 Contributions and suggestions are welcome\! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 
 
