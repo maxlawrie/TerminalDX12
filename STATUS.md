@@ -46,16 +46,20 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 | Test Suite | Tests | Status |
 |------------|-------|--------|
-| C++ Unit Tests | 230 | Passing |
+| C++ Unit Tests | 333 | Passing |
 | Python Integration Tests | 72 | Passing |
 | PowerShell Smoke Tests | 4 | Passing |
-| **Total** | **306** | **100%** |
+| **Total** | **409** | **100%** |
 
 ### C++ Test Breakdown
-- Configuration tests (23)
 - VT State Machine tests (100)
 - Screen Buffer tests (76)
-- Unicode tests (31)
+- Tab Manager tests (34)
+- Tab tests (38)
+- ConPTY Contract tests (31)
+- Configuration tests (23)
+- Unicode tests (17)
+- Performance tests (14)
 
 ### Python Test Categories
 - Clipboard operations
@@ -120,7 +124,7 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 | Terminal | 3 | 2,500 |
 | PTY | 1 | 400 |
 | UI | 3 | 600 |
-| Tests (C++) | 4 | 3,000 |
+| Tests (C++) | 8 | 4,500 |
 | Tests (Python) | 12 | 2,700 |
 | **Total** | **31** | **~12,700** |
 

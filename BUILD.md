@@ -159,7 +159,7 @@ Ensure:
 If the application fails to initialize DirectX 12:
 - Ensure your GPU supports DirectX 12
 - Update graphics drivers
-- Windows 10 version 1909 or later is required
+- Windows 10 version 1809 or later is required (for ConPTY support)
 - Check Windows Update for latest updates
 
 ### Build Configuration Issues
