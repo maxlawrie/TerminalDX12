@@ -58,6 +58,12 @@ Full Unicode support is non-negotiable:
 - No compiler warnings at `/W4` level
 - SPECIFICATION.md updated if adding new VT sequences
 
+### Bug Fixes
+- Unit tests must pass before manual testing
+- **Manual testing is required** before closing any bug issue
+- Reproduce the original bug scenario to confirm the fix
+- Document the root cause and fix in the commit message
+
 ### Performance Requirements
 - 60 FPS rendering for standard terminal output
 - Sub-millisecond input latency
@@ -70,4 +76,4 @@ This constitution defines the architectural boundaries and development practices
 2. Impact analysis on existing architecture
 3. Update to this constitution before implementation
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-21
+**Version**: 1.1.0 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-28
