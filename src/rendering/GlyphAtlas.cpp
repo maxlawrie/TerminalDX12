@@ -323,7 +323,7 @@ GlyphInfo* GlyphAtlas::AddGlyphToAtlas(char32_t codepoint, bool bold, bool itali
 void GlyphAtlas::UploadGlyphToGPU(const GlyphInfo& glyph, const unsigned char* bitmap) {
     // This method would handle incremental uploads
     // For MVP, we'll upload the entire atlas when dirty
-    // TODO: Implement region-based updates for better performance
+    // Note: Full atlas upload works for now. Region-based updates could improve performance with many glyphs.
 }
 
 void GlyphAtlas::UploadAtlasIfDirty() {

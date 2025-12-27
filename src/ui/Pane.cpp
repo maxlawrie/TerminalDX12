@@ -167,7 +167,7 @@ Pane* Pane::FindAdjacentPane(Pane* from, SplitDirection direction, bool forward)
     size_t currentIndex = std::distance(leaves.begin(), it);
 
     // For now, simple circular navigation
-    // TODO: Implement proper directional navigation based on layout
+    // Note: Current implementation uses simple circular navigation. Could be enhanced with spatial awareness.
     if (forward) {
         return leaves[(currentIndex + 1) % leaves.size()];
     } else {

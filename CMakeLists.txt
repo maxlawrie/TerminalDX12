@@ -49,11 +49,9 @@ set(PTY_SOURCES
 set(TERMINAL_SOURCES
     src/terminal/ScreenBuffer.cpp
     src/terminal/VTStateMachine.cpp
-    src/terminal/TerminalDispatcher.cpp
 )
 
 set(UI_SOURCES
-    src/ui/InputHandler.cpp
     src/ui/Tab.cpp
     src/ui/TabManager.cpp
     src/ui/Pane.cpp

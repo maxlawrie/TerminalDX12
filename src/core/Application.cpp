@@ -308,7 +308,7 @@ bool Application::ProcessMessages() {
 }
 
 void Application::Update(float deltaTime) {
-    // TODO: Update terminal state, process input, etc.
+    // Terminal state updates and input handled via callbacks (OnKeyDown, OnChar, etc.)
     (void)deltaTime; // Suppress unused parameter warning
 }
 
@@ -737,7 +737,7 @@ void Application::Render() {
     // Render search bar if in search mode
     if (m_searchMode) {
         const int searchBarHeight = 30;
-        int windowHeight = 720;  // TODO: Get actual window height
+        int windowHeight = m_window ? m_window->GetHeight() : 720;
         float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
 
         // Search bar background
@@ -2184,7 +2184,7 @@ void Application::FocusPaneInDirection(UI::SplitDirection direction) {
     }
 
     // For now, use simple next/prev navigation
-    // TODO: Implement proper directional navigation based on layout
+    // Note: Current implementation uses simple circular navigation. Could be enhanced with spatial awareness.
     UI::Pane* target = m_rootPane->FindAdjacentPane(m_focusedPane, direction, true);
     if (target) {
         m_focusedPane = target;
