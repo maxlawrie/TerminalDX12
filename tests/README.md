@@ -52,7 +52,7 @@ tests/
     test_unicode.cpp           # Unicode handling tests (17 tests)
     test_performance.cpp       # Performance benchmarks (14 tests)
     contract/                  # Contract tests
-      test_conpty_contract.cpp # ConPTY interface contract tests (35+ tests)
+      test_conpty_contract.cpp # ConPTY interface contract tests (31 tests)
   baselines/                   # Visual regression baseline images
   test_terminal.py             # Main Python visual tests
   test_visual_regression.py    # Visual regression tests

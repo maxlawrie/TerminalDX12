@@ -33,7 +33,7 @@ The terminal features GPU-accelerated rendering with full color and attribute su
 
 - Windows 10 1809 or later (for ConPTY support)
 - DirectX 12 capable GPU
-- Visual Studio 2026 or later
+- Visual Studio 2026 or later with C++20 support
 - CMake 3.20+
 - vcpkg package manager
 
