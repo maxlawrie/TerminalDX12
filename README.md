@@ -88,6 +88,10 @@ bin\Release\TerminalDX12.exe wsl.exe
 | Ctrl+Shift+D | Split pane vertically |
 | Ctrl+Shift+E | Split pane horizontally |
 | Ctrl+Shift+F | Open in-terminal search |
+| Ctrl+Shift+Z | Toggle pane zoom |
+| Ctrl+Plus | Zoom in (increase font size) |
+| Ctrl+Minus | Zoom out (decrease font size) |
+| Ctrl+0 | Reset zoom |
 | Shift+Page Up | Scroll up in history |
 | Shift+Page Down | Scroll down in history |
 

@@ -36,13 +36,17 @@ Use this checklist to manually verify terminal functionality.
 
 ## Test 3: Foreground Colors
 **Steps:**
-1. Type: `echo [31mRed[0m [32mGreen[0m [34mBlue[0m [33mYellow[0m`
-   - Note: Replace `[` with actual ESC character (you can copy from PowerShell output)
-2. Press Enter
 
-**Alternative (using PowerShell):**
-1. Type: `powershell -Command "Write-Host 'Red' -ForegroundColor Red"`
-2. Press Enter
+**Option 1 - PowerShell (recommended):**
+```powershell
+Write-Host "Red" -ForegroundColor Red; Write-Host "Green" -ForegroundColor Green; Write-Host "Blue" -ForegroundColor Blue
+```
+
+**Option 2 - Using escape sequences in PowerShell:**
+```powershell
+$ESC = [char]27
+Write-Host "${ESC}[31mRed${ESC}[0m ${ESC}[32mGreen${ESC}[0m ${ESC}[34mBlue${ESC}[0m ${ESC}[33mYellow${ESC}[0m"
+```
 
 **Expected Results:**
 - [ ] "Red" appears in red color

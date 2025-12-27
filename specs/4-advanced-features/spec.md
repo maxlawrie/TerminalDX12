@@ -2,7 +2,7 @@
 
 **Feature Branch**: `4-advanced-features`
 **Created**: 2025-12-21
-**Status**: Partial
+**Status**: Complete
 **Priority**: Medium
 
 ## Implementation Status
@@ -12,7 +12,7 @@
 | US1 - Multiple tabs | Complete | Core functionality done; persistence/reordering in progress |
 | US2 - Search | Partial | Basic search complete; regex and scrollback in progress |
 | US3 - Clickable URLs | Complete | Detection, hover, Ctrl+click all working |
-| US4 - Split panes | **Deferred** | Out of scope for current phase; future enhancement |
+| US4 - Split panes | **Complete** | Vertical/horizontal split, pane navigation, zoom |
 
 ## Overview
 
@@ -71,13 +71,13 @@ A user Ctrl+clicks a URL in terminal output to open it in their default browser.
 
 ---
 
-### User Story 4 - Split panes (Priority: P3) - DEFERRED
+### User Story 4 - Split panes (Priority: P3) - COMPLETE
 
 A user splits the terminal to view multiple sessions side-by-side.
 
 **Why this priority**: Power user feature for complex workflows.
 
-**Status**: Deferred to future phase. Tabs and multi-window provide similar functionality.
+**Status**: Complete. Supports vertical split (Ctrl+Shift+D), horizontal split (Ctrl+Shift+E), pane navigation (Alt+Arrow), and zoom (Ctrl+Shift+Z).
 
 **Independent Test**: Press Ctrl+Shift+D to split, verify two panes with independent shells.
 

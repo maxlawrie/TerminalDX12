@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-fix-resize-row`
 **Created**: 2025-12-22
-**Status**: Draft
+**Status**: Complete
 **Input**: User description: "Fix first row missing after terminal resize - When resizing the terminal window while a TUI application is running, the first row of content disappears. Need to investigate how resize notifications are handled and ensure the app properly redraws all content including row 0 after resize completes."
 
 ## User Scenarios & Testing *(mandatory)*

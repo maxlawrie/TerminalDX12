@@ -162,7 +162,7 @@ cd C:\Temp\TerminalDX12Test
 pip install -r requirements.txt
 ```
 
-Required packages: `pillow`, `pytesseract`, `pywin32`
+Required packages: `pillow`, `numpy`, `pywin32`, `winocr`
 
 ### Running Python Tests
 
