@@ -1,7 +1,7 @@
 # TerminalDX12 Test Suite
 
 This directory contains the test suite for TerminalDX12, consisting of:
-- **C++ Unit Tests** - Fast, headless tests for core terminal logic (226 tests)
+- **C++ Unit Tests** - Fast, headless tests for core terminal logic (333 tests)
 - **Python Integration Tests** - Visual tests using screenshots and OCR (72 tests)
 - **PowerShell Smoke Tests** - Build artifact and stability tests (4 tests)
 
@@ -47,10 +47,10 @@ cmd.exe /c "cd /d C:\\Temp\\TerminalDX12Test && python test_terminal.py"
 ```
 tests/
   unit/                        # C++ unit tests (GTest)
-    test_screen_buffer.cpp     # ScreenBuffer tests (61 tests)
-    test_vt_parser.cpp         # VTStateMachine tests (68 tests)
-    test_unicode.cpp           # Unicode handling tests (27 tests)
-    test_performance.cpp       # Performance benchmarks (20 tests)
+    test_screen_buffer.cpp     # ScreenBuffer tests (76 tests)
+    test_vt_parser.cpp         # VTStateMachine tests (100 tests)
+    test_unicode.cpp           # Unicode handling tests (17 tests)
+    test_performance.cpp       # Performance benchmarks (14 tests)
     contract/                  # Contract tests
       test_conpty_contract.cpp # ConPTY interface contract tests (35+ tests)
   baselines/                   # Visual regression baseline images
@@ -90,12 +90,15 @@ ctest --output-on-failure -C Release
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| test_screen_buffer.cpp | 72 | Buffer ops, cursor, scrolling, resize, attributes, backspace |
+| test_screen_buffer.cpp | 76 | Buffer ops, cursor, scrolling, resize, attributes, backspace |
 | test_vt_parser.cpp | 100 | Escape sequences, colors, cursor movement, OSC, mouse modes |
 | test_config.cpp | 23 | Configuration parsing, validation, keybindings |
-| test_unicode.cpp | 31 | CJK, emoji, box drawing, symbols, edge cases |
+| test_unicode.cpp | 17 | CJK, emoji, box drawing, symbols, edge cases |
+| test_tab_manager.cpp | 34 | Tab creation, switching, closing, lifecycle |
+| test_tab.cpp | 38 | Tab component tests, title, activity, callbacks |
+| test_performance.cpp | 14 | Performance benchmarks |
 
-**Total: 230 C++ unit tests**
+**Total: 333 C++ unit tests (see table above)**
 
 ## Contract Tests
 
@@ -322,7 +325,7 @@ The `helpers.py` module provides reusable components:
 
 ## Current Test Status
 
-### C++ Unit Tests: 230/230 passing (100%)
+### C++ Unit Tests: 333/333 passing (100%)
 
 All C++ unit tests pass successfully, covering VT parser, screen buffer, Unicode, and performance.
 
@@ -333,3 +336,7 @@ Visual tests covering clipboard, keyboard shortcuts, ANSI colors, text attribute
 ### PowerShell Smoke Tests: 4/4 passing (100%)
 
 Build validation and stability tests for executable, dependencies, and multi-instance scenarios.
+
+
+
+
