@@ -360,28 +360,41 @@ void ScreenBuffer::Clear() {
 }
 
 void ScreenBuffer::ClearLine(int y) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (y < 0 || y >= m_rows) return;
 
-    ClearLine(y, 0, m_cols - 1);
+    ClearLineInternal(y, 0, m_cols - 1);
 }
 
 void ScreenBuffer::ClearLine(int y, int startX, int endX) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (y < 0 || y >= m_rows) return;
 
+    ClearLineInternal(y, startX, endX);
+}
+
+// Internal version without lock (caller must hold mutex)
+void ScreenBuffer::ClearLineInternal(int y, int startX, int endX) {
     startX = std::clamp(startX, 0, m_cols - 1);
     endX = std::clamp(endX, 0, m_cols - 1);
 
     for (int x = startX; x <= endX; ++x) {
         int idx = CellIndex(x, y);
-        m_buffer[idx] = Cell();
+        if (idx >= 0 && idx < static_cast<int>(m_buffer.size())) {
+            m_buffer[idx] = Cell();
+        }
     }
 
     m_dirty = true;
 }
 
 void ScreenBuffer::ClearRect(int x, int y, int width, int height) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     for (int dy = 0; dy < height; ++dy) {
-        ClearLine(y + dy, x, x + width - 1);
+        int lineY = y + dy;
+        if (lineY >= 0 && lineY < m_rows) {
+            ClearLineInternal(lineY, x, x + width - 1);
+        }
     }
 }
 

@@ -246,6 +246,7 @@ private:
     void CarriageReturn();
     void Tab();
     void Backspace();
+    void ClearLineInternal(int y, int startX, int endX);  // Internal - caller must hold mutex
 
     int CellIndex(int x, int y) const { return y * m_cols + x; }
     void ClampCursor();
