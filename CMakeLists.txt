@@ -101,8 +101,8 @@ endif()
 # Shader compilation
 add_subdirectory(shaders)
 
-# Tests (optional)
-option(BUILD_TESTS "Build unit tests" OFF)
+# Tests (enabled by default - use -DBUILD_TESTS=OFF to disable)
+option(BUILD_TESTS "Build unit tests" ON)
 if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

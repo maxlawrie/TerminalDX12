@@ -48,6 +48,9 @@ jobs:
           --export_type html:coverage_report `
           -- build\tests\Release\TerminalDX12Tests.exe
 
+    - name: Run ConPTY Contract Tests
+      run: build\tests\Release\TerminalDX12ContractTests.exe
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
