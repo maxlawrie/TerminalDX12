@@ -70,10 +70,13 @@ All 84 tasks complete. Features delivered:
 
 ## Tech Debt
 
-| Issue | Description |
-|-------|-------------|
-| [#12](https://github.com/maxlawrie/TerminalDX12/issues/12) | Address code TODOs |
+No open tech debt.
 
+### Completed
+
+| Issue | Description | Fixed In |
+|-------|-------------|----------|
+| [#12](https://github.com/maxlawrie/TerminalDX12/issues/12) | Address code TODOs | 935d9e3 |
 ---
 
 ## Recommended Execution Order
