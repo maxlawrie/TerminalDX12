@@ -72,15 +72,15 @@ Run unit tests, test with vim, htop, and Claude Code.
 
 ## Verification Checklist
 
-- [ ] All 333 existing tests pass
-- [ ] New unit tests for each handler
-- [ ] vim opens, edits, exits cleanly
-- [ ] htop displays with fixed header
-- [ ] True colors display correctly (not mapped to 16)
-- [ ] Dim text visibly dimmer than normal
-- [ ] Strikethrough line renders through text
-- [ ] Cursor hide/show works
-- [ ] Cursor position reports correctly
+- [x] All 333 existing tests pass
+- [x] New unit tests for each handler
+- [x] vim opens, edits, exits cleanly
+- [x] htop displays with fixed header
+- [x] True colors display correctly (not mapped to 16)
+- [x] Dim text visibly dimmer than normal
+- [x] Strikethrough line renders through text
+- [x] Cursor hide/show works
+- [x] Cursor position reports correctly
 
 
 

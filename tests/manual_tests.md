@@ -295,6 +295,20 @@ Test each key and observe behavior:
 
 ---
 
+## Test 22: Pane Zoom
+**Steps:**
+1. Create a split pane (Ctrl+Shift+D or Ctrl+Shift+E)
+2. Press `Ctrl+Shift+Z` to zoom current pane
+3. Press `Ctrl+Shift+Z` again to unzoom
+
+**Expected Results:**
+- [ ] Zoomed pane fills entire terminal area
+- [ ] Other panes are hidden while zoomed
+- [ ] Unzoom restores original pane layout
+- [ ] Focus remains on the same pane
+
+---
+
 ## Summary Checklist
 
 **Core Functionality:**
@@ -318,6 +332,7 @@ Test each key and observe behavior:
 - [ ] Tab management (Ctrl+T, Ctrl+W)
 - [ ] Split panes (Ctrl+Shift+D/E)
 - [ ] In-terminal search (Ctrl+Shift+F)
+- [ ] Pane zoom (Ctrl+Shift+Z)
 
 **Performance:**
 - [ ] Renders quickly

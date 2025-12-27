@@ -51,7 +51,7 @@ If the file doesn't exist, TerminalDX12 creates a default configuration on first
     "scrollDown": "shift+pagedown",
     "newTab": "ctrl+t",
     "closeTab": "ctrl+w",
-    "search": "ctrl+f"
+    "search": "ctrl+shift+f"
   }
 }
 ```
@@ -153,7 +153,7 @@ Define keyboard shortcuts using the format: `[modifiers+]key`
 | `closeTab` | `ctrl+w` | Close current tab. |
 | `nextTab` | `ctrl+tab` | Switch to next tab. |
 | `prevTab` | `ctrl+shift+tab` | Switch to previous tab. |
-| `search` | `ctrl+f` | Open in-terminal search. |
+| `search` | `ctrl+shift+f` | Open in-terminal search. |
 | `zoomIn` | `ctrl+plus` | Increase font size. |
 | `zoomOut` | `ctrl+minus` | Decrease font size. |
 | `resetZoom` | `ctrl+0` | Reset to default font size. |

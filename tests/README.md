@@ -2,6 +2,7 @@
 
 This directory contains the test suite for TerminalDX12, consisting of:
 - **C++ Unit Tests** - Fast, headless tests for core terminal logic (333 tests)
+- **Contract Tests** - ConPTY interface behavior tests (31 tests)
 - **Python Integration Tests** - Visual tests using screenshots and OCR (72 tests)
 - **PowerShell Smoke Tests** - Build artifact and stability tests (4 tests)
 
@@ -12,13 +13,13 @@ This directory contains the test suite for TerminalDX12, consisting of:
 **From WSL (recommended):**
 ```bash
 # Run C++ unit tests, then Python integration tests
-cd /home/maxla/TerminalDX12/build && ctest --output-on-failure -C Release && cmd.exe /c "cd /d C:\\Temp\\TerminalDX12Test && python test_terminal.py"
+cd C:\Users\maxla\TerminalDX12\build && ctest --output-on-failure -C Release && cmd.exe /c "cd /d C:\\Temp\\TerminalDX12Test && python test_terminal.py"
 ```
 
 ### Run C++ Unit Tests Only
 
 ```bash
-cd /home/maxla/TerminalDX12/build
+cd C:\Users\maxla\TerminalDX12\build
 ctest --output-on-failure -C Release
 ```
 

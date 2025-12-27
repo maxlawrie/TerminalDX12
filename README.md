@@ -83,6 +83,11 @@ bin\Release\TerminalDX12.exe wsl.exe
 |----------|--------|
 | Ctrl+C | Copy selected text (or send SIGINT if nothing selected) |
 | Ctrl+V | Paste from clipboard |
+| Ctrl+T | Open new tab |
+| Ctrl+W | Close current tab |
+| Ctrl+Shift+D | Split pane vertically |
+| Ctrl+Shift+E | Split pane horizontally |
+| Ctrl+Shift+F | Open in-terminal search |
 | Shift+Page Up | Scroll up in history |
 | Shift+Page Down | Scroll down in history |
 

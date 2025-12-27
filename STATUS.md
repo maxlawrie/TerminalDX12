@@ -84,7 +84,7 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 ## Architecture
 
-\`\`\`
+```
 +-------------------------------------------------------------------+
 |                        Application                                 |
 |                   (Core::Application)                              |
@@ -113,7 +113,7 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
                     |  ConPTY Session |
                     | (Pty::ConPty)   |
                     +-----------------+
-\`\`\`
+```
 
 ## Code Statistics
 
@@ -144,14 +144,14 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 See [BUILD.md](BUILD.md) for detailed build instructions.
 
-\`\`\`powershell
+```powershell
 .\build.ps1        # Build with default settings
 .\build.ps1 -Clean # Clean build
-\`\`\`
+```
 
 ## Running Tests
 
-\`\`\`powershell
+```powershell
 # C++ unit tests
 .\build\tests\Release\TerminalDX12Tests.exe
 
@@ -160,7 +160,7 @@ python -m pytest tests/ -v
 
 # PowerShell smoke tests
 powershell -ExecutionPolicy Bypass -File tests/test_basic.ps1
-\`\`\`
+```
 
 ## Contributing
 
