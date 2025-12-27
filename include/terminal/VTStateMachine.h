@@ -18,6 +18,14 @@ struct SavedCursorState {
     bool valid = false;
 };
 
+// OSC 52 clipboard security policy
+enum class Osc52Policy {
+    Disabled,       // OSC 52 completely disabled
+    ReadOnly,       // Only allow clipboard queries (read)
+    WriteOnly,      // Only allow clipboard writes (safer default)
+    ReadWrite       // Allow both read and write
+};
+
 // VT100/ANSI escape sequence parser
 class VTStateMachine {
 public:
@@ -39,6 +47,10 @@ public:
     void SetClipboardWriteCallback(std::function<void(const std::string&)> callback) {
         m_clipboardWriteCallback = callback;
     }
+
+    // OSC 52 security policy (default: WriteOnly for safety)
+    void SetOsc52Policy(Osc52Policy policy) { m_osc52Policy = policy; }
+    Osc52Policy GetOsc52Policy() const { return m_osc52Policy; }
 
     // Cursor style enum
     enum class CursorStyle {
@@ -181,6 +193,9 @@ private:
     // Mouse modes
     MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode
     bool m_sgrMouseMode = false;              // Mode 1006 - SGR extended format
+
+    // OSC 52 clipboard security
+    Osc52Policy m_osc52Policy = Osc52Policy::WriteOnly;  // Default: safer write-only
 
     // UTF-8 decoding state
     uint8_t m_utf8Buffer[4];     // Buffer for UTF-8 multi-byte sequences

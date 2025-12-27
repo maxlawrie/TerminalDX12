@@ -1189,6 +1189,12 @@ void VTStateMachine::HandleOSC52(const std::string& param) {
     // Pc = clipboard selection ('c' for clipboard, 'p' for primary, 's' for select)
     // Pd = base64 encoded data, or '?' to query
 
+    // Security check: If OSC 52 is disabled, reject all operations
+    if (m_osc52Policy == Osc52Policy::Disabled) {
+        spdlog::debug("OSC 52: Blocked by security policy (Disabled)");
+        return;
+    }
+
     size_t semicolon = param.find(';');
     if (semicolon == std::string::npos) {
         spdlog::debug("OSC 52: Invalid format (no semicolon)");
@@ -1202,7 +1208,12 @@ void VTStateMachine::HandleOSC52(const std::string& param) {
     // Ignore selection parameter and always use system clipboard
 
     if (data == "?") {
-        // Query clipboard
+        // Query clipboard - security risk: could exfiltrate data
+        // Only allow if policy permits reading
+        if (m_osc52Policy != Osc52Policy::ReadOnly && m_osc52Policy != Osc52Policy::ReadWrite) {
+            spdlog::debug("OSC 52: Clipboard read blocked by security policy");
+            return;
+        }
         if (m_clipboardReadCallback) {
             std::string clipboardContent = m_clipboardReadCallback();
             std::string encoded = Base64Encode(clipboardContent);
@@ -1211,7 +1222,11 @@ void VTStateMachine::HandleOSC52(const std::string& param) {
             spdlog::debug("OSC 52: Query clipboard, {} bytes", clipboardContent.size());
         }
     } else if (!data.empty()) {
-        // Set clipboard
+        // Set clipboard - safer, but still check policy
+        if (m_osc52Policy != Osc52Policy::WriteOnly && m_osc52Policy != Osc52Policy::ReadWrite) {
+            spdlog::debug("OSC 52: Clipboard write blocked by security policy");
+            return;
+        }
         std::string decoded = Base64Decode(data);
         if (m_clipboardWriteCallback && !decoded.empty()) {
             m_clipboardWriteCallback(decoded);

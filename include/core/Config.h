@@ -91,6 +91,14 @@ struct KeybindingConfig {
     std::optional<KeyBinding> GetBinding(const std::string& action) const;
 };
 
+// OSC 52 clipboard access security settings
+enum class Osc52Policy {
+    Disabled,       // OSC 52 completely disabled
+    ReadOnly,       // Only allow clipboard queries (read)
+    WriteOnly,      // Only allow clipboard writes
+    ReadWrite       // Allow both read and write (use with caution)
+};
+
 // Terminal behavior configuration
 struct TerminalConfig {
     std::wstring shell = L"powershell.exe";
@@ -100,6 +108,13 @@ struct TerminalConfig {
     bool cursorBlink = true;
     int cursorBlinkMs = 530;
     float opacity = 1.0f;              // Window opacity (0.0-1.0)
+
+    // OSC 52 clipboard security (default: WriteOnly for safety)
+    // - Disabled: No clipboard access via escape sequences
+    // - ReadOnly: Programs can read clipboard (security risk: exfiltration)
+    // - WriteOnly: Programs can write to clipboard (safer default)
+    // - ReadWrite: Full access (use with caution)
+    Osc52Policy osc52Policy = Osc52Policy::WriteOnly;
 };
 
 // Main configuration class
