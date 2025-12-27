@@ -225,6 +225,13 @@ bool GlyphAtlas::CreateAtlasSRV(ID3D12Device* device) {
 }
 
 const GlyphInfo* GlyphAtlas::GetGlyph(char32_t codepoint, bool bold, bool italic) {
+    // Validate codepoint - must be valid Unicode (0-0x10FFFF)
+    // Invalid codepoints can come from uninitialized memory during resize
+    if (codepoint > 0x10FFFF || (codepoint < 0x20 && codepoint != U'\t')) {
+        // Return space glyph for invalid codepoints
+        codepoint = U' ';
+    }
+
     // Check cache
     GlyphKey key{codepoint, m_fontSize, bold, italic};
     auto it = m_glyphCache.find(key);

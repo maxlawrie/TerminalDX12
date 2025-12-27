@@ -586,8 +586,14 @@ void Application::Render() {
         for (int x = 0; x < cols; ++x) {
             const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
 
-            // Skip spaces
+            // Skip spaces and null
             if (cell.ch == U' ' || cell.ch == U'\0') {
+                continue;
+            }
+
+            // Skip invalid/garbage codepoints (must be valid Unicode: 0-0x10FFFF)
+            // Also skip most control characters (0x00-0x1F) except tab
+            if (cell.ch > 0x10FFFF || (cell.ch < 0x20 && cell.ch != U'\t')) {
                 continue;
             }
 
@@ -777,6 +783,8 @@ void Application::OnWindowResize(int width, int height) {
         int newCols = std::max(20, availableWidth / charWidth);
         int newRows = std::max(5, availableHeight / lineHeight);
 
+        spdlog::info("OnWindowResize: resizing buffers to {}x{}", newCols, newRows);
+
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
                 if (tab) {
@@ -785,6 +793,8 @@ void Application::OnWindowResize(int width, int height) {
                 }
             }
         }
+
+        spdlog::info("OnWindowResize: buffer resize complete");
     }
 }
 

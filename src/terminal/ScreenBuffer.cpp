@@ -46,19 +46,24 @@ void ScreenBuffer::Resize(int cols, int rows) {
 
     // For alternative buffer, just resize without reflow (TUI apps handle their own reflow)
     if (m_useAltBuffer) {
+        spdlog::info("Alt buffer resize: allocating {}x{} buffer", cols, rows);
         std::vector<Cell> newBuffer(cols * rows);
         int copyRows = std::min(oldRows, rows);
         int copyCols = std::min(oldCols, cols);
+        spdlog::info("Alt buffer resize: copying {}x{} cells", copyCols, copyRows);
         for (int y = 0; y < copyRows; ++y) {
             for (int x = 0; x < copyCols; ++x) {
                 newBuffer[y * cols + x] = m_buffer[y * oldCols + x];
             }
         }
+        spdlog::info("Alt buffer resize: swapping buffer");
         m_buffer = std::move(newBuffer);
         m_cols = cols;
         m_rows = rows;
         m_lineWrapped.resize(rows, false);
+        spdlog::info("Alt buffer resize: clamping cursor from ({}, {})", m_cursorX, m_cursorY);
         ClampCursor();
+        spdlog::info("Alt buffer resize: cursor now at ({}, {})", m_cursorX, m_cursorY);
 
         // Reset scroll region to full screen after resize
         // This is critical: TUI apps set scroll regions, and after resize
@@ -67,6 +72,7 @@ void ScreenBuffer::Resize(int cols, int rows) {
         // receiving the resize notification.
         m_scrollTop = 0;
         m_scrollBottom = -1;  // -1 means full screen (no custom region)
+        spdlog::info("Alt buffer resize: scroll region reset, done");
 
         m_dirty = true;
         return;
