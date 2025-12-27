@@ -373,7 +373,8 @@ void ScreenBuffer::ClearRect(int x, int y, int width, int height) {
 }
 
 const Cell& ScreenBuffer::GetCell(int x, int y) const {
-    static Cell emptyCell;
+    // Thread-local to avoid data races when multiple threads access out-of-bounds
+    thread_local Cell emptyCell;
 
     if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
         return emptyCell;
@@ -383,7 +384,8 @@ const Cell& ScreenBuffer::GetCell(int x, int y) const {
 }
 
 Cell& ScreenBuffer::GetCellMutable(int x, int y) {
-    static Cell emptyCell;
+    // Thread-local to avoid data races when multiple threads access out-of-bounds
+    thread_local Cell emptyCell;
 
     if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
         return emptyCell;
@@ -395,7 +397,8 @@ Cell& ScreenBuffer::GetCellMutable(int x, int y) {
 
 const Cell& ScreenBuffer::GetCellWithScrollback(int x, int y) const {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    static Cell emptyCell;
+    // Thread-local for consistency with other GetCell methods
+    thread_local Cell emptyCell;
 
     if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
         return emptyCell;
