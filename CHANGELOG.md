@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Crash on window maximize while TUI apps (nano, vim) are running
-- Thread safety issues in ScreenBuffer during resize operations
+- Thread safety: Added mutex locks to scroll region operations (SetScrollRegion, ResetScrollRegion, ScrollRegionUp, ScrollRegionDown) to prevent race conditions when VT parser and resize occur concurrently
 - DX12 swap chain resize timing issues with triple buffering
 
 ## [0.1.0] - 2025-12-22

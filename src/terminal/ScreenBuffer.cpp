@@ -537,10 +537,13 @@ void ScreenBuffer::ResetTabStops() {
 
 // Scroll region methods
 void ScreenBuffer::SetScrollRegion(int top, int bottom) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     // Validate bounds
     if (top < 0 || top >= m_rows || bottom < top || bottom >= m_rows) {
         spdlog::info("SetScrollRegion({}, {}) - invalid, resetting to full screen", top, bottom);
-        ResetScrollRegion();
+        // Don't call ResetScrollRegion to avoid recursive lock attempt
+        m_scrollTop = 0;
+        m_scrollBottom = -1;
         return;
     }
     m_scrollTop = top;
@@ -549,6 +552,7 @@ void ScreenBuffer::SetScrollRegion(int top, int bottom) {
 }
 
 void ScreenBuffer::ResetScrollRegion() {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     m_scrollTop = 0;
     m_scrollBottom = -1;  // -1 means use m_rows - 1
     spdlog::info("ResetScrollRegion: now full screen (no explicit region)");
@@ -559,6 +563,7 @@ int ScreenBuffer::GetScrollRegionBottom() const {
 }
 
 void ScreenBuffer::ScrollRegionUp(int lines) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (lines <= 0) return;
 
     int bottom = GetScrollRegionBottom();
@@ -584,6 +589,7 @@ void ScreenBuffer::ScrollRegionUp(int lines) {
 }
 
 void ScreenBuffer::ScrollRegionDown(int lines) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (lines <= 0) return;
 
     int bottom = GetScrollRegionBottom();

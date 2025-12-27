@@ -1,6 +1,6 @@
 # TerminalDX12 - Implementation Status
 
-**Last Updated:** 2025-12-24
+**Last Updated:** 2025-12-27
 
 ## Project Status: Feature Complete
 
@@ -75,6 +75,8 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 2. **Terminal doesn't close after session ends** - *(Fixed)* Window now automatically closes when all shell processes exit. Implemented process exit callbacks from ConPTY through TabManager to Application.
 
 3. **Intermittent red ">" character** - Occasionally appears due to escape sequence parsing edge case. VT parser CSI handling has been improved with stricter parsing (private mode indicators now only valid immediately after ESC[).
+
+4. **TUI crash on window maximize** - *(Fixed)* When maximizing the window while a TUI app (like nano) was running, a race condition between the resize and scroll region operations could cause crashes. Fixed by adding mutex locks to `SetScrollRegion`, `ResetScrollRegion`, `ScrollRegionUp`, and `ScrollRegionDown` functions in `src/terminal/ScreenBuffer.cpp`.
 
 ## Architecture
 
