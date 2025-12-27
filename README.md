@@ -171,6 +171,16 @@ python -m pytest tests/ -v
 
 **Test Coverage:** 72 integration tests covering clipboard, keyboard shortcuts, ANSI colors, text attributes, Unicode rendering, mouse input, scrolling, window resize, E2E workflows, and stress testing.
 
+### Contract Tests
+
+Verify ConPTY interface behavior:
+
+```bash
+build\tests\Release\TerminalDX12ContractTests.exe
+```
+
+**Test Coverage:** 31 contract tests covering session lifecycle, input/output handling, resize operations, and process management.
+
 ### PowerShell Smoke Tests
 
 Quick validation of build artifacts and stability:
@@ -209,7 +219,7 @@ GPL v2 License - See [LICENSE.md](LICENSE.md)
 
 ## Contributing
 
-Contributions and suggestions are welcome\! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions and suggestions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 
 

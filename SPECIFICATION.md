@@ -147,7 +147,7 @@ This document specifies all features for TerminalDX12, including current impleme
 - DECTCEM: When enabled, cursor is visible; when disabled, cursor is hidden
 - Mouse modes: Enable mouse event reporting to the application
 
-**Implementation:** `src/terminal/VTStateMachine.cpp` lines 442-445 (stub only)
+**Implementation:** `src/terminal/VTStateMachine.cpp` HandleMode() - full mouse mode support
 
 #### Device Status
 
@@ -189,7 +189,7 @@ This document specifies all features for TerminalDX12, including current impleme
 - OSC 52: Allow applications to read/write system clipboard
 - OSC 133: Shell integration for command tracking, marks, and navigation
 
-**Implementation:** `src/terminal/VTStateMachine.cpp` lines 135-170 (parsing only, no action)
+**Implementation:** `src/terminal/VTStateMachine.cpp` lines 135-170 (parsing complete - shell integration markers are metadata only)
 
 ### 1.4 DCS Sequences (ESC P ... ST)
 

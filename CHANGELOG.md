@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - Multi-frame deferred resize for stability during window maximize
-- ConPTY contract tests for Windows pseudo-terminal validation
+- ConPTY contract tests (31 tests) for Windows pseudo-terminal validation
 - Visual regression testing infrastructure
 - Code coverage integration in CI workflow
 - Doxygen API documentation generation
