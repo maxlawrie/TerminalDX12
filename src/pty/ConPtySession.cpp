@@ -156,18 +156,26 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
 }
 
 void ConPtySession::Stop() {
-    if (!m_running) {
-        return;
-    }
+    // Check if we're actively running and need to stop
+    bool wasRunning = m_running.exchange(false);
 
-    spdlog::info("Stopping ConPTY session");
-    m_running = false;
+    if (wasRunning) {
+        spdlog::info("Stopping ConPTY session");
+    }
 
     // First close the pseudoconsole - this signals the child process to exit
     // and causes ReadFile to return cleanly
     if (m_hPC != INVALID_HANDLE_VALUE) {
         ClosePseudoConsole(m_hPC);
         m_hPC = INVALID_HANDLE_VALUE;
+    }
+
+    // Terminate process BEFORE joining threads to unblock ProcessMonitorThread
+    // which is waiting on WaitForSingleObject(m_hProcess, INFINITE)
+    if (m_hProcess != INVALID_HANDLE_VALUE) {
+        TerminateProcess(m_hProcess, 0);
+        CloseHandle(m_hProcess);
+        m_hProcess = INVALID_HANDLE_VALUE;
     }
 
     // Now close pipe handles to unblock any remaining reads
@@ -182,20 +190,14 @@ void ConPtySession::Stop() {
         m_hPipeIn = INVALID_HANDLE_VALUE;
     }
 
-    // Wait for threads to finish
+    // Always join threads if joinable (handles case where process exited naturally
+    // but threads haven't been joined yet)
     if (m_outputThread.joinable()) {
         m_outputThread.join();
     }
 
     if (m_monitorThread.joinable()) {
         m_monitorThread.join();
-    }
-
-    // Terminate process if still running
-    if (m_hProcess != INVALID_HANDLE_VALUE) {
-        TerminateProcess(m_hProcess, 0);
-        CloseHandle(m_hProcess);
-        m_hProcess = INVALID_HANDLE_VALUE;
     }
 
     if (m_hThread != INVALID_HANDLE_VALUE) {
@@ -285,18 +287,39 @@ void ConPtySession::ReadOutputThread() {
 void ConPtySession::ProcessMonitorThread() {
     spdlog::debug("Process monitor thread started");
 
+    // Copy handle locally to avoid races with Stop() modifying the member
+    HANDLE hProcess = m_hProcess;
     DWORD exitCode = 0;
-    if (m_hProcess != INVALID_HANDLE_VALUE) {
-        WaitForSingleObject(m_hProcess, INFINITE);
+    bool processExitedNaturally = false;
 
-        GetExitCodeProcess(m_hProcess, &exitCode);
-        spdlog::info("Process exited with code: {}", exitCode);
+    if (hProcess != INVALID_HANDLE_VALUE) {
+        // Use timed wait to periodically check m_running flag
+        // This allows Stop() to terminate cleanly without deadlock
+        while (m_running) {
+            DWORD result = WaitForSingleObject(hProcess, 100);  // 100ms timeout
+            if (result == WAIT_OBJECT_0) {
+                // Process exited naturally
+                GetExitCodeProcess(hProcess, &exitCode);
+                spdlog::info("Process exited with code: {}", exitCode);
+                processExitedNaturally = true;
+                break;
+            } else if (result == WAIT_FAILED) {
+                // Handle was closed by Stop()
+                spdlog::debug("Process monitor: handle closed");
+                break;
+            }
+            // WAIT_TIMEOUT - continue loop and check m_running
+        }
     }
 
-    m_running = false;
+    // If process exited naturally, mark session as not running
+    if (processExitedNaturally) {
+        m_running = false;
+    }
 
-    // Notify callback that process has exited
-    if (m_processExitCallback) {
+    // Notify callback that process has exited (only if it exited naturally,
+    // not when Stop() was called - Stop() handles cleanup separately)
+    if (processExitedNaturally && m_processExitCallback) {
         m_processExitCallback(static_cast<int>(exitCode));
     }
 
