@@ -82,6 +82,8 @@ TerminalDX12 is a fully functional GPU-accelerated terminal emulator for Windows
 
 4. **TUI crash on window maximize** - *(Fixed)* When maximizing the window while a TUI app (like nano) was running, a race condition between the resize and scroll region operations could cause crashes. Fixed by adding mutex locks to `SetScrollRegion`, `ResetScrollRegion`, `ScrollRegionUp`, and `ScrollRegionDown` functions in `src/terminal/ScreenBuffer.cpp`.
 
+5. **Alternate buffer resize content loss** - When resizing the terminal while in alternate screen buffer mode (used by TUI applications like vim, htop), content may not be fully preserved after the resize operation. Related test: `ScreenBufferTest.AlternateBufferResizePreservesContent` (currently failing).
+
 ## Architecture
 
 ```
