@@ -215,7 +215,6 @@ See [SPECIFICATION.md](SPECIFICATION.md) for a complete list of supported VT esc
 
 ## Known Issues
 
-- **Intermittent red ">" character** - A red ">" character occasionally appears unexpectedly in the terminal output. This appears to be related to escape sequence parsing.
 - **Alternate buffer resize content loss** - When resizing the terminal while in alternate screen buffer mode (used by TUI applications like vim, htop), content may not be fully preserved. Test: `ScreenBufferTest.AlternateBufferResizePreservesContent`.
 
 ## License
