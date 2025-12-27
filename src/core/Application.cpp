@@ -338,6 +338,20 @@ void Application::Render() {
     if (m_pendingConPTYResize) {
         m_pendingConPTYResize = false;
 
+        // Check if any tab is using alt buffer - skip buffer resize if so
+        bool anyAltBuffer = false;
+        if (m_tabManager) {
+            for (const auto& tab : m_tabManager->GetTabs()) {
+                if (tab) {
+                    auto* screenBuffer = tab->GetScreenBuffer();
+                    if (screenBuffer && screenBuffer->IsUsingAlternativeBuffer()) {
+                        anyAltBuffer = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         const int charWidth = 10;
         const int lineHeight = 25;
         const int startX = 10;
@@ -354,10 +368,23 @@ void Application::Render() {
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
                 if (tab) {
+                    // Resize ScreenBuffer (simplified for alt buffer to avoid races)
+                    tab->ResizeScreenBuffer(newCols, newRows);
+                    // Resize ConPTY so TUI app gets SIGWINCH and redraws
                     tab->ResizeConPTY(newCols, newRows);
                 }
             }
         }
+
+        // Skip this frame to let TUI app process resize
+        m_resizeStabilizeFrames = 2;
+        return;
+    }
+
+    // Skip frames while resize is stabilizing
+    if (m_resizeStabilizeFrames > 0) {
+        m_resizeStabilizeFrames--;
+        return;
     }
 
     static int frameCount = 0;
@@ -477,9 +504,9 @@ void Application::Render() {
         }
     }
 
-    int rows = screenBuffer->GetRows();
-    int cols = screenBuffer->GetCols();
-
+    // Get dimensions atomically to avoid race with resize
+    int rows, cols;
+    screenBuffer->GetDimensions(cols, rows);
 
     // Get cursor position for rendering
     int cursorX, cursorY;
@@ -529,7 +556,7 @@ void Application::Render() {
 
         // First pass: Render backgrounds for non-default colors
         for (int x = 0; x < cols; ) {
-            const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+            auto cell = screenBuffer->GetCellWithScrollback(x, y);
 
             // Determine if this cell has a non-default background
             bool hasTrueColorBg = cell.attr.UsesTrueColorBg();
@@ -584,16 +611,26 @@ void Application::Render() {
 
         // Second pass: Render foreground text character by character for precise grid alignment
         for (int x = 0; x < cols; ++x) {
-            const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+            auto cell = screenBuffer->GetCellWithScrollback(x, y);
 
             // Skip spaces and null
             if (cell.ch == U' ' || cell.ch == U'\0') {
                 continue;
             }
 
-            // Skip invalid/garbage codepoints (must be valid Unicode: 0-0x10FFFF)
-            // Also skip most control characters (0x00-0x1F) except tab
-            if (cell.ch > 0x10FFFF || (cell.ch < 0x20 && cell.ch != U'\t')) {
+            // Skip invalid/garbage codepoints with strict validation:
+            // - Control characters (0x00-0x1F) except tab (0x09)
+            // - Surrogate range (0xD800-0xDFFF) - invalid in UTF-32
+            // - Noncharacters (0xFFFE, 0xFFFF, and 0xnFFFE, 0xnFFFF for each plane)
+            // - Beyond Unicode max (> 0x10FFFF)
+            // - Private Use Area planes 15-16 (0xF0000-0x10FFFF) - unlikely in normal text
+            // - Supplementary Private Use Area-B (0x100000-0x10FFFF) - garbage indicator
+            if (cell.ch > 0x10FFFF ||
+                (cell.ch < 0x20 && cell.ch != U'\t') ||
+                (cell.ch >= 0xD800 && cell.ch <= 0xDFFF) ||
+                (cell.ch >= 0xF0000) ||  // Private use planes - garbage indicator
+                ((cell.ch & 0xFFFF) == 0xFFFE) ||
+                ((cell.ch & 0xFFFF) == 0xFFFF)) {
                 continue;
             }
 
@@ -764,6 +801,30 @@ void Application::OnWindowResize(int width, int height) {
     m_minimized = (width == 0 || height == 0);
 
     if (!m_minimized && m_renderer) {
+        // Check if any tab is using alt buffer (TUI app running)
+        bool anyAltBuffer = false;
+        if (m_tabManager) {
+            for (const auto& tab : m_tabManager->GetTabs()) {
+                if (tab) {
+                    auto* screenBuffer = tab->GetScreenBuffer();
+                    if (screenBuffer && screenBuffer->IsUsingAlternativeBuffer()) {
+                        anyAltBuffer = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If TUI is running, only resize DX12 renderer (skip buffer resize)
+        if (anyAltBuffer) {
+            spdlog::info("OnWindowResize: alt buffer active, only resizing DX12 renderer {}x{}", width, height);
+            m_pendingResize = true;
+            m_pendingWidth = width;
+            m_pendingHeight = height;
+            // Skip ScreenBuffer and ConPTY resize
+            return;
+        }
+
         // Defer DX12 renderer resize to next frame start
         m_pendingResize = true;
         m_pendingWidth = width;
@@ -788,7 +849,6 @@ void Application::OnWindowResize(int width, int height) {
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
                 if (tab) {
-                    // Only resize screen buffer, not ConPTY (to avoid TUI app issues)
                     tab->ResizeScreenBuffer(newCols, newRows);
                 }
             }
@@ -1439,7 +1499,7 @@ std::string Application::GetSelectedText() const {
         // Rectangle selection: same column range for all rows
         for (int y = startY; y <= endY; ++y) {
             for (int x = startX; x <= endX; ++x) {
-                const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+                auto cell = screenBuffer->GetCellWithScrollback(x, y);
                 text += cell.ch;
             }
             // Add newline between rows (but not after last row)
@@ -1469,7 +1529,7 @@ std::string Application::GetSelectedText() const {
             int rowEndX = (y == endY) ? normalEndX : cols - 1;
 
             for (int x = rowStartX; x <= rowEndX; ++x) {
-                const auto& cell = screenBuffer->GetCellWithScrollback(x, y);
+                auto cell = screenBuffer->GetCellWithScrollback(x, y);
                 text += cell.ch;
             }
 
@@ -1726,8 +1786,8 @@ void Application::SelectWord(int cellX, int cellY) {
     int cols = screenBuffer->GetCols();
 
     // Get character at click position
-    const auto& cell = screenBuffer->GetCellWithScrollback(cellX, cellY);
-    
+    auto cell = screenBuffer->GetCellWithScrollback(cellX, cellY);
+
     // If clicking on whitespace, don't select anything
     if (cell.ch == U' ' || cell.ch == 0) {
         ClearSelection();
@@ -1740,14 +1800,14 @@ void Application::SelectWord(int cellX, int cellY) {
 
     // Scan left
     while (startX > 0) {
-        const auto& prevCell = screenBuffer->GetCellWithScrollback(startX - 1, cellY);
+        auto prevCell = screenBuffer->GetCellWithScrollback(startX - 1, cellY);
         if (!IsWordChar(prevCell.ch)) break;
         startX--;
     }
 
     // Scan right
     while (endX < cols - 1) {
-        const auto& nextCell = screenBuffer->GetCellWithScrollback(endX + 1, cellY);
+        auto nextCell = screenBuffer->GetCellWithScrollback(endX + 1, cellY);
         if (!IsWordChar(nextCell.ch)) break;
         endX++;
     }
@@ -1861,8 +1921,8 @@ void Application::UpdateSearchResults() {
         ch = towlower(ch);
     }
 
-    int rows = screenBuffer->GetRows();
-    int cols = screenBuffer->GetCols();
+    int rows, cols;
+    screenBuffer->GetDimensions(cols, rows);
     int queryLen = static_cast<int>(queryLower.length());
 
     // Search through visible area and scrollback
@@ -1871,7 +1931,7 @@ void Application::UpdateSearchResults() {
         for (int x = 0; x <= cols - queryLen; ++x) {
             bool match = true;
             for (int i = 0; i < queryLen && match; ++i) {
-                const auto& cell = screenBuffer->GetCellWithScrollback(x + i, y);
+                auto cell = screenBuffer->GetCellWithScrollback(x + i, y);
                 wchar_t cellChar = static_cast<wchar_t>(cell.ch);
                 if (towlower(cellChar) != queryLower[i]) {
                     match = false;
@@ -1922,7 +1982,7 @@ std::string Application::DetectUrlAt(int cellX, int cellY) const {
     // Build the text around the clicked position
     std::string lineText;
     for (int x = 0; x < cols; ++x) {
-        const auto& cell = screenBuffer->GetCellWithScrollback(x, cellY);
+        auto cell = screenBuffer->GetCellWithScrollback(x, cellY);
         if (cell.ch < 128 && cell.ch > 0) {
             lineText += static_cast<char>(cell.ch);
         } else if (cell.ch >= 128) {

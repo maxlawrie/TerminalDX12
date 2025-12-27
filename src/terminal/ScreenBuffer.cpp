@@ -44,37 +44,32 @@ void ScreenBuffer::Resize(int cols, int rows) {
     int oldCols = m_cols;
     int oldRows = m_rows;
 
-    // For alternative buffer, just resize without reflow (TUI apps handle their own reflow)
+    // For alternative buffer, just create a fresh empty buffer
+    // TUI apps will fully redraw after receiving SIGWINCH, so we don't need to preserve content
+    // This avoids potential race conditions with buffer access during resize
     if (m_useAltBuffer) {
-        spdlog::info("Alt buffer resize: allocating {}x{} buffer", cols, rows);
-        std::vector<Cell> newBuffer(cols * rows);
-        int copyRows = std::min(oldRows, rows);
-        int copyCols = std::min(oldCols, cols);
-        spdlog::info("Alt buffer resize: copying {}x{} cells", copyCols, copyRows);
-        for (int y = 0; y < copyRows; ++y) {
-            for (int x = 0; x < copyCols; ++x) {
-                newBuffer[y * cols + x] = m_buffer[y * oldCols + x];
-            }
-        }
-        spdlog::info("Alt buffer resize: swapping buffer");
+        spdlog::info("Alt buffer resize: creating fresh {}x{} buffer", cols, rows);
+
+        // Create fresh buffer - TUI app will redraw everything
+        std::vector<Cell> newBuffer(cols * rows);  // All cells initialized to spaces
+
+        // CRITICAL: Swap buffer BEFORE updating dimensions!
+        // If we update dimensions first, bounds checks will pass but buffer is still old size
+        // causing buffer overrun crashes
         m_buffer = std::move(newBuffer);
         m_cols = cols;
         m_rows = rows;
-        m_lineWrapped.resize(rows, false);
-        spdlog::info("Alt buffer resize: clamping cursor from ({}, {})", m_cursorX, m_cursorY);
-        ClampCursor();
-        spdlog::info("Alt buffer resize: cursor now at ({}, {})", m_cursorX, m_cursorY);
+        m_lineWrapped.assign(rows, false);
 
-        // Reset scroll region to full screen after resize
-        // This is critical: TUI apps set scroll regions, and after resize
-        // the old region bounds may be invalid, causing row 0 to be excluded
-        // from redraws. The app will re-establish its scroll region after
-        // receiving the resize notification.
+        // Clamp cursor to new bounds
+        ClampCursor();
+
+        // Reset scroll region to full screen
         m_scrollTop = 0;
-        m_scrollBottom = -1;  // -1 means full screen (no custom region)
-        spdlog::info("Alt buffer resize: scroll region reset, done");
+        m_scrollBottom = -1;
 
         m_dirty = true;
+        spdlog::info("Alt buffer resize: done, cursor at ({}, {})", m_cursorX, m_cursorY);
         return;
     }
 
@@ -386,7 +381,13 @@ const Cell& ScreenBuffer::GetCell(int x, int y) const {
         return emptyCell;
     }
 
-    return m_buffer[CellIndex(x, y)];
+    // Extra safety: verify index is within buffer bounds
+    int idx = CellIndex(x, y);
+    if (idx < 0 || idx >= static_cast<int>(m_buffer.size())) {
+        return emptyCell;
+    }
+
+    return m_buffer[idx];
 }
 
 Cell& ScreenBuffer::GetCellMutable(int x, int y) {
@@ -397,17 +398,22 @@ Cell& ScreenBuffer::GetCellMutable(int x, int y) {
         return emptyCell;
     }
 
+    // Extra safety: verify index is within buffer bounds
+    int idx = CellIndex(x, y);
+    if (idx < 0 || idx >= static_cast<int>(m_buffer.size())) {
+        return emptyCell;
+    }
+
     m_dirty = true;
-    return m_buffer[CellIndex(x, y)];
+    return m_buffer[idx];
 }
 
-const Cell& ScreenBuffer::GetCellWithScrollback(int x, int y) const {
+Cell ScreenBuffer::GetCellWithScrollback(int x, int y) const {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    // Thread-local for consistency with other GetCell methods
-    thread_local Cell emptyCell;
 
+    // Return empty cell for out-of-bounds access
     if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
-        return emptyCell;
+        return Cell();  // Returns by value - safe copy
     }
 
     // If we're scrolled back, get from scrollback buffer
@@ -422,13 +428,22 @@ const Cell& ScreenBuffer::GetCellWithScrollback(int x, int y) const {
             // Get from scrollback
             int scrollbackIdx = scrollbackLineIndex * m_cols + x;
             if (scrollbackIdx >= 0 && scrollbackIdx < static_cast<int>(m_scrollback.size())) {
-                return m_scrollback[scrollbackIdx];
+                return m_scrollback[scrollbackIdx];  // Returns by value - safe copy
             }
         }
     }
 
-    // Get from current buffer
-    return m_buffer[CellIndex(x, y)];
+    // Extra safety: verify index is within buffer bounds
+    // This catches any mismatch between m_cols/m_rows and actual buffer size
+    int idx = CellIndex(x, y);
+    if (idx < 0 || idx >= static_cast<int>(m_buffer.size())) {
+        return Cell();  // Return empty cell for out-of-bounds
+    }
+
+    // Get from current buffer - returns by value to prevent dangling references
+    // This is critical: if caller holds reference while resize happens,
+    // the old buffer is freed and reference becomes invalid (use-after-free)
+    return m_buffer[idx];
 }
 
 

@@ -171,6 +171,7 @@ private:
     bool m_pendingConPTYResize = false;  // Resize ConPTY after DX12 resize completes
     int m_pendingWidth = 0;
     int m_pendingHeight = 0;
+    int m_resizeStabilizeFrames = 0;  // Skip frames after resize to let TUI stabilize
 
     // Selection state
     CellPos m_selectionStart;

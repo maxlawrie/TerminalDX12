@@ -145,6 +145,13 @@ public:
     int GetCols() const { return m_cols; }
     int GetRows() const { return m_rows; }
 
+    // Thread-safe dimension access - use this when iterating
+    void GetDimensions(int& cols, int& rows) const {
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        cols = m_cols;
+        rows = m_rows;
+    }
+
     // Cursor operations
     void SetCursorPos(int x, int y);
     void GetCursorPos(int& x, int& y) const { x = m_cursorX; y = m_cursorY; }
@@ -188,7 +195,8 @@ public:
     Cell& GetCellMutable(int x, int y);
 
     // Get cell accounting for scrollback offset
-    const Cell& GetCellWithScrollback(int x, int y) const;
+    // Returns by value to prevent dangling references during resize
+    Cell GetCellWithScrollback(int x, int y) const;
 
     // Get visible buffer (accounts for scrollback)
     const std::vector<Cell>& GetBuffer() const { return m_buffer; }
