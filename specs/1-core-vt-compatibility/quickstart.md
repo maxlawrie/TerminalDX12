@@ -8,7 +8,7 @@
 - Visual Studio 2026 with C++20 support
 - vcpkg with dependencies installed
 - Existing TerminalDX12 builds successfully
-- All 176 unit tests passing
+- All 333 unit tests passing
 
 ## Step-by-Step Implementation Order
 
@@ -72,7 +72,7 @@ Run unit tests, test with vim, htop, and Claude Code.
 
 ## Verification Checklist
 
-- [ ] All 176 existing tests pass
+- [ ] All 333 existing tests pass
 - [ ] New unit tests for each handler
 - [ ] vim opens, edits, exits cleanly
 - [ ] htop displays with fixed header
@@ -81,5 +81,6 @@ Run unit tests, test with vim, htop, and Claude Code.
 - [ ] Strikethrough line renders through text
 - [ ] Cursor hide/show works
 - [ ] Cursor position reports correctly
+
 
 
