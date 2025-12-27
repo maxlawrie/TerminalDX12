@@ -44,14 +44,26 @@ void ScreenBuffer::Resize(int cols, int rows) {
     int oldCols = m_cols;
     int oldRows = m_rows;
 
-    // For alternative buffer, just create a fresh empty buffer
-    // TUI apps will fully redraw after receiving SIGWINCH, so we don't need to preserve content
-    // This avoids potential race conditions with buffer access during resize
+    // For alternative buffer, preserve content that fits in new dimensions
+    // TUI apps typically redraw after SIGWINCH, but we still preserve content for:
+    // 1. Apps that don't immediately redraw
+    // 2. Test correctness
+    // 3. Better user experience during resize
     if (m_useAltBuffer) {
-        spdlog::info("Alt buffer resize: creating fresh {}x{} buffer", cols, rows);
+        spdlog::info("Alt buffer resize: preserving content from {}x{} to {}x{}",
+                     oldCols, oldRows, cols, rows);
 
-        // Create fresh buffer - TUI app will redraw everything
+        // Create new buffer
         std::vector<Cell> newBuffer(cols * rows);  // All cells initialized to spaces
+
+        // Copy content from old buffer that fits in new dimensions
+        int copyRows = std::min(oldRows, rows);
+        int copyCols = std::min(oldCols, cols);
+        for (int y = 0; y < copyRows; ++y) {
+            for (int x = 0; x < copyCols; ++x) {
+                newBuffer[y * cols + x] = m_buffer[y * oldCols + x];
+            }
+        }
 
         // CRITICAL: Swap buffer BEFORE updating dimensions!
         // If we update dimensions first, bounds checks will pass but buffer is still old size
@@ -374,6 +386,8 @@ void ScreenBuffer::ClearRect(int x, int y, int width, int height) {
 }
 
 const Cell& ScreenBuffer::GetCell(int x, int y) const {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
     // Thread-local to avoid data races when multiple threads access out-of-bounds
     thread_local Cell emptyCell;
 
@@ -391,6 +405,8 @@ const Cell& ScreenBuffer::GetCell(int x, int y) const {
 }
 
 Cell& ScreenBuffer::GetCellMutable(int x, int y) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
     // Thread-local to avoid data races when multiple threads access out-of-bounds
     thread_local Cell emptyCell;
 

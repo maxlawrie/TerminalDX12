@@ -781,5 +781,117 @@ TEST_F(ScreenBufferTest, AlternateBufferResizePreservesContent) {
     EXPECT_EQ(contentCell.ch, U'C');
 }
 
+TEST_F(ScreenBufferTest, AlternateBufferResizeSmallToLarge) {
+    // Simulate maximize: resize from small to very large (like maximizing window)
+    buffer->UseAlternativeBuffer(true);
+
+    // Fill entire buffer with content
+    for (int y = 0; y < 24; ++y) {
+        buffer->SetCursorPos(0, y);
+        buffer->WriteString(U"Line content here");
+    }
+
+    // Simulate maximize - go to very large size
+    buffer->Resize(300, 100);
+
+    // Should not crash, and first row content should be preserved
+    const Cell& cell = buffer->GetCell(0, 0);
+    EXPECT_EQ(cell.ch, U'L');
+
+    // Access cells at various positions (should not crash)
+    EXPECT_NO_THROW(buffer->GetCell(299, 99));
+    EXPECT_NO_THROW(buffer->GetCell(150, 50));
+}
+
+TEST_F(ScreenBufferTest, AlternateBufferResizeLargeToSmall) {
+    // Resize from large to small (like restoring from maximize)
+    buffer->Resize(200, 80);  // Start large
+    buffer->UseAlternativeBuffer(true);
+
+    // Fill with content
+    for (int y = 0; y < 80; ++y) {
+        buffer->SetCursorPos(0, y);
+        buffer->WriteString(U"Large buffer content");
+    }
+
+    // Shrink (restore from maximize)
+    buffer->Resize(80, 24);
+
+    // Content that fits should be preserved
+    const Cell& cell = buffer->GetCell(0, 0);
+    EXPECT_EQ(cell.ch, U'L');
+
+    // Verify bounds are correct
+    EXPECT_EQ(buffer->GetCols(), 80);
+    EXPECT_EQ(buffer->GetRows(), 24);
+}
+
+TEST_F(ScreenBufferTest, AlternateBufferRapidResize) {
+    // Simulate rapid resize events (like dragging window edge quickly)
+    buffer->UseAlternativeBuffer(true);
+
+    buffer->SetCursorPos(0, 0);
+    buffer->WriteString(U"Content");
+
+    // Rapid consecutive resizes
+    for (int i = 0; i < 10; ++i) {
+        buffer->Resize(80 + i * 10, 24 + i * 2);
+        buffer->Resize(80 + i * 10 + 5, 24 + i * 2 + 1);
+    }
+
+    // Final resize back to normal
+    buffer->Resize(80, 24);
+
+    // Should not crash - content may or may not be preserved through rapid resizes
+    EXPECT_EQ(buffer->GetCols(), 80);
+    EXPECT_EQ(buffer->GetRows(), 24);
+}
+
+TEST_F(ScreenBufferTest, AlternateBufferResizeWithFullContent) {
+    buffer->UseAlternativeBuffer(true);
+
+    // Fill cells using WriteString to avoid cursor position issues
+    // This is more realistic - TUI apps typically write lines of text
+    for (int y = 0; y < 23; ++y) {  // Leave last row empty to avoid scroll
+        buffer->SetCursorPos(0, y);
+        buffer->WriteString(U"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");  // 80 X's
+    }
+
+    // Resize to larger
+    buffer->Resize(160, 48);
+
+    // Original content should be preserved (first 23 rows)
+    for (int y = 0; y < 23; ++y) {
+        for (int x = 0; x < 80; ++x) {
+            const Cell& cell = buffer->GetCell(x, y);
+            EXPECT_EQ(cell.ch, U'X') << "Cell at (" << x << ", " << y << ") not preserved";
+        }
+    }
+
+    // New cells should be empty (space)
+    const Cell& newCell = buffer->GetCell(100, 30);
+    EXPECT_EQ(newCell.ch, U' ');
+}
+
+TEST_F(ScreenBufferTest, AlternateBufferConcurrentAccess) {
+    // Test that resize doesn't cause issues when cells are accessed
+    buffer->UseAlternativeBuffer(true);
+
+    // Write content
+    buffer->SetCursorPos(0, 0);
+    buffer->WriteString(U"Test content for concurrent access");
+
+    // Perform resize
+    buffer->Resize(120, 40);
+
+    // Immediately access cells (simulating renderer access after resize)
+    for (int y = 0; y < 40; ++y) {
+        for (int x = 0; x < 120; ++x) {
+            // This should not crash even with rapid access
+            EXPECT_NO_THROW(buffer->GetCell(x, y));
+        }
+    }
+}
+
 } // namespace Tests
 } // namespace TerminalDX12::Terminal
