@@ -18,14 +18,16 @@ A GPU-accelerated terminal emulator for Windows using DirectX 12.
 
 ## Screenshots
 
-*Screenshots coming soon.*
+The terminal features GPU-accelerated rendering with full color and attribute support:
 
-The terminal renders text using a GPU-accelerated glyph atlas with proper color and attribute support:
-
-- ANSI 16-color, 256-color, and true color (24-bit RGB)
-- Bold, italic, underline, strikethrough text styles
-- Mouse text selection with blue highlight
-- Tab bar for multiple terminal sessions
+| Feature | Description |
+|---------|-------------|
+| **True Color** | Full 24-bit RGB color support (16.7M colors) |
+| **Text Styles** | Bold, italic, underline, strikethrough, dim |
+| **Selection** | Mouse text selection with blue highlight |
+| **Tabs** | Multiple terminal sessions in a single window |
+| **Split Panes** | Horizontal and vertical pane splitting |
+| **Scrollback** | 10,000 lines of history with smooth scrolling |
 
 ## Requirements
 

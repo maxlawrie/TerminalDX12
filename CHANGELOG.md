@@ -83,3 +83,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to this project.
+
+---
+
+[Unreleased]: https://github.com/maxlawrie/TerminalDX12/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/maxlawrie/TerminalDX12/releases/tag/v0.1.0

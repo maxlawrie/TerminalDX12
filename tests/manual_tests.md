@@ -17,7 +17,7 @@ Use this checklist to manually verify terminal functionality.
 **Expected Results:**
 - [ ] Window opens successfully
 - [ ] Window title shows "TerminalDX12"
-- [ ] cmd.exe prompt is visible (e.g., `C:\Temp\TerminalDX12Test>`)
+- [ ] PowerShell prompt is visible (e.g., `PS C:\Users\username>`)
 - [ ] Green blinking cursor is visible
 
 ---
@@ -244,6 +244,57 @@ Test each key and observe behavior:
 
 ---
 
+## Test 19: Tab Management
+**Steps:**
+1. Press `Ctrl+T` to create a new tab
+2. Press `Ctrl+T` again to create another tab
+3. Click on different tabs to switch between them
+4. Press `Ctrl+1`, `Ctrl+2`, `Ctrl+3` to switch tabs by number
+5. Press `Ctrl+W` to close the current tab
+
+**Expected Results:**
+- [ ] New tabs open with fresh PowerShell sessions
+- [ ] Tab bar shows all open tabs
+- [ ] Clicking tabs switches between sessions
+- [ ] Ctrl+number shortcuts switch tabs correctly
+- [ ] Closing last tab closes the window
+
+---
+
+## Test 20: Split Panes
+**Steps:**
+1. Press `Alt+Shift+Plus` (or `Alt+Shift+=`) for vertical split
+2. Press `Alt+Shift+Minus` for horizontal split
+3. Press `Alt+Arrow` keys to navigate between panes
+4. Click on a pane to focus it
+5. Press `Ctrl+Shift+W` to close current pane
+
+**Expected Results:**
+- [ ] Vertical split creates side-by-side panes
+- [ ] Horizontal split creates top/bottom panes
+- [ ] Alt+Arrow navigates between panes
+- [ ] Clicking focuses the clicked pane
+- [ ] Closing pane redistributes space
+
+---
+
+## Test 21: In-Terminal Search
+**Steps:**
+1. Generate some output (e.g., `Get-ChildItem -Recurse`)
+2. Press `Ctrl+F` to open search
+3. Type a search term
+4. Press `Enter` or `F3` to find next match
+5. Press `Shift+F3` to find previous match
+6. Press `Escape` to close search
+
+**Expected Results:**
+- [ ] Search bar appears at top or bottom
+- [ ] Matches are highlighted in the terminal
+- [ ] Next/previous navigation works
+- [ ] Search closes with Escape
+
+---
+
 ## Summary Checklist
 
 **Core Functionality:**
@@ -264,6 +315,9 @@ Test each key and observe behavior:
 - [ ] Scrollback with mouse wheel
 - [ ] Window resize
 - [ ] Long sessions are stable
+- [ ] Tab management (Ctrl+T, Ctrl+W)
+- [ ] Split panes (Alt+Shift+Plus/Minus)
+- [ ] In-terminal search (Ctrl+F)
 
 **Performance:**
 - [ ] Renders quickly
