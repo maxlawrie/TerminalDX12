@@ -313,6 +313,107 @@ Test each key and observe behavior:
 
 ---
 
+## Test 23: Settings Dialog - Open/Close
+**Steps:**
+1. Press `Ctrl+,` (Ctrl+Comma) to open settings
+2. Verify the dialog appears with three tabs: General, Appearance, Terminal
+3. Press `Escape` or click Cancel
+
+**Expected Results:**
+- [ ] Settings dialog opens as modal (blocks main window)
+- [ ] Three tabs are visible and clickable
+- [ ] Dialog closes on Escape without saving
+- [ ] Main window becomes responsive again after close
+
+---
+
+## Test 24: Settings Dialog - Font Settings
+**Steps:**
+1. Open settings with `Ctrl+,`
+2. Click the "Appearance" tab
+3. Select a different font from the dropdown (e.g., "Courier New")
+4. Change font size to 14
+5. Click Apply
+
+**Expected Results:**
+- [ ] Font dropdown shows only monospace fonts
+- [ ] Font dropdown defaults to current font (Consolas)
+- [ ] Font size input validates range 6-72
+- [ ] After Apply, terminal text updates to new font
+- [ ] Font change persists after closing dialog
+
+---
+
+## Test 25: Settings Dialog - Color Settings
+**Steps:**
+1. Open settings with `Ctrl+,`
+2. Click the "Appearance" tab
+3. Click the "Background" color swatch button
+4. Select a dark blue color in the color picker
+5. Click OK on color picker
+6. Click Apply
+
+**Expected Results:**
+- [ ] Color swatch buttons show current colors
+- [ ] Clicking swatch opens Windows color picker (ChooseColorW)
+- [ ] Color picker shows custom color palette
+- [ ] After Apply, terminal background changes to selected color
+- [ ] Color swatches update to show new selection
+
+---
+
+## Test 26: Settings Dialog - Terminal Settings
+**Steps:**
+1. Open settings with `Ctrl+,`
+2. Click the "Terminal" tab
+3. Change cursor style to "Bar" using radio buttons
+4. Uncheck "Cursor Blink" checkbox
+5. Adjust opacity slider to 80%
+6. Click Apply
+
+**Expected Results:**
+- [ ] Cursor style radio buttons work (Block, Underline, Bar)
+- [ ] Cursor blink checkbox toggles cursor blinking
+- [ ] Opacity slider changes terminal transparency (if supported)
+- [ ] Changes apply immediately after clicking Apply
+
+---
+
+## Test 27: Settings Dialog - General Settings
+**Steps:**
+1. Open settings with `Ctrl+,`
+2. On the "General" tab, modify:
+   - Shell path (e.g., change to cmd.exe)
+   - Working directory
+   - Scrollback lines (e.g., 20000)
+3. Click Apply
+4. Open a new tab (Ctrl+T)
+
+**Expected Results:**
+- [ ] Shell path edit box shows current shell
+- [ ] Working directory can be set
+- [ ] Scrollback lines validates range 100-100,000
+- [ ] New tabs use the updated shell path
+- [ ] Settings persist after restart
+
+---
+
+## Test 28: Settings Dialog - Reset to Defaults
+**Steps:**
+1. Open settings with `Ctrl+,`
+2. Change several settings
+3. Click "Reset to Defaults" button
+4. Confirm the reset when prompted
+
+**Expected Results:**
+- [ ] Confirmation dialog appears before reset
+- [ ] All fields revert to default values
+- [ ] Font resets to Consolas 16pt
+- [ ] Colors reset to default scheme
+- [ ] Cursor resets to Block with blink enabled
+
+---
+
 ## Summary Checklist
 
 **Core Functionality:**
@@ -337,6 +438,11 @@ Test each key and observe behavior:
 - [ ] Split panes (Ctrl+Shift+D/E)
 - [ ] In-terminal search (Ctrl+Shift+F)
 - [ ] Pane zoom (Ctrl+Shift+Z)
+- [ ] Settings dialog (Ctrl+,)
+- [ ] Font selection and size
+- [ ] Color customization
+- [ ] Cursor style settings
+- [ ] Reset to defaults
 
 **Performance:**
 - [ ] Renders quickly

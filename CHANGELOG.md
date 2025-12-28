@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Settings Dialog** (Ctrl+Comma) for GUI configuration
+  - General tab: Shell path, working directory, scrollback lines
+  - Appearance tab: Font selection (monospace fonts via DirectWrite enumeration), font size, color scheme
+  - Terminal tab: Cursor style (Block/Underline/Bar), cursor blink, opacity slider
+  - Reset to Defaults button with confirmation prompt
+  - Color picker integration using Windows ChooseColorW dialog
+  - Owner-draw color swatch buttons showing current colors
+- DirectWrite-based FontEnumerator for monospace font detection (9 unit tests)
 - Multi-frame deferred resize for stability during window maximize
 - ConPTY contract tests (31 tests) for Windows pseudo-terminal validation
 - Visual regression testing infrastructure
