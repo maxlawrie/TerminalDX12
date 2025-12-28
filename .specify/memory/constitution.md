@@ -103,17 +103,25 @@ Protect users from breaking config changes:
 - **Create a GitHub issue** for every new bug discovered before starting work
 - Before investigating, check if a similar bug or issue was already identified (even if closed)
 - Unit tests must pass before manual testing
-- **Manual testing is required** before closing any bug issue
+- **Manual testing is required BEFORE merging the PR** - not just before closing the issue
 - Reproduce the original bug scenario to confirm the fix
 - Document the root cause and fix in the commit message
+- Only close the issue manually after all testing is verified
 
 ### Issue Completion
+**Order of operations** (MUST be followed exactly):
+1. Implement feature/fix and update automated tests
+2. Update manual test suite (`tests/manual_tests.md`) with new test cases
+3. Run automated tests (`run_tests.bat`) - all must pass
+4. **Run manual tests** - verify feature works as expected in the running application
+5. **Only after manual testing passes**: Merge the PR
+6. **Only after PR is merged**: Manually close the related issue(s)
+
 Before closing any issue (feature or bug):
 - **Automated tests** MUST cover all acceptance scenarios from the spec
-- **Manual test suite** (`tests/manual_tests.md`) MUST be updated with new test cases
 - All spec requirements MUST have corresponding test coverage
-- Run both automated (`run_tests.bat`) and manual test suites to verify
 - Update `tests/README.md` with new test counts if tests were added
+- **NEVER rely on auto-close keywords** - always close issues manually after verification
 
 ### Documentation Updates
 Keep documentation in sync with code changes:
@@ -147,9 +155,11 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `chore`
 
 ### Branch & Issue Linking
 - **Feature branches**: Use speckit numbering format (e.g., `006-settings-dialog`)
-- **Commits**: Reference GitHub issues in commit messages (e.g., `fixes #12`, `closes #3`)
-- **PRs**: Link to related issues in PR description
-- **Issue references**: Use `#N` syntax for automatic GitHub linking
+- **Issue references**: Use `#N` syntax for automatic GitHub linking (e.g., "Related to #3")
+- **PRs**: Reference related issues with "Related to #N" or "For #N" - NOT auto-close keywords
+- **NEVER use auto-close keywords**: Do NOT use "Closes #N", "Fixes #N", "Resolves #N" in commits or PRs
+  - These keywords automatically close issues when merged, bypassing manual testing verification
+  - Issues MUST be closed manually only AFTER manual testing is completed and verified
 
 ### Speckit Workflow
 For new features, follow the speckit workflow:
@@ -173,4 +183,4 @@ This constitution defines the architectural boundaries and development practices
 2. Impact analysis on existing architecture
 3. Update to this constitution before implementation
 
-**Version**: 1.3.1 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-28
+**Version**: 1.4.0 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-28
