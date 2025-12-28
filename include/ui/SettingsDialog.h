@@ -46,11 +46,23 @@ private:
     int GetEditInt(HWND hwnd, int controlId, int defaultValue);
     bool GetCheckState(HWND hwnd, int controlId);
 
+    // Color picker helper
+    void ShowColorPicker(HWND hwnd, COLORREF& color, int controlId);
+
+    // Reset to defaults
+    void ResetToDefaults(HWND hwnd);
+
     HWND m_parentWindow;
     Core::Config* m_config;
     std::unique_ptr<Core::Config> m_originalConfig;  // Backup for cancel
     std::function<void()> m_previewCallback;
     bool m_settingsChanged = false;
+
+    // Color swatch state
+    COLORREF m_foregroundColor = RGB(204, 204, 204);
+    COLORREF m_backgroundColor = RGB(12, 12, 12);
+    COLORREF m_cursorColor = RGB(0, 255, 0);
+    COLORREF m_selectionColor = RGB(51, 153, 255);
 };
 
 } // namespace UI

@@ -1,4 +1,4 @@
-# TerminalDX12 Development Guidelines
+﻿# TerminalDX12 Development Guidelines
 
 ## Quick Reference
 

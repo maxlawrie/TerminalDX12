@@ -56,6 +56,7 @@ set(UI_SOURCES
     src/ui/TabManager.cpp
     src/ui/Pane.cpp
     src/ui/SettingsDialog.cpp
+    src/ui/FontEnumerator.cpp
 )
 
 set(ALL_SOURCES
@@ -87,6 +88,7 @@ target_link_libraries(TerminalDX12 PRIVATE
     dxgi.lib
     dxguid.lib
     d3dcompiler.lib
+    dwrite.lib
 )
 
 # Compiler warnings
