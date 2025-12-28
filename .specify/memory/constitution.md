@@ -16,11 +16,24 @@ All new features require tests before implementation:
 - Target: maintain 100% coverage of implemented VT sequences
 
 ### IV. Windows Native Architecture
-This is a Windows-only terminal leveraging native APIs:
+This is a Windows-only terminal leveraging modern Windows APIs:
 - **ConPTY** for pseudo-console functionality (Windows 10 1809+)
 - **Win32 Input Mode** for proper keyboard handling
-- **DirectX 12** for GPU rendering (no cross-platform abstractions)
+- **DirectX 12** for GPU-accelerated terminal text rendering (no cross-platform abstractions)
+- **WinUI 3** for all UI chrome, dialogs, and settings (no legacy Win32 dialogs or GDI)
 - No Unix/POSIX compatibility layers; embrace Windows conventions
+- Minimum Windows version: Windows 10 1809 (build 17763) or later
+
+### IV.a. WinUI 3 UI Framework
+WinUI 3 is the mandatory UI framework for all non-terminal UI elements:
+- **Settings dialogs**: Must use WinUI 3 NavigationView with TabView or pivot controls
+- **Context menus**: WinUI 3 MenuFlyout, not Win32 TrackPopupMenu
+- **Message boxes**: WinUI 3 ContentDialog, not Win32 MessageBox
+- **File/folder pickers**: WinUI 3 FilePicker/FolderPicker
+- **Theming**: Support system light/dark theme via WinUI 3 theme resources
+- **Accessibility**: Leverage WinUI 3's built-in accessibility support (Narrator, high contrast)
+- Legacy Win32 UI (CreateWindowW dialogs, common controls) is NOT permitted for new UI
+- The terminal rendering surface (DirectX 12 SwapChain) is hosted within a WinUI 3 window
 
 ### V. Unicode & Internationalization
 Full Unicode support is non-negotiable:
@@ -183,4 +196,4 @@ This constitution defines the architectural boundaries and development practices
 2. Impact analysis on existing architecture
 3. Update to this constitution before implementation
 
-**Version**: 1.4.0 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-28
+**Version**: 2.0.0 | **Ratified**: 2025-12-21 | **Last Amended**: 2025-12-28
