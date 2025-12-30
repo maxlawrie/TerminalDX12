@@ -6,6 +6,7 @@
 #include "ui/Tab.h"
 #include "ui/Pane.h"
 #include "ui/SettingsDialog.h"
+#include "ui/SearchEngine.h"
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"

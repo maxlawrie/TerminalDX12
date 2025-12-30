@@ -475,6 +475,22 @@ Cell ScreenBuffer::GetCellWithScrollback(int x, int y) const {
     return m_buffer[idx];
 }
 
+Cell ScreenBuffer::GetScrollbackCell(int x, int scrollbackLine) const {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
+    // Validate bounds
+    if (x < 0 || x >= m_cols || scrollbackLine < 0 || scrollbackLine >= m_scrollbackUsed) {
+        return Cell();
+    }
+
+    int idx = scrollbackLine * m_cols + x;
+    if (idx < 0 || idx >= static_cast<int>(m_scrollback.size())) {
+        return Cell();
+    }
+
+    return m_scrollback[idx];
+}
+
 
 void ScreenBuffer::UseAlternativeBuffer(bool use) {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
