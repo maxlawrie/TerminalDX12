@@ -171,6 +171,13 @@ public:
     void ScrollToBottom();
     int GetScrollOffset() const { return m_scrollOffset; }
     void SetScrollOffset(int offset);
+    int GetScrollbackUsed() const { return m_scrollbackUsed; }
+
+    /// @brief Get a cell from the scrollback buffer
+    /// @param x Column position (0-indexed)
+    /// @param scrollbackLine Scrollback line index (0 = oldest, scrollbackUsed-1 = most recent)
+    /// @return Cell at the position, or empty cell if out of bounds
+    Cell GetScrollbackCell(int x, int scrollbackLine) const;
 
     // Scroll region support (DECSTBM)
     void SetScrollRegion(int top, int bottom);

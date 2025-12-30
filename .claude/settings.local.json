@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue:*)",
+      "Bash(python:*)",
+      "Bash(cmake:*)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" -B build -S . -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" --build build --config Release --target TerminalDX12Tests)",
+      "Bash(./build/tests/Release/TerminalDX12Tests.exe:*)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" --build build --config Release --target TerminalDX12ContractTests)",
+      "Bash(./build/tests/Release/TerminalDX12ContractTests.exe:*)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" --build build --config Release)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" --build build --config Release --target TerminalDX12:*)",
+      "Bash(cat:*)",
+      "Bash(git checkout:*)",
+      "Bash(powershell -Command \"\n$content = Get-Content -Path ''include/core/Application.h'' -Raw\n$old = ''    // Search functionality\n    void OpenSearch();\n    void CloseSearch();\n    void SearchNext();\n    void SearchPrevious();\n    void UpdateSearchResults();\n\n    // URL detection''\n$new = ''    // Search functionality\n    void OpenSearch();\n    void CloseSearch();\n    void SearchNext();\n    void SearchPrevious();\n    void UpdateSearchResults();\n    void ToggleSearchRegex();\n    void ScrollToMatch(int matchIndex);\n\n    // URL detection''\n$content = $content.Replace($old, $new)\nSet-Content -Path ''include/core/Application.h'' -Value $content -NoNewline\nWrite-Host ''Updated Application.h''\n\")",
+      "Bash(powershell -Command \"\n$content = Get-Content -Path ''include/core/Application.h'' -Raw\n$old = ''    // Search state\n    bool m_searchMode = false;         // Search bar is visible\n    std::wstring m_searchQuery;        // Current search text\n    std::vector<CellPos> m_searchMatches;  // Found match positions\n    int m_currentMatchIndex = -1;      // Currently highlighted match (-1 = none)\n\n    static Application* s_instance;''\n$new = ''    // Search state\n    bool m_searchMode = false;         // Search bar is visible\n    std::wstring m_searchQuery;        // Current search text\n    std::vector<CellPos> m_searchMatches;  // Found match positions\n    std::vector<int> m_searchMatchLengths; // Length of each match (for regex)\n    int m_currentMatchIndex = -1;      // Currently highlighted match (-1 = none)\n    bool m_searchRegexEnabled = false; // Regex mode enabled\n    std::wstring m_searchError;        // Error message for invalid regex\n\n    static Application* s_instance;''\n$content = $content.Replace($old, $new)\nSet-Content -Path ''include/core/Application.h'' -Value $content -NoNewline\nWrite-Host ''Added search state members''\n\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File apply_changes.ps1)",
+      "Bash(powershell -ExecutionPolicy Bypass -File apply_funcs.ps1)",
+      "Bash(git add:*)"
+    ]
+  }
+}

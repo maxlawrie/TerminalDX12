@@ -11,6 +11,7 @@ add_library(TerminalCore STATIC
     ${CMAKE_SOURCE_DIR}/src/core/Config.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/ScreenBuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/VTStateMachine.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/SearchEngine.cpp
 )
 
 target_include_directories(TerminalCore PUBLIC
@@ -36,6 +37,7 @@ set(TEST_SOURCES
     unit/test_screen_buffer.cpp
     unit/test_unicode.cpp
     unit/test_performance.cpp
+    unit/test_search_engine.cpp
 )
 
 # Create test executable
@@ -78,6 +80,7 @@ add_library(UILib STATIC
     ${CMAKE_SOURCE_DIR}/src/ui/Tab.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/Pane.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/FontEnumerator.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/SearchEngine.cpp
 )
 
 target_include_directories(UILib PUBLIC
