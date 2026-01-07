@@ -13,6 +13,9 @@
 #include <chrono>
 #include <vector>
 #include <Windows.h>
+#include "ui/SearchManager.h"
+#include "ui/SelectionManager.h"
+#include "ui/PaneManager.h"
 
 namespace TerminalDX12 {
 
@@ -31,6 +34,9 @@ namespace UI {
     class TabManager;
     class Tab;
     class Pane;
+    class SearchManager;
+    class SelectionManager;
+    class PaneManager;
     enum class SplitDirection;
 }
 
@@ -152,10 +158,8 @@ private:
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
     std::unique_ptr<UI::TabManager> m_tabManager;
 
-    // Pane tree (root pane contains all panes for current tab)
-    std::unique_ptr<UI::Pane> m_rootPane;
-    UI::Pane* m_focusedPane = nullptr;
-    bool m_paneZoomed = false;  // Is focused pane maximized
+    // Pane manager
+    UI::PaneManager m_paneManager;
 
     // Helper accessors for active tab's components
     Terminal::ScreenBuffer* GetActiveScreenBuffer();
@@ -173,12 +177,8 @@ private:
     int m_pendingHeight = 0;
     int m_resizeStabilizeFrames = 0;  // Skip frames after resize to let TUI stabilize
 
-    // Selection state
-    CellPos m_selectionStart;
-    CellPos m_selectionEnd;
-    bool m_selecting;         // Currently dragging to select
-    bool m_hasSelection;      // Valid selection exists
-    bool m_rectangleSelection = false;  // Alt+drag rectangle selection mode
+    // Selection manager
+    UI::SelectionManager m_selectionManager;
 
     // Mouse click tracking for double/triple click
     std::chrono::steady_clock::time_point m_lastClickTime;
@@ -187,11 +187,8 @@ private:
     int m_lastMouseButton;         // Last button pressed (for mouse reporting)
     bool m_mouseButtonDown;        // Is a button currently pressed
 
-    // Search state
-    bool m_searchMode = false;         // Search bar is visible
-    std::wstring m_searchQuery;        // Current search text
-    std::vector<CellPos> m_searchMatches;  // Found match positions
-    int m_currentMatchIndex = -1;      // Currently highlighted match (-1 = none)
+    // Search manager
+    UI::SearchManager m_searchManager;
 
     static Application* s_instance;
 };

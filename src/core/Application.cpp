@@ -45,10 +45,6 @@ Application* Application::s_instance = nullptr;
 Application::Application()
     : m_running(false)
     , m_minimized(false)
-    , m_selectionStart{0, 0}
-    , m_selectionEnd{0, 0}
-    , m_selecting(false)
-    , m_hasSelection(false)
     , m_lastClickTime{}
     , m_lastClickPos{0, 0}
     , m_clickCount(0)
@@ -143,10 +139,12 @@ bool Application::Initialize(const std::wstring& shell) {
     m_tabManager->SetTabCreatedCallback([this](UI::Tab* tab) {
         if (tab) {
             tab->SetClipboardReadCallback([this]() {
-                return GetClipboardText();
+                HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+                return m_selectionManager.GetClipboardText(hwnd);
             });
             tab->SetClipboardWriteCallback([this](const std::string& text) {
-                SetClipboardText(text);
+                HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+                m_selectionManager.SetClipboardText(text, hwnd);
             });
         }
     });
@@ -194,9 +192,8 @@ bool Application::Initialize(const std::wstring& shell) {
     } else {
         spdlog::info("Terminal session started successfully");
 
-        // Create root pane with the initial tab
-        m_rootPane = std::make_unique<UI::Pane>(initialTab);
-        m_focusedPane = m_rootPane.get();
+        // Initialize pane manager with the initial tab
+        m_paneManager.Initialize(initialTab);
         UpdatePaneLayout();
     }
 
@@ -515,28 +512,30 @@ void Application::Render() {
 
     // Calculate normalized selection bounds for rendering
     int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
-    if (m_hasSelection) {
-        selStartY = std::min(m_selectionStart.y, m_selectionEnd.y);
-        selEndY = std::max(m_selectionStart.y, m_selectionEnd.y);
+    if (m_selectionManager.HasSelection()) {
+        const auto& selStart = m_selectionManager.GetSelectionStart();
+        const auto& selEnd = m_selectionManager.GetSelectionEnd();
+        selStartY = std::min(selStart.y, selEnd.y);
+        selEndY = std::max(selStart.y, selEnd.y);
         // For rectangle selection, use min/max X; for normal selection, use order-based X
-        if (m_rectangleSelection) {
-            selStartX = std::min(m_selectionStart.x, m_selectionEnd.x);
-            selEndX = std::max(m_selectionStart.x, m_selectionEnd.x);
-        } else if (m_selectionStart.y < m_selectionEnd.y ||
-            (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
-            selStartX = m_selectionStart.x;
-            selEndX = m_selectionEnd.x;
+        if (m_selectionManager.IsRectangleSelection()) {
+            selStartX = std::min(selStart.x, selEnd.x);
+            selEndX = std::max(selStart.x, selEnd.x);
+        } else if (selStart.y < selEnd.y ||
+            (selStart.y == selEnd.y && selStart.x <= selEnd.x)) {
+            selStartX = selStart.x;
+            selEndX = selEnd.x;
         } else {
-            selStartX = m_selectionEnd.x;
-            selEndX = m_selectionStart.x;
+            selStartX = selEnd.x;
+            selEndX = selStart.x;
         }
     }
 
     for (int y = 0; y < rows; ++y) {
         // Selection highlight pass (render blue highlight for selected text)
-        if (m_hasSelection && y >= selStartY && y <= selEndY) {
+        if (m_selectionManager.HasSelection() && y >= selStartY && y <= selEndY) {
             int rowSelStart, rowSelEnd;
-            if (m_rectangleSelection) {
+            if (m_selectionManager.IsRectangleSelection()) {
                 // Rectangle selection: same column range for all rows
                 rowSelStart = selStartX;
                 rowSelEnd = selEndX;
@@ -735,7 +734,7 @@ void Application::Render() {
     }
 
     // Render search bar if in search mode
-    if (m_searchMode) {
+    if (m_searchManager.IsActive()) {
         const int searchBarHeight = 30;
         int windowHeight = m_window ? m_window->GetHeight() : 720;
         float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
@@ -749,7 +748,7 @@ void Application::Render() {
 
         // Search query (convert wstring to UTF-8)
         std::string queryUtf8;
-        for (wchar_t wc : m_searchQuery) {
+        for (wchar_t wc : m_searchManager.GetQuery()) {
             if (wc < 128) queryUtf8 += static_cast<char>(wc);
             else queryUtf8 += '?';
         }
@@ -757,11 +756,11 @@ void Application::Render() {
 
         // Search results count
         char countBuf[64];
-        if (m_searchMatches.empty()) {
+        if (m_searchManager.GetMatches().empty()) {
             snprintf(countBuf, sizeof(countBuf), "No matches");
         } else {
             snprintf(countBuf, sizeof(countBuf), "%d of %d",
-                     m_currentMatchIndex + 1, static_cast<int>(m_searchMatches.size()));
+                     m_searchManager.GetCurrentMatchIndex() + 1, static_cast<int>(m_searchManager.GetMatches().size()));
         }
         m_renderer->RenderText(countBuf, 400.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
 
@@ -771,11 +770,11 @@ void Application::Render() {
     }
 
     // Highlight search matches
-    if (m_searchMode && !m_searchMatches.empty()) {
-        int queryLen = static_cast<int>(m_searchQuery.length());
-        for (int i = 0; i < static_cast<int>(m_searchMatches.size()); ++i) {
-            const auto& match = m_searchMatches[i];
-            bool isCurrent = (i == m_currentMatchIndex);
+    if (m_searchManager.IsActive() && !m_searchManager.GetMatches().empty()) {
+        int queryLen = static_cast<int>(m_searchManager.GetQuery().length());
+        for (int i = 0; i < static_cast<int>(m_searchManager.GetMatches().size()); ++i) {
+            const auto& match = m_searchManager.GetMatches()[i];
+            bool isCurrent = (i == m_searchManager.GetCurrentMatchIndex());
 
             for (int j = 0; j < queryLen; ++j) {
                 float posX = static_cast<float>(startX + (match.x + j) * charWidth);
@@ -871,10 +870,10 @@ void Application::OnTerminalOutput(const char* data, size_t size) {
 
 void Application::OnChar(wchar_t ch) {
     // Handle search mode text input
-    if (m_searchMode) {
+    if (m_searchManager.IsActive()) {
         // Only accept printable characters
         if (ch >= 32) {
-            m_searchQuery += ch;
+            m_searchManager.AppendChar(ch);
             UpdateSearchResults();
         }
         return;
@@ -937,7 +936,7 @@ void Application::OnKey(UINT key, bool isDown) {
     }
 
     // Handle search mode input
-    if (m_searchMode) {
+    if (m_searchManager.IsActive()) {
         if (key == VK_ESCAPE) {
             CloseSearch();
             return;
@@ -962,8 +961,8 @@ void Application::OnKey(UINT key, bool isDown) {
         }
         if (key == VK_BACK) {
             // Backspace: Remove last character
-            if (!m_searchQuery.empty()) {
-                m_searchQuery.pop_back();
+            if (!m_searchManager.GetQuery().empty()) {
+                m_searchManager.Backspace();
                 UpdateSearchResults();
             }
             return;
@@ -1082,10 +1081,10 @@ void Application::OnKey(UINT key, bool isDown) {
         }
         // Ctrl+Shift+Z: Toggle zoom on focused pane
         if (key == 'Z' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            if (m_rootPane && !m_rootPane->IsLeaf()) {
-                m_paneZoomed = !m_paneZoomed;
+            if (m_paneManager.GetRootPane() && !m_paneManager.GetRootPane()->IsLeaf()) {
+                m_paneManager.ToggleZoom();
                 UpdatePaneLayout();
-                spdlog::info("Pane zoom {}", m_paneZoomed ? "enabled" : "disabled");
+                spdlog::info("Pane zoom {}", m_paneManager.IsZoomed() ? "enabled" : "disabled");
             }
             return;
         }
@@ -1150,7 +1149,7 @@ void Application::OnKey(UINT key, bool isDown) {
 
         // Copy/Paste
         if (key == 'C') {
-            if (m_hasSelection) {
+            if (m_selectionManager.HasSelection()) {
                 CopySelectionToClipboard();
             } else if (terminal && terminal->IsRunning()) {
                 // Send SIGINT (Ctrl+C) to terminal
@@ -1346,10 +1345,10 @@ void Application::OnMouseButton(int x, int y, int button, bool down) {
     }
 
     // Click to focus pane
-    if (button == 0 && down && m_rootPane && !m_rootPane->IsLeaf()) {
-        UI::Pane* clickedPane = m_rootPane->FindPaneAt(x, y);
-        if (clickedPane && clickedPane != m_focusedPane && clickedPane->IsLeaf()) {
-            m_focusedPane = clickedPane;
+    if (button == 0 && down && m_paneManager.GetRootPane() && !m_paneManager.GetRootPane()->IsLeaf()) {
+        UI::Pane* clickedPane = m_paneManager.GetRootPane()->FindPaneAt(x, y);
+        if (clickedPane && clickedPane != m_paneManager.GetFocusedPane() && clickedPane->IsLeaf()) {
+            m_paneManager.SetFocusedPane(clickedPane);
             spdlog::info("Focused pane at ({}, {})", x, y);
         }
     }
@@ -1409,38 +1408,29 @@ void Application::OnMouseButton(int x, int y, int button, bool down) {
         if (m_clickCount == 3) {
             // Triple-click: select entire line
             SelectLine(cellPos.y);
-            m_selecting = false;
         } else if (m_clickCount == 2) {
             // Double-click: select word
             SelectWord(cellPos.x, cellPos.y);
-            m_selecting = false;
         } else {
             // Single-click: start drag selection
             // Check for Shift+Click to extend selection
-            if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && m_hasSelection) {
+            if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && m_selectionManager.HasSelection()) {
                 // Extend selection to this position
-                m_selectionEnd = cellPos;
-                m_hasSelection = true;
+                UI::SelectionPos pos{cellPos.x, cellPos.y};
+                m_selectionManager.ExtendSelection(pos);
             } else {
                 // Start new selection
                 // Alt+drag enables rectangle selection mode
-                m_rectangleSelection = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                m_selectionStart = cellPos;
-                m_selectionEnd = cellPos;
-                m_hasSelection = false;
+                bool rectMode = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                UI::SelectionPos pos{cellPos.x, cellPos.y};
+                m_selectionManager.StartSelection(pos, rectMode);
             }
-            m_selecting = true;
         }
         m_mouseButtonDown = true;
     } else {
         // Button release
-        m_selecting = false;
+        m_selectionManager.EndSelection();
         m_mouseButtonDown = false;
-
-        // Check if we actually selected something (not just a click)
-        if (m_selectionStart.x != m_selectionEnd.x || m_selectionStart.y != m_selectionEnd.y) {
-            m_hasSelection = true;
-        }
     }
 }
 
@@ -1460,258 +1450,43 @@ void Application::OnMouseMove(int x, int y) {
         return;
     }
 
-    if (!m_selecting) {
+    if (!m_selectionManager.IsSelecting()) {
         return;
     }
 
-    m_selectionEnd = cellPos;
-
-    // Mark as having selection if we've moved from start
-    if (m_selectionStart.x != m_selectionEnd.x || m_selectionStart.y != m_selectionEnd.y) {
-        m_hasSelection = true;
-    }
+    UI::SelectionPos pos{cellPos.x, cellPos.y};
+    m_selectionManager.ExtendSelection(pos);
 }
 
 void Application::ClearSelection() {
-    m_hasSelection = false;
-    m_selecting = false;
-    m_rectangleSelection = false;
-    m_selectionStart = {0, 0};
-    m_selectionEnd = {0, 0};
+    m_selectionManager.ClearSelection();
 }
 
 std::string Application::GetSelectedText() const {
     Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
-    if (!m_hasSelection || !screenBuffer) {
-        return "";
-    }
-
-    // Normalize selection (ensure start <= end)
-    int startY = std::min(m_selectionStart.y, m_selectionEnd.y);
-    int endY = std::max(m_selectionStart.y, m_selectionEnd.y);
-    int startX = std::min(m_selectionStart.x, m_selectionEnd.x);
-    int endX = std::max(m_selectionStart.x, m_selectionEnd.x);
-
-    std::u32string text;
-    int cols = screenBuffer->GetCols();
-
-    if (m_rectangleSelection) {
-        // Rectangle selection: same column range for all rows
-        for (int y = startY; y <= endY; ++y) {
-            for (int x = startX; x <= endX; ++x) {
-                auto cell = screenBuffer->GetCellWithScrollback(x, y);
-                text += cell.ch;
-            }
-            // Add newline between rows (but not after last row)
-            if (y < endY) {
-                // Trim trailing spaces from line before adding newline
-                while (!text.empty() && text.back() == U' ') {
-                    text.pop_back();
-                }
-                text += U'\n';
-            }
-        }
-    } else {
-        // Normal line selection
-        // For normal selection, use full coordinates
-        int normalStartX, normalEndX;
-        if (m_selectionStart.y < m_selectionEnd.y ||
-            (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
-            normalStartX = m_selectionStart.x;
-            normalEndX = m_selectionEnd.x;
-        } else {
-            normalStartX = m_selectionEnd.x;
-            normalEndX = m_selectionStart.x;
-        }
-
-        for (int y = startY; y <= endY; ++y) {
-            int rowStartX = (y == startY) ? normalStartX : 0;
-            int rowEndX = (y == endY) ? normalEndX : cols - 1;
-
-            for (int x = rowStartX; x <= rowEndX; ++x) {
-                auto cell = screenBuffer->GetCellWithScrollback(x, y);
-                text += cell.ch;
-            }
-
-            // Add newline between rows (but not after last row)
-            if (y < endY) {
-                // Trim trailing spaces from line before adding newline
-                while (!text.empty() && text.back() == U' ') {
-                    text.pop_back();
-                }
-                text += U'\n';
-            }
-        }
-    }
-
-    // Trim trailing spaces from last line
-    while (!text.empty() && text.back() == U' ') {
-        text.pop_back();
-    }
-
-    // Convert to UTF-8
-    std::string utf8;
-    for (char32_t ch : text) {
-        if (ch < 0x80) {
-            utf8 += static_cast<char>(ch);
-        } else if (ch < 0x800) {
-            utf8 += static_cast<char>(0xC0 | (ch >> 6));
-            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
-        } else if (ch < 0x10000) {
-            utf8 += static_cast<char>(0xE0 | (ch >> 12));
-            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
-            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
-        } else {
-            utf8 += static_cast<char>(0xF0 | (ch >> 18));
-            utf8 += static_cast<char>(0x80 | ((ch >> 12) & 0x3F));
-            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
-            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
-        }
-    }
-
-    return utf8;
+    return m_selectionManager.GetSelectedText(screenBuffer);
 }
 
 void Application::CopySelectionToClipboard() {
-    if (!m_hasSelection || !m_window) {
-        return;
-    }
-
-    std::string text = GetSelectedText();
-    if (text.empty()) {
-        return;
-    }
-
-    // Convert UTF-8 to wide string for clipboard
-    int wideLen = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, nullptr, 0);
-    if (wideLen <= 0) {
-        return;
-    }
-
-    HWND hwnd = m_window->GetHandle();
-
-    if (!OpenClipboard(hwnd)) {
-        spdlog::error("Failed to open clipboard");
-        return;
-    }
-
-    EmptyClipboard();
-
-    // Allocate global memory for clipboard
-    HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, wideLen * sizeof(wchar_t));
-    if (!hGlobal) {
-        CloseClipboard();
-        spdlog::error("Failed to allocate clipboard memory");
-        return;
-    }
-
-    wchar_t* pGlobal = static_cast<wchar_t*>(GlobalLock(hGlobal));
-    if (pGlobal) {
-        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, pGlobal, wideLen);
-        GlobalUnlock(hGlobal);
-        SetClipboardData(CF_UNICODETEXT, hGlobal);
-        spdlog::info("Copied {} characters to clipboard", text.length());
-    }
-
-    CloseClipboard();
-
-    // Clear selection after copy
-    ClearSelection();
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+    m_selectionManager.CopySelectionToClipboard(screenBuffer, hwnd);
 }
 
 void Application::PasteFromClipboard() {
     Pty::ConPtySession* terminal = GetActiveTerminal();
-    if (!terminal || !terminal->IsRunning() || !m_window) {
-        return;
-    }
-
-    HWND hwnd = m_window->GetHandle();
-
-    if (!OpenClipboard(hwnd)) {
-        spdlog::error("Failed to open clipboard");
-        return;
-    }
-
-    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
-    if (!hData) {
-        CloseClipboard();
-        return;
-    }
-
-    const wchar_t* pData = static_cast<const wchar_t*>(GlobalLock(hData));
-    if (pData) {
-        // Convert wide string to UTF-8
-        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, pData, -1, nullptr, 0, nullptr, nullptr);
-        if (utf8Len > 0) {
-            std::string utf8(utf8Len, '\0');
-            WideCharToMultiByte(CP_UTF8, 0, pData, -1, &utf8[0], utf8Len, nullptr, nullptr);
-
-            // Remove null terminator
-            if (!utf8.empty() && utf8.back() == '\0') {
-                utf8.pop_back();
-            }
-
-            // Send to terminal
-            terminal->WriteInput(utf8.c_str(), utf8.length());
-            spdlog::info("Pasted {} characters from clipboard", utf8.length());
-        }
-        GlobalUnlock(hData);
-    }
-
-    CloseClipboard();
+    HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+    m_selectionManager.PasteFromClipboard(terminal, hwnd);
 }
 
 std::string Application::GetClipboardText() {
     HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-    if (!hwnd) return "";
-
-    if (!OpenClipboard(hwnd)) {
-        return "";
-    }
-
-    std::string result;
-    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
-    if (hData) {
-        const wchar_t* pData = static_cast<const wchar_t*>(GlobalLock(hData));
-        if (pData) {
-            int utf8Len = WideCharToMultiByte(CP_UTF8, 0, pData, -1, nullptr, 0, nullptr, nullptr);
-            if (utf8Len > 0) {
-                result.resize(utf8Len);
-                WideCharToMultiByte(CP_UTF8, 0, pData, -1, &result[0], utf8Len, nullptr, nullptr);
-                if (!result.empty() && result.back() == '\0') {
-                    result.pop_back();
-                }
-            }
-            GlobalUnlock(hData);
-        }
-    }
-    CloseClipboard();
-    return result;
+    return m_selectionManager.GetClipboardText(hwnd);
 }
 
 void Application::SetClipboardText(const std::string& text) {
     HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-    if (!hwnd) return;
-
-    // Convert UTF-8 to wide string
-    int wideLen = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), nullptr, 0);
-    if (wideLen <= 0) return;
-
-    if (!OpenClipboard(hwnd)) return;
-    EmptyClipboard();
-
-    HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, (wideLen + 1) * sizeof(wchar_t));
-    if (hGlobal) {
-        wchar_t* pGlobal = static_cast<wchar_t*>(GlobalLock(hGlobal));
-        if (pGlobal) {
-            MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), pGlobal, wideLen);
-            pGlobal[wideLen] = L'\0';
-            GlobalUnlock(hGlobal);
-            SetClipboardData(CF_UNICODETEXT, hGlobal);
-            spdlog::debug("OSC 52: Set clipboard with {} chars", text.size());
-        }
-    }
-    CloseClipboard();
+    m_selectionManager.SetClipboardText(text, hwnd);
 }
 
 bool Application::ShouldReportMouse() const {
@@ -1767,67 +1542,17 @@ void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool mo
 }
 
 bool Application::IsWordChar(char32_t ch) const {
-    // Word characters: alphanumeric, underscore, and some extended chars
-    if (ch >= U'a' && ch <= U'z') return true;
-    if (ch >= U'A' && ch <= U'Z') return true;
-    if (ch >= U'0' && ch <= U'9') return true;
-    if (ch == U'_' || ch == U'-') return true;
-    // Allow URL-like characters for URL selection
-    if (ch == U'/' || ch == U':' || ch == U'.' || ch == U'@' ||
-        ch == U'?' || ch == U'=' || ch == U'&' || ch == U'%' ||
-        ch == U'+' || ch == U'#' || ch == U'~') return true;
-    return false;
+    return m_selectionManager.IsWordChar(ch);
 }
 
 void Application::SelectWord(int cellX, int cellY) {
     Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    if (!screenBuffer) return;
-
-    int cols = screenBuffer->GetCols();
-
-    // Get character at click position
-    auto cell = screenBuffer->GetCellWithScrollback(cellX, cellY);
-
-    // If clicking on whitespace, don't select anything
-    if (cell.ch == U' ' || cell.ch == 0) {
-        ClearSelection();
-        return;
-    }
-
-    // Find word boundaries
-    int startX = cellX;
-    int endX = cellX;
-
-    // Scan left
-    while (startX > 0) {
-        auto prevCell = screenBuffer->GetCellWithScrollback(startX - 1, cellY);
-        if (!IsWordChar(prevCell.ch)) break;
-        startX--;
-    }
-
-    // Scan right
-    while (endX < cols - 1) {
-        auto nextCell = screenBuffer->GetCellWithScrollback(endX + 1, cellY);
-        if (!IsWordChar(nextCell.ch)) break;
-        endX++;
-    }
-
-    // Set selection
-    m_selectionStart = {startX, cellY};
-    m_selectionEnd = {endX, cellY};
-    m_hasSelection = (startX != endX);
+    m_selectionManager.SelectWord(screenBuffer, cellX, cellY);
 }
 
 void Application::SelectLine(int cellY) {
     Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    if (!screenBuffer) return;
-
-    int cols = screenBuffer->GetCols();
-
-    // Select entire line
-    m_selectionStart = {0, cellY};
-    m_selectionEnd = {cols - 1, cellY};
-    m_hasSelection = true;
+    m_selectionManager.SelectLine(screenBuffer, cellY);
 }
 
 void Application::ShowContextMenu(int x, int y) {
@@ -1843,7 +1568,7 @@ void Application::ShowContextMenu(int x, int y) {
     constexpr UINT ID_SELECT_ALL = 3;
 
     // Add menu items
-    UINT copyFlags = MF_STRING | (m_hasSelection ? 0 : MF_GRAYED);
+    UINT copyFlags = MF_STRING | (m_selectionManager.HasSelection() ? 0 : MF_GRAYED);
     AppendMenuW(hMenu, copyFlags, ID_COPY, L"Copy	Ctrl+C");
 
     // Check if clipboard has text
@@ -1880,96 +1605,36 @@ void Application::ShowContextMenu(int x, int y) {
             {
                 Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
                 if (screenBuffer) {
-                    m_selectionStart = {0, 0};
-                    m_selectionEnd = {screenBuffer->GetCols() - 1, screenBuffer->GetRows() - 1};
-                    m_hasSelection = true;
+                    UI::SelectionPos startPos{0, 0};
+                    UI::SelectionPos endPos{screenBuffer->GetCols() - 1, screenBuffer->GetRows() - 1};
+                    m_selectionManager.StartSelection(startPos, false);
+                    m_selectionManager.ExtendSelection(endPos);
+                    m_selectionManager.EndSelection();
                 }
             }
             break;
     }
 }
 
-// Search functionality
+// Search functionality - delegates to SearchManager
 void Application::OpenSearch() {
-    m_searchMode = true;
-    m_searchQuery.clear();
-    m_searchMatches.clear();
-    m_currentMatchIndex = -1;
-    spdlog::info("Search mode opened");
+    m_searchManager.Open();
 }
 
 void Application::CloseSearch() {
-    m_searchMode = false;
-    m_searchQuery.clear();
-    m_searchMatches.clear();
-    m_currentMatchIndex = -1;
-    spdlog::info("Search mode closed");
+    m_searchManager.Close();
 }
 
 void Application::UpdateSearchResults() {
-    m_searchMatches.clear();
-    m_currentMatchIndex = -1;
-
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    if (!screenBuffer || m_searchQuery.empty()) {
-        return;
-    }
-
-    // Convert search query to lowercase for case-insensitive search
-    std::wstring queryLower = m_searchQuery;
-    for (auto& ch : queryLower) {
-        ch = towlower(ch);
-    }
-
-    int rows, cols;
-    screenBuffer->GetDimensions(cols, rows);
-    int queryLen = static_cast<int>(queryLower.length());
-
-    // Search through visible area and scrollback
-    // For now, just search visible area
-    for (int y = 0; y < rows; ++y) {
-        for (int x = 0; x <= cols - queryLen; ++x) {
-            bool match = true;
-            for (int i = 0; i < queryLen && match; ++i) {
-                auto cell = screenBuffer->GetCellWithScrollback(x + i, y);
-                wchar_t cellChar = static_cast<wchar_t>(cell.ch);
-                if (towlower(cellChar) != queryLower[i]) {
-                    match = false;
-                }
-            }
-            if (match) {
-                m_searchMatches.push_back({x, y});
-            }
-        }
-    }
-
-    // If we found matches, select the first one
-    if (!m_searchMatches.empty()) {
-        m_currentMatchIndex = 0;
-    }
-
-    spdlog::info("Search found {} matches", m_searchMatches.size());
+    m_searchManager.UpdateResults(GetActiveScreenBuffer());
 }
 
 void Application::SearchNext() {
-    if (m_searchMatches.empty()) {
-        return;
-    }
-
-    m_currentMatchIndex = (m_currentMatchIndex + 1) % static_cast<int>(m_searchMatches.size());
-    spdlog::debug("Search: next match {} of {}", m_currentMatchIndex + 1, m_searchMatches.size());
+    m_searchManager.NextMatch();
 }
 
 void Application::SearchPrevious() {
-    if (m_searchMatches.empty()) {
-        return;
-    }
-
-    m_currentMatchIndex--;
-    if (m_currentMatchIndex < 0) {
-        m_currentMatchIndex = static_cast<int>(m_searchMatches.size()) - 1;
-    }
-    spdlog::debug("Search: previous match {} of {}", m_currentMatchIndex + 1, m_searchMatches.size());
+    m_searchManager.PreviousMatch();
 }
 
 // URL detection
@@ -2069,12 +1734,13 @@ void Application::ShowSettings() {
 
 // Pane management
 void Application::SplitPane(UI::SplitDirection direction) {
-    if (!m_focusedPane || !m_focusedPane->IsLeaf()) {
+    UI::Pane* focusedPane = m_paneManager.GetFocusedPane();
+    if (!focusedPane || !focusedPane->IsLeaf()) {
         spdlog::warn("Cannot split: no focused leaf pane");
         return;
     }
 
-    UI::Tab* currentTab = m_focusedPane->GetTab();
+    UI::Tab* currentTab = focusedPane->GetTab();
     if (!currentTab) {
         spdlog::warn("Cannot split: focused pane has no tab");
         return;
@@ -2098,145 +1764,42 @@ void Application::SplitPane(UI::SplitDirection direction) {
     }
 
     // Split the focused pane
-    UI::Pane* newPane = m_focusedPane->Split(direction, newTab);
+    UI::Pane* newPane = m_paneManager.SplitFocusedPane(direction, newTab);
     if (newPane) {
-        // Focus the new pane
-        m_focusedPane = newPane;
         UpdatePaneLayout();
-        spdlog::info("Split pane {}", direction == UI::SplitDirection::Horizontal ? "horizontally" : "vertically");
     }
 }
 
 void Application::ClosePane() {
-    if (!m_focusedPane || !m_rootPane) {
-        return;
-    }
-
-    // If there's only one pane, don't close it
-    std::vector<UI::Pane*> leaves;
-    m_rootPane->GetAllLeafPanes(leaves);
-    if (leaves.size() <= 1) {
-        spdlog::debug("Cannot close: only one pane remaining");
-        return;
-    }
-
-    UI::Pane* parent = m_focusedPane->GetParent();
-    if (!parent) {
-        // Focused pane is the root - shouldn't happen if leaves > 1
-        return;
-    }
-
-    // Get the tab from the pane we're closing
-    UI::Tab* tabToClose = m_focusedPane->GetTab();
-
-    // Find another pane to focus
-    UI::Pane* newFocus = m_rootPane->FindAdjacentPane(m_focusedPane, UI::SplitDirection::Horizontal, true);
-
-    // Close the child in the parent
-    if (parent->CloseChild(m_focusedPane)) {
-        // Close the tab
-        if (tabToClose) {
-            m_tabManager->CloseTab(tabToClose->GetId());
-        }
-
-        // Update focus
-        if (newFocus && newFocus != m_focusedPane) {
-            m_focusedPane = newFocus;
-        } else {
-            // Find any leaf pane
-            leaves.clear();
-            m_rootPane->GetAllLeafPanes(leaves);
-            m_focusedPane = leaves.empty() ? nullptr : leaves[0];
-        }
-
+    UI::Tab* tabToClose = m_paneManager.CloseFocusedPane();
+    if (tabToClose) {
+        m_tabManager->CloseTab(tabToClose->GetId());
         UpdatePaneLayout();
-        spdlog::info("Closed pane");
     }
 }
 
 void Application::FocusNextPane() {
-    if (!m_rootPane || !m_focusedPane) {
-        return;
-    }
-
-    UI::Pane* next = m_rootPane->FindAdjacentPane(m_focusedPane, UI::SplitDirection::Horizontal, true);
-    if (next) {
-        m_focusedPane = next;
-        spdlog::debug("Focused next pane");
-    }
+    m_paneManager.FocusNextPane();
 }
 
 void Application::FocusPreviousPane() {
-    if (!m_rootPane || !m_focusedPane) {
-        return;
-    }
-
-    UI::Pane* prev = m_rootPane->FindAdjacentPane(m_focusedPane, UI::SplitDirection::Horizontal, false);
-    if (prev) {
-        m_focusedPane = prev;
-        spdlog::debug("Focused previous pane");
-    }
+    m_paneManager.FocusPreviousPane();
 }
 
 void Application::FocusPaneInDirection(UI::SplitDirection direction) {
-    if (!m_rootPane || !m_focusedPane) {
-        return;
-    }
-
-    // For now, use simple next/prev navigation
-    // Note: Current implementation uses simple circular navigation. Could be enhanced with spatial awareness.
-    UI::Pane* target = m_rootPane->FindAdjacentPane(m_focusedPane, direction, true);
-    if (target) {
-        m_focusedPane = target;
-    }
+    m_paneManager.FocusPaneInDirection(direction);
 }
 
 void Application::UpdatePaneLayout() {
-    if (!m_rootPane || !m_window) {
+    if (!m_window) {
         return;
     }
 
     int width = m_window->GetWidth();
     int height = m_window->GetHeight();
-
-    // Account for tab bar if multiple tabs
     int tabBarHeight = (m_tabManager && m_tabManager->GetTabCount() > 1) ? 30 : 0;
 
-    UI::PaneRect availableSpace = {
-        0,
-        tabBarHeight,
-        width,
-        height - tabBarHeight
-    };
-
-    const int charWidth = 10;
-    const int lineHeight = 25;
-
-    // If zoomed, only the focused pane gets the full space
-    if (m_paneZoomed && m_focusedPane && m_focusedPane->IsLeaf()) {
-        m_focusedPane->SetBounds(availableSpace);
-        if (m_focusedPane->GetTab() && m_focusedPane->GetTab()->GetScreenBuffer()) {
-            int cols = std::max(10, availableSpace.width / charWidth);
-            int rows = std::max(5, availableSpace.height / lineHeight);
-            m_focusedPane->GetTab()->Resize(cols, rows);
-        }
-        return;
-    }
-
-    m_rootPane->CalculateLayout(availableSpace);
-
-    // Resize all panes' tabs to fit their new bounds
-    std::vector<UI::Pane*> leaves;
-    m_rootPane->GetAllLeafPanes(leaves);
-
-    for (UI::Pane* pane : leaves) {
-        if (pane->GetTab() && pane->GetTab()->GetScreenBuffer()) {
-            const UI::PaneRect& bounds = pane->GetBounds();
-            int cols = std::max(10, bounds.width / charWidth);
-            int rows = std::max(5, bounds.height / lineHeight);
-            pane->GetTab()->Resize(cols, rows);
-        }
-    }
+    m_paneManager.UpdateLayout(width, height, tabBarHeight);
 }
 
 void Application::RenderPane(UI::Pane* pane, int windowWidth, int windowHeight) {
@@ -2257,7 +1820,7 @@ void Application::RenderPane(UI::Pane* pane, int windowWidth, int windowHeight) 
     const UI::PaneRect& bounds = pane->GetBounds();
 
     // Draw pane border if this is the focused pane
-    bool isFocused = (pane == m_focusedPane);
+    bool isFocused = (pane == m_paneManager.GetFocusedPane());
     if (isFocused) {
         // Highlight focused pane with a subtle border
         float borderColor = 0.4f;

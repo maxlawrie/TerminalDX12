@@ -57,6 +57,9 @@ set(UI_SOURCES
     src/ui/Pane.cpp
     src/ui/SettingsDialog.cpp
     src/ui/FontEnumerator.cpp
+    src/ui/SearchManager.cpp
+    src/ui/SelectionManager.cpp
+    src/ui/PaneManager.cpp
 )
 
 set(ALL_SOURCES
