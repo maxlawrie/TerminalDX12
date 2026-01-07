@@ -16,6 +16,7 @@
 #include "ui/SearchManager.h"
 #include "ui/SelectionManager.h"
 #include "ui/PaneManager.h"
+#include "ui/InputHandler.h"
 
 namespace TerminalDX12 {
 
@@ -97,7 +98,6 @@ private:
     void OnTerminalOutput(const char* data, size_t size);
     void OnChar(wchar_t ch);
     void OnKey(UINT key, bool isDown);
-    void SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown, DWORD controlState);
     void OnMouseWheel(int delta);
     void OnMouseButton(int x, int y, int button, bool down);
     void OnMouseMove(int x, int y);
@@ -189,6 +189,9 @@ private:
 
     // Search manager
     UI::SearchManager m_searchManager;
+
+    // Input handler
+    std::unique_ptr<UI::InputHandler> m_inputHandler;
 
     static Application* s_instance;
 };

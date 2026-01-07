@@ -204,6 +204,90 @@ bool Application::Initialize(const std::wstring& shell) {
         spdlog::info("Window opacity set to {}%", static_cast<int>(opacity * 100));
     }
 
+    // Create input handler with callbacks
+    UI::InputHandlerCallbacks inputCallbacks;
+    inputCallbacks.onShowSettings = [this]() { ShowSettings(); };
+    inputCallbacks.onNewWindow = [this]() {
+        wchar_t exePath[MAX_PATH];
+        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
+            STARTUPINFOW si = {};
+            si.cb = sizeof(si);
+            PROCESS_INFORMATION pi = {};
+            std::wstring cmdLine = exePath;
+            if (!m_shellCommand.empty() && m_shellCommand != L"powershell.exe") {
+                cmdLine += L" \"" + m_shellCommand + L"\"";
+            }
+            if (CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr,
+                              FALSE, 0, nullptr, nullptr, &si, &pi)) {
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                spdlog::info("Launched new window");
+            } else {
+                spdlog::error("Failed to launch new window: {}", GetLastError());
+            }
+        }
+    };
+    inputCallbacks.onQuit = [this]() { m_running = false; };
+    inputCallbacks.onNewTab = [this]() {
+        if (m_tabManager) {
+            int cols = 80, rows = 24;
+            UI::Tab* activeTab = m_tabManager->GetActiveTab();
+            if (activeTab && activeTab->GetScreenBuffer()) {
+                cols = activeTab->GetScreenBuffer()->GetCols();
+                rows = activeTab->GetScreenBuffer()->GetRows();
+            }
+            int scrollbackLines = m_config->GetTerminal().scrollbackLines;
+            m_tabManager->CreateTab(m_shellCommand, cols, rows, scrollbackLines);
+            spdlog::info("Created new tab ({}x{})", cols, rows);
+        }
+    };
+    inputCallbacks.onCloseTab = [this]() {
+        if (m_tabManager && m_tabManager->GetTabCount() > 1) {
+            m_tabManager->CloseActiveTab();
+            spdlog::info("Closed active tab");
+        }
+    };
+    inputCallbacks.onNextTab = [this]() {
+        if (m_tabManager) m_tabManager->NextTab();
+    };
+    inputCallbacks.onPreviousTab = [this]() {
+        if (m_tabManager) m_tabManager->PreviousTab();
+    };
+    inputCallbacks.onSwitchToTab = [this](int tabIndex) {
+        if (m_tabManager) {
+            const auto& tabs = m_tabManager->GetTabs();
+            if (tabIndex < static_cast<int>(tabs.size())) {
+                m_tabManager->SwitchToTab(tabs[tabIndex]->GetId());
+                spdlog::debug("Switched to tab {} via Ctrl+{}", tabIndex + 1, tabIndex + 1);
+            }
+        }
+    };
+    inputCallbacks.onSplitPane = [this](UI::SplitDirection dir) { SplitPane(dir); };
+    inputCallbacks.onClosePane = [this]() { ClosePane(); };
+    inputCallbacks.onToggleZoom = [this]() {
+        m_paneManager.ToggleZoom();
+        UpdatePaneLayout();
+        spdlog::info("Pane zoom {}", m_paneManager.IsZoomed() ? "enabled" : "disabled");
+    };
+    inputCallbacks.onFocusNextPane = [this]() { FocusNextPane(); };
+    inputCallbacks.onFocusPreviousPane = [this]() { FocusPreviousPane(); };
+    inputCallbacks.onOpenSearch = [this]() { OpenSearch(); };
+    inputCallbacks.onCloseSearch = [this]() { CloseSearch(); };
+    inputCallbacks.onSearchNext = [this]() { SearchNext(); };
+    inputCallbacks.onSearchPrevious = [this]() { SearchPrevious(); };
+    inputCallbacks.onUpdateSearchResults = [this]() { UpdateSearchResults(); };
+    inputCallbacks.onCopySelection = [this]() { CopySelectionToClipboard(); };
+    inputCallbacks.onPaste = [this]() { PasteFromClipboard(); };
+    inputCallbacks.onUpdatePaneLayout = [this]() { UpdatePaneLayout(); };
+    inputCallbacks.getActiveTerminal = [this]() { return GetActiveTerminal(); };
+    inputCallbacks.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
+    inputCallbacks.getTabCount = [this]() { return m_tabManager ? m_tabManager->GetTabCount() : 0; };
+    inputCallbacks.hasMultiplePanes = [this]() { return m_paneManager.HasMultiplePanes(); };
+    inputCallbacks.getShellCommand = [this]() -> const std::wstring& { return m_shellCommand; };
+
+    m_inputHandler = std::make_unique<UI::InputHandler>(
+        std::move(inputCallbacks), m_searchManager, m_selectionManager);
+
     m_window->Show();
     m_running = true;
 
@@ -869,431 +953,22 @@ void Application::OnTerminalOutput(const char* data, size_t size) {
 }
 
 void Application::OnChar(wchar_t ch) {
-    // Handle search mode text input
-    if (m_searchManager.IsActive()) {
-        // Only accept printable characters
-        if (ch >= 32) {
-            m_searchManager.AppendChar(ch);
-            UpdateSearchResults();
-        }
-        return;
-    }
-
-    Pty::ConPtySession* terminal = GetActiveTerminal();
-    if (!terminal || !terminal->IsRunning()) {
-        return;
-    }
-
-    // Skip control characters that are handled by OnKey via WM_KEYDOWN
-    // These would otherwise be sent twice (once by WM_KEYDOWN, once by WM_CHAR)
-    if (ch == L'\b' ||   // Backspace - handled by VK_BACK
-        ch == L'	' ||   // Tab - handled by VK_TAB
-        ch == L'\r' ||   // Enter - handled by VK_RETURN
-        ch == L'') { // Escape - handled by VK_ESCAPE
-        return;
-    }
-
-    // Convert wchar_t to UTF-8 for ConPTY
-    char utf8[4] = {0};
-    int len = WideCharToMultiByte(CP_UTF8, 0, &ch, 1, utf8, sizeof(utf8), nullptr, nullptr);
-
-    if (len > 0) {
-        terminal->WriteInput(utf8, len);
+    if (m_inputHandler) {
+        m_inputHandler->OnChar(ch);
     }
 }
 
-// Helper to get scan code for a virtual key
-static WORD GetScanCodeForVK(UINT vk) {
-    return static_cast<WORD>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC));
-}
-
-// Send key in Win32 input mode format: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
-void Application::SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown, DWORD controlState) {
-    Pty::ConPtySession* terminal = GetActiveTerminal();
-    if (!terminal || !terminal->IsRunning()) {
-        return;
-    }
-
-    WORD scanCode = GetScanCodeForVK(vk);
-
-    // Format: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
-    char buf[64];
-    int len = snprintf(buf, sizeof(buf), "[%u;%u;%u;%u;%u;1_",
-                       vk,
-                       scanCode,
-                       static_cast<unsigned>(unicodeChar),
-                       keyDown ? 1 : 0,
-                       controlState);
-
-    if (len > 0 && len < (int)sizeof(buf)) {
-        terminal->WriteInput(buf, len);
-    }
-}
 
 void Application::OnKey(UINT key, bool isDown) {
-    if (!isDown) {
-        return;
-    }
-
-    // Handle search mode input
-    if (m_searchManager.IsActive()) {
-        if (key == VK_ESCAPE) {
-            CloseSearch();
-            return;
-        }
-        if (key == VK_RETURN) {
-            // Enter: Next match (Shift+Enter: Previous)
-            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
-                SearchPrevious();
-            } else {
-                SearchNext();
-            }
-            return;
-        }
-        if (key == VK_F3) {
-            // F3: Next match (Shift+F3: Previous)
-            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
-                SearchPrevious();
-            } else {
-                SearchNext();
-            }
-            return;
-        }
-        if (key == VK_BACK) {
-            // Backspace: Remove last character
-            if (!m_searchManager.GetQuery().empty()) {
-                m_searchManager.Backspace();
-                UpdateSearchResults();
-            }
-            return;
-        }
-        // Other keys handled by OnChar for text input
-        return;
-    }
-
-    Pty::ConPtySession* terminal = GetActiveTerminal();
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-
-    // Handle Ctrl+key shortcuts
-    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
-        // Ctrl+Comma: Open settings
-        if (key == VK_OEM_COMMA) {
-            ShowSettings();
-            return;
-        }
-        // Ctrl+Shift+N: New window
-        if (key == 'N' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            // Launch a new instance of the application
-            wchar_t exePath[MAX_PATH];
-            if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
-                STARTUPINFOW si = {};
-                si.cb = sizeof(si);
-                PROCESS_INFORMATION pi = {};
-
-                // Pass the same shell command if specified
-                std::wstring cmdLine = exePath;
-                if (!m_shellCommand.empty() && m_shellCommand != L"powershell.exe") {
-                    cmdLine += L" \"" + m_shellCommand + L"\"";
-                }
-
-                if (CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr,
-                                  FALSE, 0, nullptr, nullptr, &si, &pi)) {
-                    CloseHandle(pi.hThread);
-                    CloseHandle(pi.hProcess);
-                    spdlog::info("Launched new window");
-                } else {
-                    spdlog::error("Failed to launch new window: {}", GetLastError());
-                }
-            }
-            return;
-        }
-        // Ctrl+Shift+F: Open search
-        if (key == 'F' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            OpenSearch();
-            return;
-        }
-        // Tab management shortcuts
-        if (key == 'T') {
-            // Ctrl+T: New tab
-            if (m_tabManager) {
-                // Use dimensions from active tab, or calculate from window
-                int cols = 80, rows = 24;
-                UI::Tab* activeTab = m_tabManager->GetActiveTab();
-                if (activeTab && activeTab->GetScreenBuffer()) {
-                    cols = activeTab->GetScreenBuffer()->GetCols();
-                    rows = activeTab->GetScreenBuffer()->GetRows();
-                }
-                int scrollbackLines = m_config->GetTerminal().scrollbackLines;
-                m_tabManager->CreateTab(m_shellCommand, cols, rows, scrollbackLines);
-                spdlog::info("Created new tab ({}x{})", cols, rows);
-            }
-            return;
-        }
-        if (key == 'W') {
-            // Ctrl+W: Close active tab
-            if (m_tabManager && m_tabManager->GetTabCount() > 1) {
-                m_tabManager->CloseActiveTab();
-                spdlog::info("Closed active tab");
-            } else if (m_tabManager && m_tabManager->GetTabCount() == 1) {
-                // Last tab - close window
-                m_running = false;
-            }
-            return;
-        }
-        if (key == VK_TAB) {
-            // Ctrl+Tab / Ctrl+Shift+Tab: Switch tabs
-            if (m_tabManager) {
-                if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
-                    m_tabManager->PreviousTab();
-                } else {
-                    m_tabManager->NextTab();
-                }
-            }
-            return;
-        }
-        // Ctrl+1-9: Switch to tab by number
-        if (key >= '1' && key <= '9') {
-            if (m_tabManager) {
-                int tabIndex = key - '1';  // '1' -> 0, '2' -> 1, etc.
-                const auto& tabs = m_tabManager->GetTabs();
-                if (tabIndex < static_cast<int>(tabs.size())) {
-                    m_tabManager->SwitchToTab(tabs[tabIndex]->GetId());
-                    spdlog::debug("Switched to tab {} via Ctrl+{}", tabIndex + 1, static_cast<char>(key));
-                }
-            }
-            return;
-        }
-
-        // Ctrl+Shift+D: Split pane vertically (left/right)
-        if (key == 'D' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            SplitPane(UI::SplitDirection::Horizontal);
-            return;
-        }
-        // Ctrl+Shift+E: Split pane horizontally (top/bottom)
-        if (key == 'E' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            SplitPane(UI::SplitDirection::Vertical);
-            return;
-        }
-        // Ctrl+Shift+W: Close focused pane (if more than one pane)
-        if (key == 'W' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            ClosePane();
-            return;
-        }
-        // Ctrl+Shift+Z: Toggle zoom on focused pane
-        if (key == 'Z' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
-            if (m_paneManager.GetRootPane() && !m_paneManager.GetRootPane()->IsLeaf()) {
-                m_paneManager.ToggleZoom();
-                UpdatePaneLayout();
-                spdlog::info("Pane zoom {}", m_paneManager.IsZoomed() ? "enabled" : "disabled");
-            }
-            return;
-        }
-    }
-
-    // Alt+Arrow: Navigate between panes
-    if (GetAsyncKeyState(VK_MENU) & 0x8000) {
-        if (key == VK_LEFT || key == VK_RIGHT) {
-            if (key == VK_LEFT) {
-                FocusPreviousPane();
-            } else {
-                FocusNextPane();
-            }
-            return;
-        }
-        if (key == VK_UP || key == VK_DOWN) {
-            if (key == VK_UP) {
-                FocusPreviousPane();
-            } else {
-                FocusNextPane();
-            }
-            return;
-        }
-    }
-
-    // Ctrl modifier handling continues
-    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
-        // Ctrl+Up/Down: Navigate between shell prompts (OSC 133)
-        if (key == VK_UP && screenBuffer) {
-            // Calculate current absolute line position
-            int currentLine = screenBuffer->GetCursorY() +
-                             (screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
-                             screenBuffer->GetRows() + screenBuffer->GetScrollOffset();
-            int prevPrompt = screenBuffer->GetPreviousPromptLine(currentLine);
-            if (prevPrompt >= 0) {
-                // Scroll to show the previous prompt
-                int scrollbackTotal = static_cast<int>(screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
-                                     screenBuffer->GetRows();
-                int targetOffset = std::max(0, scrollbackTotal - prevPrompt + screenBuffer->GetRows() / 2);
-                screenBuffer->SetScrollOffset(targetOffset);
-                spdlog::debug("Jumped to previous prompt at line {}", prevPrompt);
-            }
-            return;
-        }
-        if (key == VK_DOWN && screenBuffer) {
-            int currentLine = screenBuffer->GetCursorY() +
-                             (screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
-                             screenBuffer->GetRows() + screenBuffer->GetScrollOffset();
-            int nextPrompt = screenBuffer->GetNextPromptLine(currentLine);
-            if (nextPrompt >= 0) {
-                int scrollbackTotal = static_cast<int>(screenBuffer->GetBuffer().size() / screenBuffer->GetCols()) -
-                                     screenBuffer->GetRows();
-                int targetOffset = std::max(0, scrollbackTotal - nextPrompt + screenBuffer->GetRows() / 2);
-                screenBuffer->SetScrollOffset(targetOffset);
-                spdlog::debug("Jumped to next prompt at line {}", nextPrompt);
-            } else {
-                // No next prompt, scroll to bottom
-                screenBuffer->ScrollToBottom();
-            }
-            return;
-        }
-
-        // Copy/Paste
-        if (key == 'C') {
-            if (m_selectionManager.HasSelection()) {
-                CopySelectionToClipboard();
-            } else if (terminal && terminal->IsRunning()) {
-                // Send SIGINT (Ctrl+C) to terminal
-                terminal->WriteInput("", 1);
-            }
-            return;
-        }
-        if (key == 'V') {
-            PasteFromClipboard();
-            return;
-        }
-    }
-
-    if (!terminal || !terminal->IsRunning()) {
-        return;
-    }
-
-    // Handle scrollback navigation
-    if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
-        // Shift is pressed - handle scrollback
-        if (key == VK_PRIOR && screenBuffer) {  // Shift+Page Up
-            int currentOffset = screenBuffer->GetScrollOffset();
-            screenBuffer->SetScrollOffset(currentOffset + screenBuffer->GetRows());
-            return;
-        } else if (key == VK_NEXT && screenBuffer) {  // Shift+Page Down
-            int currentOffset = screenBuffer->GetScrollOffset();
-            screenBuffer->SetScrollOffset(std::max(0, currentOffset - screenBuffer->GetRows()));
-            return;
-        }
-    }
-
-    // Get control key state
-    DWORD controlState = 0;
-    if (GetAsyncKeyState(VK_SHIFT) & 0x8000) controlState |= SHIFT_PRESSED;
-    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) controlState |= LEFT_CTRL_PRESSED;
-    if (GetAsyncKeyState(VK_MENU) & 0x8000) controlState |= LEFT_ALT_PRESSED;
-
-    // For special keys, use Win32 input mode format
-    // This ensures ConPTY correctly interprets the key
-    switch (key) {
-        case VK_BACK:
-            SendWin32InputKey(VK_BACK, L'', true, controlState);
-            return;
-        case VK_RETURN:
-            SendWin32InputKey(VK_RETURN, L'', true, controlState);
-            return;
-        case VK_TAB:
-            SendWin32InputKey(VK_TAB, L'	', true, controlState);
-            return;
-        case VK_ESCAPE:
-            SendWin32InputKey(VK_ESCAPE, L'', true, controlState);
-            return;
-        case VK_UP:
-            SendWin32InputKey(VK_UP, 0, true, controlState);
-            return;
-        case VK_DOWN:
-            SendWin32InputKey(VK_DOWN, 0, true, controlState);
-            return;
-        case VK_RIGHT:
-            SendWin32InputKey(VK_RIGHT, 0, true, controlState);
-            return;
-        case VK_LEFT:
-            SendWin32InputKey(VK_LEFT, 0, true, controlState);
-            return;
-        case VK_HOME:
-            SendWin32InputKey(VK_HOME, 0, true, controlState);
-            return;
-        case VK_END:
-            SendWin32InputKey(VK_END, 0, true, controlState);
-            return;
-        case VK_PRIOR:  // Page Up
-            SendWin32InputKey(VK_PRIOR, 0, true, controlState);
-            return;
-        case VK_NEXT:   // Page Down
-            SendWin32InputKey(VK_NEXT, 0, true, controlState);
-            return;
-        case VK_INSERT:
-            SendWin32InputKey(VK_INSERT, 0, true, controlState);
-            return;
-        case VK_DELETE:
-            SendWin32InputKey(VK_DELETE, 0, true, controlState);
-            return;
-        // Function keys F1-F12
-        case VK_F1:
-            SendWin32InputKey(VK_F1, 0, true, controlState);
-            return;
-        case VK_F2:
-            SendWin32InputKey(VK_F2, 0, true, controlState);
-            return;
-        case VK_F3:
-            SendWin32InputKey(VK_F3, 0, true, controlState);
-            return;
-        case VK_F4:
-            SendWin32InputKey(VK_F4, 0, true, controlState);
-            return;
-        case VK_F5:
-            SendWin32InputKey(VK_F5, 0, true, controlState);
-            return;
-        case VK_F6:
-            SendWin32InputKey(VK_F6, 0, true, controlState);
-            return;
-        case VK_F7:
-            SendWin32InputKey(VK_F7, 0, true, controlState);
-            return;
-        case VK_F8:
-            SendWin32InputKey(VK_F8, 0, true, controlState);
-            return;
-        case VK_F9:
-            SendWin32InputKey(VK_F9, 0, true, controlState);
-            return;
-        case VK_F10:
-            SendWin32InputKey(VK_F10, 0, true, controlState);
-            return;
-        case VK_F11:
-            SendWin32InputKey(VK_F11, 0, true, controlState);
-            return;
-        case VK_F12:
-            SendWin32InputKey(VK_F12, 0, true, controlState);
-            return;
+    if (m_inputHandler) {
+        m_inputHandler->OnKey(key, isDown);
     }
 }
 
-
 void Application::OnMouseWheel(int delta) {
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    if (!screenBuffer) {
-        return;
+    if (m_inputHandler) {
+        m_inputHandler->OnMouseWheel(delta);
     }
-
-    // Mouse wheel delta is in units of WHEEL_DELTA (120)
-    // Positive delta = scroll up (view older content)
-    // Negative delta = scroll down (view newer content)
-
-    // Scroll by 3 lines per wheel notch
-    const int linesPerNotch = 3;
-    int scrollLines = (delta / WHEEL_DELTA) * linesPerNotch;
-
-    int currentOffset = screenBuffer->GetScrollOffset();
-    int newOffset = currentOffset + scrollLines;
-
-    // Clamp to valid range
-    newOffset = std::max(0, newOffset);
-
-    screenBuffer->SetScrollOffset(newOffset);
 }
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {

@@ -60,6 +60,7 @@ set(UI_SOURCES
     src/ui/SearchManager.cpp
     src/ui/SelectionManager.cpp
     src/ui/PaneManager.cpp
+    src/ui/InputHandler.cpp
 )
 
 set(ALL_SOURCES
