@@ -368,36 +368,25 @@ bool Application::ProcessMessages() {
 
 void Application::BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer) {
     const auto& colorConfig = m_config->GetColors();
+    auto setColor = [&](int i, uint8_t r, uint8_t g, uint8_t b) {
+        palette[i][0] = r / 255.0f; palette[i][1] = g / 255.0f; palette[i][2] = b / 255.0f;
+    };
+
     for (int i = 0; i < 256; ++i) {
-        // Check if this color was modified via OSC 4
         if (screenBuffer && screenBuffer->IsPaletteColorModified(i)) {
-            const auto& paletteColor = screenBuffer->GetPaletteColor(i);
-            palette[i][0] = paletteColor.r / 255.0f;
-            palette[i][1] = paletteColor.g / 255.0f;
-            palette[i][2] = paletteColor.b / 255.0f;
+            const auto& c = screenBuffer->GetPaletteColor(i);
+            setColor(i, c.r, c.g, c.b);
         } else if (i < 16) {
-            // Use config palette for first 16 colors
-            palette[i][0] = colorConfig.palette[i].r / 255.0f;
-            palette[i][1] = colorConfig.palette[i].g / 255.0f;
-            palette[i][2] = colorConfig.palette[i].b / 255.0f;
+            const auto& c = colorConfig.palette[i];
+            setColor(i, c.r, c.g, c.b);
+        } else if (i < 232) {
+            // 6x6x6 color cube
+            int idx = i - 16, r = idx / 36, g = (idx / 6) % 6, b = idx % 6;
+            setColor(i, r ? r * 40 + 55 : 0, g ? g * 40 + 55 : 0, b ? b * 40 + 55 : 0);
         } else {
-            // Generate 256-color palette (colors 16-255)
-            if (i < 232) {
-                // 6x6x6 color cube (indices 16-231)
-                int idx = i - 16;
-                int r = idx / 36;
-                int g = (idx / 6) % 6;
-                int b = idx % 6;
-                palette[i][0] = r ? (r * 40 + 55) / 255.0f : 0.0f;
-                palette[i][1] = g ? (g * 40 + 55) / 255.0f : 0.0f;
-                palette[i][2] = b ? (b * 40 + 55) / 255.0f : 0.0f;
-            } else {
-                // Grayscale (indices 232-255)
-                int gray = (i - 232) * 10 + 8;
-                palette[i][0] = gray / 255.0f;
-                palette[i][1] = gray / 255.0f;
-                palette[i][2] = gray / 255.0f;
-            }
+            // Grayscale
+            uint8_t gray = (i - 232) * 10 + 8;
+            setColor(i, gray, gray, gray);
         }
     }
 }
@@ -506,84 +495,61 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
     int rows, cols;
     screenBuffer->GetDimensions(cols, rows);
 
-    // Helper to extract RGB from cell attributes
-    auto getColor = [&palette](const Terminal::CellAttributes& attr, bool foreground) {
-        struct RGB { float r, g, b; };
-        if (foreground ? attr.UsesTrueColorFg() : attr.UsesTrueColorBg()) {
-            return foreground ? RGB{attr.fgR/255.0f, attr.fgG/255.0f, attr.fgB/255.0f}
-                              : RGB{attr.bgR/255.0f, attr.bgG/255.0f, attr.bgB/255.0f};
-        }
-        uint8_t idx = (foreground ? attr.foreground : attr.background) % 16;
-        return RGB{palette[idx][0], palette[idx][1], palette[idx][2]};
+    struct RGB { float r, g, b; };
+    auto getColor = [&palette](const Terminal::CellAttributes& attr, bool fg) -> RGB {
+        if (fg ? attr.UsesTrueColorFg() : attr.UsesTrueColorBg())
+            return fg ? RGB{attr.fgR/255.0f, attr.fgG/255.0f, attr.fgB/255.0f}
+                      : RGB{attr.bgR/255.0f, attr.bgG/255.0f, attr.bgB/255.0f};
+        uint8_t idx = (fg ? attr.foreground : attr.background) % 16;
+        return {palette[idx][0], palette[idx][1], palette[idx][2]};
     };
 
-    // Calculate normalized selection bounds
+    // Calculate selection bounds
+    bool hasSel = m_selectionManager.HasSelection(), rectSel = m_selectionManager.IsRectangleSelection();
     int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
-    if (m_selectionManager.HasSelection()) {
-        const auto& s = m_selectionManager.GetSelectionStart();
-        const auto& e = m_selectionManager.GetSelectionEnd();
-        selStartY = std::min(s.y, e.y);
-        selEndY = std::max(s.y, e.y);
-        if (m_selectionManager.IsRectangleSelection()) {
-            selStartX = std::min(s.x, e.x);
-            selEndX = std::max(s.x, e.x);
-        } else if (s.y < e.y || (s.y == e.y && s.x <= e.x)) {
-            selStartX = s.x; selEndX = e.x;
-        } else {
-            selStartX = e.x; selEndX = s.x;
-        }
+    if (hasSel) {
+        const auto& s = m_selectionManager.GetSelectionStart(), e = m_selectionManager.GetSelectionEnd();
+        selStartY = std::min(s.y, e.y); selEndY = std::max(s.y, e.y);
+        bool sFirst = s.y < e.y || (s.y == e.y && s.x <= e.x);
+        selStartX = rectSel ? std::min(s.x, e.x) : (sFirst ? s.x : e.x);
+        selEndX = rectSel ? std::max(s.x, e.x) : (sFirst ? e.x : s.x);
     }
 
-    bool hasSel = m_selectionManager.HasSelection();
-    bool rectSel = m_selectionManager.IsRectangleSelection();
-
     for (int y = 0; y < rows; ++y) {
-        // Selection highlight pass
+        float posY = static_cast<float>(startY + y * lineHeight);
+
+        // Selection highlight
         if (hasSel && y >= selStartY && y <= selEndY) {
             int xs = rectSel ? selStartX : (y == selStartY ? selStartX : 0);
             int xe = rectSel ? selEndX : (y == selEndY ? selEndX : cols - 1);
-            for (int x = xs; x <= xe; ++x) {
-                m_renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth),
-                                       static_cast<float>(startY + y * lineHeight), 0.2f, 0.4f, 0.8f, 0.5f);
-            }
+            for (int x = xs; x <= xe; ++x)
+                m_renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth), posY, 0.2f, 0.4f, 0.8f, 0.5f);
         }
 
-        // First pass: Render backgrounds for non-default colors
+        // Background and foreground in single pass
         for (int x = 0; x < cols; ++x) {
             auto cell = screenBuffer->GetCellWithScrollback(x, y);
+            float posX = static_cast<float>(startX + x * charWidth);
             bool inv = cell.attr.IsInverse();
+
+            // Background (inverse: use fg as bg)
             bool hasBg = inv ? (cell.attr.UsesTrueColorFg() || cell.attr.foreground % 16 != 0)
                              : (cell.attr.UsesTrueColorBg() || cell.attr.background % 16 != 0);
-            if (!hasBg) continue;
-
-            auto bg = getColor(cell.attr, inv);  // inverse: use fg as bg
-            m_renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth),
-                                   static_cast<float>(startY + y * lineHeight), bg.r, bg.g, bg.b, 1.0f);
-        }
-
-        // Second pass: Render foreground text character by character
-        for (int x = 0; x < cols; ++x) {
-            auto cell = screenBuffer->GetCellWithScrollback(x, y);
-            if (cell.ch == U' ' || cell.ch == U'\0' || !IsValidCodepoint(cell.ch)) continue;
-
-            // Get color (inverse swaps fg/bg)
-            bool inv = cell.attr.IsInverse();
-            auto color = getColor(cell.attr, !inv);
-            float r = color.r, g = color.g, b = color.b;
-
-            // Apply bold/dim modifiers
-            if (cell.attr.IsBold() && !cell.attr.UsesTrueColorFg()) {
-                r = std::min(1.0f, r + 0.2f); g = std::min(1.0f, g + 0.2f); b = std::min(1.0f, b + 0.2f);
+            if (hasBg) {
+                auto bg = getColor(cell.attr, inv);
+                m_renderer->RenderText("\xE2\x96\x88", posX, posY, bg.r, bg.g, bg.b, 1.0f);
             }
+
+            // Foreground text
+            if (cell.ch == U' ' || cell.ch == U'\0' || !IsValidCodepoint(cell.ch)) continue;
+            auto c = getColor(cell.attr, !inv);
+            float r = c.r, g = c.g, b = c.b;
+            if (cell.attr.IsBold() && !cell.attr.UsesTrueColorFg()) { r = std::min(1.0f, r + 0.2f); g = std::min(1.0f, g + 0.2f); b = std::min(1.0f, b + 0.2f); }
             if (cell.attr.IsDim()) { r *= 0.5f; g *= 0.5f; b *= 0.5f; }
 
-            float posX = static_cast<float>(startX + x * charWidth);
-            float posY = static_cast<float>(startY + y * lineHeight);
             m_renderer->RenderChar(Utf32ToUtf8(cell.ch), posX, posY, r, g, b, 1.0f);
-
-            if (cell.attr.IsUnderline()) {
+            if (cell.attr.IsUnderline())
                 m_renderer->RenderRect(posX, posY + lineHeight - 1, static_cast<float>(charWidth), 3.0f, r, g, b, 1.0f);
-            }
         }
     }
 }
