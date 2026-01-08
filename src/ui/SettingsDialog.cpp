@@ -96,7 +96,7 @@ enum {
 
 // Dialog dimensions
 constexpr int DIALOG_WIDTH = 480;
-constexpr int DIALOG_HEIGHT = 420;
+constexpr int DIALOG_HEIGHT = 520;
 
 // Custom colors for ChooseColor dialog
 static COLORREF s_customColors[16] = {};
