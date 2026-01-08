@@ -32,66 +32,27 @@ void Pane::SetSplitRatio(float ratio) {
 
 void Pane::CalculateLayout(const PaneRect& availableSpace) {
     m_bounds = availableSpace;
+    if (IsLeaf()) return;
 
-    if (IsLeaf()) {
-        // Leaf pane - nothing more to calculate
-        return;
+    constexpr int dividerSize = 4;
+    bool horizontal = (m_splitDirection == SplitDirection::Horizontal);
+    int totalSize = horizontal ? availableSpace.width : availableSpace.height;
+    int firstSize = static_cast<int>((totalSize - dividerSize) * m_splitRatio);
+    int secondSize = totalSize - firstSize - dividerSize;
+
+    PaneRect firstRect = availableSpace, secondRect = availableSpace;
+    if (horizontal) {
+        firstRect.width = firstSize;
+        secondRect.x += firstSize + dividerSize;
+        secondRect.width = secondSize;
+    } else {
+        firstRect.height = firstSize;
+        secondRect.y += firstSize + dividerSize;
+        secondRect.height = secondSize;
     }
 
-    // Split pane - divide space between children
-    const int dividerSize = 4; // Pixels for the divider
-
-    if (m_splitDirection == SplitDirection::Horizontal) {
-        // Left/Right split
-        int leftWidth = static_cast<int>((availableSpace.width - dividerSize) * m_splitRatio);
-        int rightWidth = availableSpace.width - leftWidth - dividerSize;
-
-        PaneRect leftRect = {
-            availableSpace.x,
-            availableSpace.y,
-            leftWidth,
-            availableSpace.height
-        };
-
-        PaneRect rightRect = {
-            availableSpace.x + leftWidth + dividerSize,
-            availableSpace.y,
-            rightWidth,
-            availableSpace.height
-        };
-
-        if (m_firstChild) {
-            m_firstChild->CalculateLayout(leftRect);
-        }
-        if (m_secondChild) {
-            m_secondChild->CalculateLayout(rightRect);
-        }
-    } else if (m_splitDirection == SplitDirection::Vertical) {
-        // Top/Bottom split
-        int topHeight = static_cast<int>((availableSpace.height - dividerSize) * m_splitRatio);
-        int bottomHeight = availableSpace.height - topHeight - dividerSize;
-
-        PaneRect topRect = {
-            availableSpace.x,
-            availableSpace.y,
-            availableSpace.width,
-            topHeight
-        };
-
-        PaneRect bottomRect = {
-            availableSpace.x,
-            availableSpace.y + topHeight + dividerSize,
-            availableSpace.width,
-            bottomHeight
-        };
-
-        if (m_firstChild) {
-            m_firstChild->CalculateLayout(topRect);
-        }
-        if (m_secondChild) {
-            m_secondChild->CalculateLayout(bottomRect);
-        }
-    }
+    if (m_firstChild) m_firstChild->CalculateLayout(firstRect);
+    if (m_secondChild) m_secondChild->CalculateLayout(secondRect);
 }
 
 Pane* Pane::FindPaneWithTab(Tab* tab) {
@@ -227,30 +188,16 @@ bool Pane::CloseChild(Pane* childToClose) {
 
     // Promote the remaining child
     if (paneToKeep->IsLeaf()) {
-        // Simple case: remaining child is a leaf
         m_tab = paneToKeep->m_tab;
         m_splitDirection = SplitDirection::None;
         m_firstChild.reset();
         m_secondChild.reset();
     } else {
-        // Remaining child is a split - adopt its children
+        // Adopt the kept pane's children
         m_splitDirection = paneToKeep->m_splitDirection;
         m_splitRatio = paneToKeep->m_splitRatio;
-
-        // Move children from paneToKeep
-        if (paneToKeep == m_firstChild.get()) {
-            auto first = std::move(paneToKeep->m_firstChild);
-            auto second = std::move(paneToKeep->m_secondChild);
-            m_firstChild = std::move(first);
-            m_secondChild = std::move(second);
-        } else {
-            auto first = std::move(paneToKeep->m_firstChild);
-            auto second = std::move(paneToKeep->m_secondChild);
-            m_firstChild = std::move(first);
-            m_secondChild = std::move(second);
-        }
-
-        // Update parent pointers
+        m_firstChild = std::move(paneToKeep->m_firstChild);
+        m_secondChild = std::move(paneToKeep->m_secondChild);
         if (m_firstChild) m_firstChild->SetParent(this);
         if (m_secondChild) m_secondChild->SetParent(this);
     }
