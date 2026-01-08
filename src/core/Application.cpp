@@ -17,6 +17,18 @@
 #include <shellapi.h>
 
 namespace {
+// Convert wstring to ASCII (non-ASCII chars become '?')
+std::string WStringToAscii(const std::wstring& ws, size_t maxLen = 0) {
+    std::string result;
+    for (wchar_t wc : ws) {
+        result += (wc < 128) ? static_cast<char>(wc) : '?';
+    }
+    if (maxLen > 0 && result.length() > maxLen) {
+        result = result.substr(0, maxLen - 3) + "...";
+    }
+    return result;
+}
+
 // Convert a single UTF-32 codepoint to UTF-8 string
 std::string Utf32ToUtf8(char32_t codepoint) {
     std::string result;
@@ -161,7 +173,6 @@ bool Application::Initialize(const std::wstring& shell) {
     // Calculate terminal size based on window dimensions
     auto [termCols, termRows] = CalculateTerminalSize(windowDesc.width, windowDesc.height);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
-
 
     // Create initial tab
     UI::Tab* initialTab = m_tabManager->CreateTab(m_shellCommand, termCols, termRows, scrollbackLines);
@@ -438,16 +449,7 @@ void Application::RenderTabBar(int charWidth) {
         float bgG = isActive ? 0.3f : 0.2f;
         float bgB = isActive ? 0.35f : 0.2f;
 
-        // Get tab title (convert wstring to UTF-8)
-        std::wstring wTitle = tab->GetTitle();
-        std::string title;
-        for (wchar_t wc : wTitle) {
-            if (wc < 128) title += static_cast<char>(wc);
-            else title += '?';
-        }
-        if (title.length() > 15) {
-            title = title.substr(0, 12) + "...";
-        }
+        std::string title = WStringToAscii(tab->GetTitle(), 15);
 
         float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
 
@@ -515,16 +517,10 @@ void Application::RenderSearchBar(int startX, int charWidth, int lineHeight) {
     m_renderer->RenderRect(0.0f, searchBarY, 2000.0f, static_cast<float>(searchBarHeight),
                            0.2f, 0.2f, 0.25f, 1.0f);
 
-    // Search label
+    // Search label and query
     m_renderer->RenderText("Search:", 10.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
-
-    // Search query (convert wstring to UTF-8)
-    std::string queryUtf8;
-    for (wchar_t wc : m_searchManager.GetQuery()) {
-        if (wc < 128) queryUtf8 += static_cast<char>(wc);
-        else queryUtf8 += '?';
-    }
-    m_renderer->RenderText(queryUtf8.c_str(), 80.0f, searchBarY + 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    m_renderer->RenderText(WStringToAscii(m_searchManager.GetQuery()).c_str(),
+                           80.0f, searchBarY + 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
     // Search results count
     char countBuf[64];
@@ -835,18 +831,12 @@ void Application::OnWindowResize(int width, int height) {
 
     if (!m_minimized && m_renderer) {
         // Check if any tab is using alt buffer (TUI app running)
-        bool anyAltBuffer = false;
-        if (m_tabManager) {
-            for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) {
-                    auto* screenBuffer = tab->GetScreenBuffer();
-                    if (screenBuffer && screenBuffer->IsUsingAlternativeBuffer()) {
-                        anyAltBuffer = true;
-                        break;
-                    }
-                }
-            }
-        }
+        bool anyAltBuffer = m_tabManager && std::any_of(
+            m_tabManager->GetTabs().begin(), m_tabManager->GetTabs().end(),
+            [](const auto& tab) {
+                auto* buf = tab ? tab->GetScreenBuffer() : nullptr;
+                return buf && buf->IsUsingAlternativeBuffer();
+            });
 
         // If TUI is running, only resize DX12 renderer (skip buffer resize)
         if (anyAltBuffer) {
@@ -897,7 +887,6 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
 
     return pos;
 }
-
 
 void Application::CopySelectionToClipboard() {
     Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
