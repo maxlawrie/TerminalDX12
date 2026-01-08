@@ -140,10 +140,6 @@ private:
     void SearchPrevious();
     void UpdateSearchResults();
 
-    // URL detection
-    std::string DetectUrlAt(int cellX, int cellY) const;
-    void OpenUrl(const std::string& url);
-
     // Terminal layout - consistent startY calculation
     int GetTerminalStartY() const;
 

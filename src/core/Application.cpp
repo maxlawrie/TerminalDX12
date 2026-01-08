@@ -6,6 +6,7 @@
 #include "ui/Tab.h"
 #include "ui/Pane.h"
 #include "ui/SettingsDialog.h"
+#include "ui/UrlHelper.h"
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"
@@ -286,7 +287,7 @@ bool Application::Initialize(const std::wstring& shell) {
     // Create mouse handler with callbacks
     UI::MouseHandlerCallbacks mouseCallbacks;
     mouseCallbacks.onPaste = [this]() { PasteFromClipboard(); };
-    mouseCallbacks.onOpenUrl = [this](const std::string& url) { OpenUrl(url); };
+    mouseCallbacks.onOpenUrl = [](const std::string& url) { UI::UrlHelper::OpenUrl(url); };
     mouseCallbacks.onShowContextMenu = [this](int x, int y) { ShowContextMenu(x, y); };
     mouseCallbacks.onSwitchToTab = [this](int tabId) {
         if (m_tabManager) m_tabManager->SwitchToTab(tabId);
@@ -307,7 +308,7 @@ bool Application::Initialize(const std::wstring& shell) {
 
     // Set up URL detector
     m_mouseHandler->SetUrlDetector([this](int cellX, int cellY) {
-        return DetectUrlAt(cellX, cellY);
+        return UI::UrlHelper::DetectUrlAt(GetActiveScreenBuffer(), cellX, cellY);
     });
 
     m_window->Show();
@@ -1137,83 +1138,6 @@ void Application::SearchNext() {
 
 void Application::SearchPrevious() {
     m_searchManager.PreviousMatch();
-}
-
-// URL detection
-std::string Application::DetectUrlAt(int cellX, int cellY) const {
-    Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
-    if (!screenBuffer) return "";
-
-    int cols = screenBuffer->GetCols();
-
-    // Build the text around the clicked position
-    std::string lineText;
-    for (int x = 0; x < cols; ++x) {
-        auto cell = screenBuffer->GetCellWithScrollback(x, cellY);
-        if (cell.ch < 128 && cell.ch > 0) {
-            lineText += static_cast<char>(cell.ch);
-        } else if (cell.ch >= 128) {
-            lineText += ' ';  // Replace non-ASCII with space
-        } else {
-            lineText += ' ';
-        }
-    }
-
-    // URL prefixes to detect
-    const char* prefixes[] = {"https://", "http://", "file://", "ftp://"};
-
-    // Find all URLs in the line and check if cellX is within any of them
-    for (const char* prefix : prefixes) {
-        size_t pos = 0;
-        while ((pos = lineText.find(prefix, pos)) != std::string::npos) {
-            // Find the end of the URL
-            size_t urlEnd = pos;
-            while (urlEnd < lineText.length()) {
-                char ch = lineText[urlEnd];
-                // URL valid characters
-                if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-                    (ch >= '0' && ch <= '9') ||
-                    ch == '-' || ch == '.' || ch == '_' || ch == '~' ||
-                    ch == ':' || ch == '/' || ch == '?' || ch == '#' ||
-                    ch == '[' || ch == ']' || ch == '@' || ch == '!' ||
-                    ch == '$' || ch == '&' || ch == '\'' || ch == '(' ||
-                    ch == ')' || ch == '*' || ch == '+' || ch == ',' ||
-                    ch == ';' || ch == '=' || ch == '%') {
-                    urlEnd++;
-                } else {
-                    break;
-                }
-            }
-
-            // Check if the clicked position is within this URL
-            if (cellX >= static_cast<int>(pos) && cellX < static_cast<int>(urlEnd)) {
-                return lineText.substr(pos, urlEnd - pos);
-            }
-
-            pos = urlEnd;
-        }
-    }
-
-    return "";
-}
-
-void Application::OpenUrl(const std::string& url) {
-    if (url.empty()) return;
-
-    // Convert to wide string for ShellExecute
-    int wideLen = MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, nullptr, 0);
-    if (wideLen <= 0) return;
-
-    std::wstring wideUrl(wideLen, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, &wideUrl[0], wideLen);
-
-    // Open URL in default browser
-    HINSTANCE result = ShellExecuteW(nullptr, L"open", wideUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-    if (reinterpret_cast<intptr_t>(result) > 32) {
-        spdlog::info("Opened URL: {}", url);
-    } else {
-        spdlog::error("Failed to open URL: {}", url);
-    }
 }
 
 void Application::ShowSettings() {
