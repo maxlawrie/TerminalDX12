@@ -220,21 +220,15 @@ bool Application::Initialize(const std::wstring& shell) {
     inputCallbacks.onNewTab = [this]() {
         if (m_tabManager) {
             int cols = 80, rows = 24;
-            UI::Tab* activeTab = m_tabManager->GetActiveTab();
-            if (activeTab && activeTab->GetScreenBuffer()) {
-                cols = activeTab->GetScreenBuffer()->GetCols();
-                rows = activeTab->GetScreenBuffer()->GetRows();
+            if (auto* tab = m_tabManager->GetActiveTab(); tab && tab->GetScreenBuffer()) {
+                cols = tab->GetScreenBuffer()->GetCols();
+                rows = tab->GetScreenBuffer()->GetRows();
             }
-            int scrollbackLines = m_config->GetTerminal().scrollbackLines;
-            m_tabManager->CreateTab(m_shellCommand, cols, rows, scrollbackLines);
-            spdlog::info("Created new tab ({}x{})", cols, rows);
+            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
         }
     };
     inputCallbacks.onCloseTab = [this]() {
-        if (m_tabManager && m_tabManager->GetTabCount() > 1) {
-            m_tabManager->CloseActiveTab();
-            spdlog::info("Closed active tab");
-        }
+        if (m_tabManager && m_tabManager->GetTabCount() > 1) m_tabManager->CloseActiveTab();
     };
     inputCallbacks.onNextTab = [this]() {
         if (m_tabManager) m_tabManager->NextTab();
@@ -243,21 +237,13 @@ bool Application::Initialize(const std::wstring& shell) {
         if (m_tabManager) m_tabManager->PreviousTab();
     };
     inputCallbacks.onSwitchToTab = [this](int tabIndex) {
-        if (m_tabManager) {
-            const auto& tabs = m_tabManager->GetTabs();
-            if (tabIndex < static_cast<int>(tabs.size())) {
-                m_tabManager->SwitchToTab(tabs[tabIndex]->GetId());
-                spdlog::debug("Switched to tab {} via Ctrl+{}", tabIndex + 1, tabIndex + 1);
-            }
+        if (m_tabManager && tabIndex < static_cast<int>(m_tabManager->GetTabs().size())) {
+            m_tabManager->SwitchToTab(m_tabManager->GetTabs()[tabIndex]->GetId());
         }
     };
     inputCallbacks.onSplitPane = [this](UI::SplitDirection dir) { SplitPane(dir); };
     inputCallbacks.onClosePane = [this]() { ClosePane(); };
-    inputCallbacks.onToggleZoom = [this]() {
-        m_paneManager.ToggleZoom();
-        UpdatePaneLayout();
-        spdlog::info("Pane zoom {}", m_paneManager.IsZoomed() ? "enabled" : "disabled");
-    };
+    inputCallbacks.onToggleZoom = [this]() { m_paneManager.ToggleZoom(); UpdatePaneLayout(); };
     inputCallbacks.onFocusNextPane = [this]() { m_paneManager.FocusNextPane(); };
     inputCallbacks.onFocusPreviousPane = [this]() { m_paneManager.FocusPreviousPane(); };
     inputCallbacks.onOpenSearch = [this]() { m_searchManager.Open(); };
@@ -830,19 +816,11 @@ void Application::OnWindowResize(int width, int height) {
 }
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
-    int startY = GetTerminalStartY();
-
-    CellPos pos;
-    pos.x = (pixelX - kStartX) / kCharWidth;
-    pos.y = (pixelY - startY) / kLineHeight;
-
-    // Clamp to valid range
-    Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
-    if (screenBuffer) {
-        pos.x = std::max(0, std::min(pos.x, screenBuffer->GetCols() - 1));
-        pos.y = std::max(0, std::min(pos.y, screenBuffer->GetRows() - 1));
+    CellPos pos{(pixelX - kStartX) / kCharWidth, (pixelY - GetTerminalStartY()) / kLineHeight};
+    if (auto* buf = const_cast<Application*>(this)->GetActiveScreenBuffer()) {
+        pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
+        pos.y = std::clamp(pos.y, 0, buf->GetRows() - 1);
     }
-
     return pos;
 }
 
@@ -859,13 +837,8 @@ void Application::PasteFromClipboard() {
 }
 
 void Application::ShowSettings() {
-    if (!m_window || !m_config) {
-        return;
-    }
-
-    UI::SettingsDialog dialog(m_window->GetHandle(), m_config.get());
-    if (dialog.Show()) {
-        spdlog::info("Settings were changed and saved");
+    if (m_window && m_config) {
+        UI::SettingsDialog(m_window->GetHandle(), m_config.get()).Show();
     }
 }
 
@@ -916,15 +889,9 @@ void Application::ClosePane() {
 }
 
 void Application::UpdatePaneLayout() {
-    if (!m_window) {
-        return;
-    }
-
-    int width = m_window->GetWidth();
-    int height = m_window->GetHeight();
+    if (!m_window) return;
     int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? kTabBarHeight : 0;
-
-    m_paneManager.UpdateLayout(width, height, tabBar);
+    m_paneManager.UpdateLayout(m_window->GetWidth(), m_window->GetHeight(), tabBar);
 }
 
 } // namespace Core
