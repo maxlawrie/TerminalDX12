@@ -139,108 +139,41 @@ void TextRenderer::RenderText(const std::string& text, float x, float y, const X
 }
 
 void TextRenderer::RenderText(const std::u32string& text, float x, float y, const XMFLOAT4& color) {
-    if (!m_atlas) {
-        spdlog::error("GlyphAtlas not set");
-        return;
-    }
+    if (!m_atlas) return;
 
-    float currentX = x;
-    float currentY = y;
-
+    float currentX = x, currentY = y;
     for (char32_t ch : text) {
-        // Handle newline
         if (ch == U'\n') {
             currentX = x;
             currentY += m_atlas->GetLineHeight();
             continue;
         }
-
-        // Get glyph from atlas
         const GlyphInfo* glyph = m_atlas->GetGlyph(ch);
-        if (!glyph) {
-            // Use space character as fallback
-            glyph = m_atlas->GetGlyph(U' ');
-            if (!glyph) continue;
-        }
+        if (!glyph) glyph = m_atlas->GetGlyph(U' ');
+        if (!glyph) continue;
 
-        // Create instance data
-        GlyphInstance instance;
-
-        // Position (account for glyph bearing)
-        instance.position.x = currentX + glyph->bearingX;
-        instance.position.y = currentY - glyph->bearingY + m_atlas->GetFontSize();
-
-        // Size
-        instance.size.x = static_cast<float>(glyph->width);
-        instance.size.y = static_cast<float>(glyph->height);
-
-        // UV coordinates
-        instance.uvMin.x = glyph->u0;
-        instance.uvMin.y = glyph->v0;
-        instance.uvMax.x = glyph->u1;
-        instance.uvMax.y = glyph->v1;
-
-        // Color
-        instance.color = color;
-
-        // Add to instance list
-        if (m_instances.size() < MAX_INSTANCES) {
-            m_instances.push_back(instance);
-        } else {
-            spdlog::warn("Max instances reached, skipping glyphs");
-            break;
-        }
-
-        // Advance cursor
+        AddGlyphInstance(glyph, currentX, currentY, color);
         currentX += glyph->advance;
     }
 }
 
 void TextRenderer::RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color) {
-    if (!m_atlas) {
-        return;
-    }
+    if (!m_atlas) return;
+    std::u32string utf32 = Utf8ToUtf32(ch);
+    if (utf32.empty()) return;
+    const GlyphInfo* glyph = m_atlas->GetGlyph(utf32[0]);
+    if (glyph) AddGlyphInstance(glyph, x, y, color);
+}
 
-    // Convert UTF-8 to UTF-32
-    std::u32string utf32Text = Utf8ToUtf32(ch);
-    if (utf32Text.empty()) {
-        return;
-    }
-
-    char32_t codepoint = utf32Text[0];
-
-    // Get glyph from atlas
-    const GlyphInfo* glyph = m_atlas->GetGlyph(codepoint);
-    if (!glyph) {
-        return;
-    }
-
-    // Create instance data
-    GlyphInstance instance;
-
-    // Position at exact cell location
-    // The cell position x,y is the top-left of the cell
-    // We need to position the glyph within the cell accounting for bearing
-    instance.position.x = x + glyph->bearingX;
-    instance.position.y = y - glyph->bearingY + m_atlas->GetFontSize();
-
-    // Size
-    instance.size.x = static_cast<float>(glyph->width);
-    instance.size.y = static_cast<float>(glyph->height);
-
-    // UV coordinates
-    instance.uvMin.x = glyph->u0;
-    instance.uvMin.y = glyph->v0;
-    instance.uvMax.x = glyph->u1;
-    instance.uvMax.y = glyph->v1;
-
-    // Color
-    instance.color = color;
-
-    // Add to instance list
-    if (m_instances.size() < MAX_INSTANCES) {
-        m_instances.push_back(instance);
-    }
+void TextRenderer::AddGlyphInstance(const GlyphInfo* glyph, float x, float y, const XMFLOAT4& color) {
+    if (m_instances.size() >= MAX_INSTANCES) return;
+    GlyphInstance inst;
+    inst.position = {x + glyph->bearingX, y - glyph->bearingY + m_atlas->GetFontSize()};
+    inst.size = {static_cast<float>(glyph->width), static_cast<float>(glyph->height)};
+    inst.uvMin = {glyph->u0, glyph->v0};
+    inst.uvMax = {glyph->u1, glyph->v1};
+    inst.color = color;
+    m_instances.push_back(inst);
 }
 
 void TextRenderer::RenderRect(float x, float y, float width, float height,
@@ -314,26 +247,7 @@ void TextRenderer::UpdateInstanceBuffer() {
 }
 
 void TextRenderer::Render(ID3D12GraphicsCommandList* commandList) {
-    static int renderCallCount = 0;
-
-    if (m_instances.empty()) {
-        if (renderCallCount < 5) {
-            spdlog::info("TextRenderer::Render - no instances to render");
-            renderCallCount++;
-        }
-        return;
-    }
-
-    if (!m_rootSignature || !m_pipelineState || !m_atlas) {
-        spdlog::error("TextRenderer::Render - missing resources (rootSig:{}, PSO:{}, atlas:{})",
-                     (void*)m_rootSignature, (void*)m_pipelineState, (void*)m_atlas);
-        return;
-    }
-
-    if (renderCallCount < 5) {
-        spdlog::info("TextRenderer::Render - rendering {} instances", m_instances.size());
-        renderCallCount++;
-    }
+    if (m_instances.empty() || !m_rootSignature || !m_pipelineState || !m_atlas) return;
 
     // Upload atlas to GPU if it has new glyphs
     m_atlas->UploadAtlasIfDirty();

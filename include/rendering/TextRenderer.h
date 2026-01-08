@@ -55,6 +55,7 @@ public:
 private:
     bool CreateInstanceBuffer(ID3D12Device* device);
     void UpdateInstanceBuffer();
+    void AddGlyphInstance(const GlyphInfo* glyph, float x, float y, const DirectX::XMFLOAT4& color);
 
     // Glyph atlas reference
     GlyphAtlas* m_atlas;
