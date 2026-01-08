@@ -45,11 +45,6 @@ Application* Application::s_instance = nullptr;
 Application::Application()
     : m_running(false)
     , m_minimized(false)
-    , m_lastClickTime{}
-    , m_lastClickPos{0, 0}
-    , m_clickCount(0)
-    , m_lastMouseButton(-1)
-    , m_mouseButtonDown(false)
 {
     s_instance = this;
 }
@@ -287,6 +282,33 @@ bool Application::Initialize(const std::wstring& shell) {
 
     m_inputHandler = std::make_unique<UI::InputHandler>(
         std::move(inputCallbacks), m_searchManager, m_selectionManager);
+
+    // Create mouse handler with callbacks
+    UI::MouseHandlerCallbacks mouseCallbacks;
+    mouseCallbacks.onPaste = [this]() { PasteFromClipboard(); };
+    mouseCallbacks.onOpenUrl = [this](const std::string& url) { OpenUrl(url); };
+    mouseCallbacks.onShowContextMenu = [this](int x, int y) { ShowContextMenu(x, y); };
+    mouseCallbacks.onSwitchToTab = [this](int tabId) {
+        if (m_tabManager) m_tabManager->SwitchToTab(tabId);
+    };
+    mouseCallbacks.getActiveTerminal = [this]() { return GetActiveTerminal(); };
+    mouseCallbacks.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
+    mouseCallbacks.getActiveVTParser = [this]() { return GetActiveVTParser(); };
+    mouseCallbacks.getWindowHandle = [this]() { return m_window ? m_window->GetHandle() : nullptr; };
+
+    m_mouseHandler = std::make_unique<UI::MouseHandler>(
+        std::move(mouseCallbacks), m_selectionManager, m_paneManager, m_tabManager.get());
+
+    // Set up screen-to-cell converter
+    m_mouseHandler->SetScreenToCellConverter([this](int x, int y) -> UI::CellPos {
+        CellPos pos = ScreenToCell(x, y);
+        return {pos.x, pos.y};
+    });
+
+    // Set up URL detector
+    m_mouseHandler->SetUrlDetector([this](int cellX, int cellY) {
+        return DetectUrlAt(cellX, cellY);
+    });
 
     m_window->Show();
     m_running = true;
@@ -993,144 +1015,15 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
 }
 
 void Application::OnMouseButton(int x, int y, int button, bool down) {
-    // Handle tab bar clicks (only when multiple tabs exist)
-    const int tabBarHeight = 30;
-    if (m_tabManager && m_tabManager->GetTabCount() > 1 && y < tabBarHeight && button == 0 && down) {
-        // Find which tab was clicked
-        float tabX = 5.0f;
-        const int charWidth = 10;
-        const auto& tabs = m_tabManager->GetTabs();
-
-        for (size_t i = 0; i < tabs.size(); ++i) {
-            const auto& tab = tabs[i];
-            std::wstring wTitle = tab->GetTitle();
-            int titleLen = static_cast<int>(wTitle.length());
-            if (titleLen > 15) titleLen = 15;
-
-            float tabWidth = static_cast<float>(std::max(80, titleLen * charWidth + 20));
-
-            if (x >= tabX && x < tabX + tabWidth) {
-                // Switch to this tab
-                m_tabManager->SwitchToTab(tab->GetId());
-                return;
-            }
-            tabX += tabWidth + 5.0f;
-        }
-        return;  // Click was in tab bar but not on a tab
-    }
-
-    // Click to focus pane
-    if (button == 0 && down && m_paneManager.GetRootPane() && !m_paneManager.GetRootPane()->IsLeaf()) {
-        UI::Pane* clickedPane = m_paneManager.GetRootPane()->FindPaneAt(x, y);
-        if (clickedPane && clickedPane != m_paneManager.GetFocusedPane() && clickedPane->IsLeaf()) {
-            m_paneManager.SetFocusedPane(clickedPane);
-            spdlog::info("Focused pane at ({}, {})", x, y);
-        }
-    }
-
-    CellPos cellPos = ScreenToCell(x, y);
-
-    // Handle Ctrl+Click for URL opening
-    if (button == 0 && down && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) {
-        std::string url = DetectUrlAt(cellPos.x, cellPos.y);
-        if (!url.empty()) {
-            OpenUrl(url);
-            return;
-        }
-    }
-
-    // Right-click context menu
-    if (button == 1 && down) {
-        ShowContextMenu(x, y);
-        return;
-    }
-
-    // Middle-click paste (X11 style)
-    if (button == 2 && down) {
-        PasteFromClipboard();
-        return;
-    }
-
-    // Report mouse to application if mouse mode is enabled
-    if (ShouldReportMouse()) {
-        SendMouseEvent(cellPos.x, cellPos.y, button, down, false);
-        m_mouseButtonDown = down;
-        m_lastMouseButton = button;
-        return;
-    }
-
-    // Only handle left mouse button for selection
-    if (button != 0) {
-        return;
-    }
-
-    if (down) {
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastClickTime).count();
-
-        // Check for double/triple click (within 500ms and same position)
-        if (elapsed < 500 && cellPos.x == m_lastClickPos.x && cellPos.y == m_lastClickPos.y) {
-            m_clickCount++;
-            if (m_clickCount > 3) m_clickCount = 1;
-        } else {
-            m_clickCount = 1;
-        }
-
-        m_lastClickTime = now;
-        m_lastClickPos = cellPos;
-
-        // Handle click type
-        if (m_clickCount == 3) {
-            // Triple-click: select entire line
-            SelectLine(cellPos.y);
-        } else if (m_clickCount == 2) {
-            // Double-click: select word
-            SelectWord(cellPos.x, cellPos.y);
-        } else {
-            // Single-click: start drag selection
-            // Check for Shift+Click to extend selection
-            if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && m_selectionManager.HasSelection()) {
-                // Extend selection to this position
-                UI::SelectionPos pos{cellPos.x, cellPos.y};
-                m_selectionManager.ExtendSelection(pos);
-            } else {
-                // Start new selection
-                // Alt+drag enables rectangle selection mode
-                bool rectMode = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                UI::SelectionPos pos{cellPos.x, cellPos.y};
-                m_selectionManager.StartSelection(pos, rectMode);
-            }
-        }
-        m_mouseButtonDown = true;
-    } else {
-        // Button release
-        m_selectionManager.EndSelection();
-        m_mouseButtonDown = false;
+    if (m_mouseHandler) {
+        m_mouseHandler->OnMouseButton(x, y, button, down);
     }
 }
 
 void Application::OnMouseMove(int x, int y) {
-    CellPos cellPos = ScreenToCell(x, y);
-
-    // Report mouse motion if application wants it
-    Terminal::VTStateMachine* vtParser = GetActiveVTParser();
-    if (ShouldReportMouse() && vtParser) {
-        auto mouseMode = vtParser->GetMouseMode();
-        // Mode 1003 (All) reports all motion
-        // Mode 1002 (Normal) reports motion only while button pressed
-        if (mouseMode == Terminal::VTStateMachine::MouseMode::All ||
-            (mouseMode == Terminal::VTStateMachine::MouseMode::Normal && m_mouseButtonDown)) {
-            SendMouseEvent(cellPos.x, cellPos.y, m_lastMouseButton, true, true);
-        }
-        return;
+    if (m_mouseHandler) {
+        m_mouseHandler->OnMouseMove(x, y);
     }
-
-    if (!m_selectionManager.IsSelecting()) {
-        return;
-    }
-
-    UI::SelectionPos pos{cellPos.x, cellPos.y};
-    m_selectionManager.ExtendSelection(pos);
 }
 
 void Application::ClearSelection() {
@@ -1162,58 +1055,6 @@ std::string Application::GetClipboardText() {
 void Application::SetClipboardText(const std::string& text) {
     HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
     m_selectionManager.SetClipboardText(text, hwnd);
-}
-
-bool Application::ShouldReportMouse() const {
-    Terminal::VTStateMachine* vtParser = const_cast<Application*>(this)->GetActiveVTParser();
-    return vtParser && vtParser->IsMouseReportingEnabled();
-}
-
-void Application::SendMouseEvent(int x, int y, int button, bool pressed, bool motion) {
-    Pty::ConPtySession* terminal = GetActiveTerminal();
-    Terminal::VTStateMachine* vtParser = GetActiveVTParser();
-    if (!terminal || !terminal->IsRunning() || !vtParser) {
-        return;
-    }
-
-    // Convert to 1-based coordinates for terminal
-    int col = x + 1;
-    int row = y + 1;
-
-    // Build mouse event sequence
-    char buf[64];
-    int len = 0;
-
-    if (vtParser->IsSGRMouseModeEnabled()) {
-        // SGR Extended Mouse Mode (1006): CSI < Cb ; Cx ; Cy M/m
-        // Button encoding: 0=left, 1=middle, 2=right, 32+button for motion
-        int cb = button;
-        if (motion) cb += 32;
-
-        char terminator = pressed ? 'M' : 'm';
-        len = snprintf(buf, sizeof(buf), "[<%d;%d;%d%c", cb, col, row, terminator);
-    } else {
-        // X10/Normal Mouse Mode: CSI M Cb Cx Cy (encoded as Cb+32, Cx+32, Cy+32)
-        // Only for press events in X10 mode
-        if (!pressed && vtParser->GetMouseMode() == Terminal::VTStateMachine::MouseMode::X10) {
-            return;
-        }
-
-        int cb = button;
-        if (motion) cb += 32;
-        if (!pressed) cb += 3;  // Release is encoded as button 3
-
-        // Coordinates are encoded with +32 offset, clamped to 223 (255-32)
-        int cx = std::min(col + 32, 255);
-        int cy = std::min(row + 32, 255);
-        cb += 32;
-
-        len = snprintf(buf, sizeof(buf), "[M%c%c%c", cb, cx, cy);
-    }
-
-    if (len > 0 && len < (int)sizeof(buf)) {
-        terminal->WriteInput(buf, len);
-    }
 }
 
 bool Application::IsWordChar(char32_t ch) const {

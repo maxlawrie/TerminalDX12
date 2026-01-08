@@ -61,6 +61,7 @@ set(UI_SOURCES
     src/ui/SelectionManager.cpp
     src/ui/PaneManager.cpp
     src/ui/InputHandler.cpp
+    src/ui/MouseHandler.cpp
 )
 
 set(ALL_SOURCES

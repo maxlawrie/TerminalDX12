@@ -17,6 +17,7 @@
 #include "ui/SelectionManager.h"
 #include "ui/PaneManager.h"
 #include "ui/InputHandler.h"
+#include "ui/MouseHandler.h"
 
 namespace TerminalDX12 {
 
@@ -115,10 +116,6 @@ private:
     void SetClipboardText(const std::string& text);  // For OSC 52 write
     void ClearSelection();
 
-    // Mouse reporting helpers
-    void SendMouseEvent(int x, int y, int button, bool pressed, bool motion);
-    bool ShouldReportMouse() const;
-
     // Word/line selection helpers
     void SelectWord(int cellX, int cellY);
     void SelectLine(int cellY);
@@ -180,18 +177,14 @@ private:
     // Selection manager
     UI::SelectionManager m_selectionManager;
 
-    // Mouse click tracking for double/triple click
-    std::chrono::steady_clock::time_point m_lastClickTime;
-    CellPos m_lastClickPos;
-    int m_clickCount;              // 1=single, 2=double, 3=triple
-    int m_lastMouseButton;         // Last button pressed (for mouse reporting)
-    bool m_mouseButtonDown;        // Is a button currently pressed
-
     // Search manager
     UI::SearchManager m_searchManager;
 
     // Input handler
     std::unique_ptr<UI::InputHandler> m_inputHandler;
+
+    // Mouse handler
+    std::unique_ptr<UI::MouseHandler> m_mouseHandler;
 
     static Application* s_instance;
 };
