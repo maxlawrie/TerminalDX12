@@ -7,193 +7,103 @@ Tests keyboard navigation and shortcuts like Shift+PageUp/Down.
 
 import pytest
 import time
+import win32api
 import win32con
+from helpers import ScreenAnalyzer
 
 
-class TestKeyboardShortcuts:
-    """Keyboard shortcut tests."""
+class TestScrolling:
+    """Mouse wheel scrolling tests."""
 
-    def test_shift_page_up_scrolls_history(self, terminal):
-        """Shift+PageUp scrolls up through scrollback buffer."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
+    def _scroll_wheel(self, terminal, direction: int, count: int = 5):
+        """Scroll mouse wheel in terminal window."""
+        rect = terminal.get_client_rect_screen()
+        center = ((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
+        win32api.SetCursorPos(center)
+        time.sleep(0.1)
+        for _ in range(count):
+            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, direction * 120, 0)
+            time.sleep(0.1)
+        time.sleep(0.3)
 
-        # Generate scrollback content
-        terminal.send_keys('1..50 | % { echo "SCROLL_LINE_$_" }\n')
-        time.sleep(2)
-
-        # Take screenshot before scrolling
+    def test_scroll_up_changes_view(self, terminal):
+        """Scrolling up shows different content."""
+        terminal.send_command('1..50 | % { echo "SCROLL_LINE_$_" }', wait=2)
         screenshot_before, _ = terminal.wait_and_screenshot("keyboard_before_scroll")
 
-        # Use mouse wheel to scroll instead (more reliable than keyboard)
-        import win32api
-        import win32con as wc
-
-        client_rect = terminal.get_client_rect_screen()
-        center_x = (client_rect[0] + client_rect[2]) // 2
-        center_y = (client_rect[1] + client_rect[3]) // 2
-        win32api.SetCursorPos((center_x, center_y))
-        time.sleep(0.1)
-
-        # Scroll up with mouse wheel
-        for _ in range(5):
-            win32api.mouse_event(wc.MOUSEEVENTF_WHEEL, 0, 0, 120, 0)
-            time.sleep(0.1)
-        time.sleep(0.3)
-
-        # Take screenshot after scrolling
+        self._scroll_wheel(terminal, 1)  # Scroll up
         screenshot_after, _ = terminal.wait_and_screenshot("keyboard_after_scroll_up")
 
-        # Screen should have changed (scrolled)
-        from helpers import ScreenAnalyzer
-        analyzer = ScreenAnalyzer()
-        diff = analyzer.compare_screenshots(screenshot_before, screenshot_after)
-
-        # Should see different content after scrolling
+        diff = ScreenAnalyzer().compare_screenshots(screenshot_before, screenshot_after)
         assert diff > 5000, "Screen did not change after scroll up"
 
-    def test_shift_page_down_scrolls_forward(self, terminal):
-        """Scroll down after scrolling up."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
+    def test_scroll_down_after_up(self, terminal):
+        """Scrolling down after up shows different content."""
+        terminal.send_command('1..50 | % { echo "FWD_LINE_$_" }', wait=2)
 
-        # Generate scrollback
-        terminal.send_keys('1..50 | % { echo "FWD_LINE_$_" }\n')
-        time.sleep(2)
+        self._scroll_wheel(terminal, 1)  # Scroll up
+        screenshot_up, _ = terminal.wait_and_screenshot("keyboard_scrolled_up")
 
-        import win32api
-        import win32con as wc
+        self._scroll_wheel(terminal, -1)  # Scroll down
+        screenshot_down, _ = terminal.wait_and_screenshot("keyboard_scrolled_down")
 
-        client_rect = terminal.get_client_rect_screen()
-        center_x = (client_rect[0] + client_rect[2]) // 2
-        center_y = (client_rect[1] + client_rect[3]) // 2
-        win32api.SetCursorPos((center_x, center_y))
-        time.sleep(0.1)
-
-        # Scroll up first with mouse wheel
-        for _ in range(5):
-            win32api.mouse_event(wc.MOUSEEVENTF_WHEEL, 0, 0, 120, 0)
-            time.sleep(0.1)
-        time.sleep(0.3)
-
-        screenshot_scrolled_up, _ = terminal.wait_and_screenshot("keyboard_scrolled_up")
-
-        # Scroll back down with mouse wheel
-        for _ in range(5):
-            win32api.mouse_event(wc.MOUSEEVENTF_WHEEL, 0, 0, -120, 0)
-            time.sleep(0.1)
-        time.sleep(0.3)
-
-        screenshot_scrolled_down, _ = terminal.wait_and_screenshot("keyboard_scrolled_down")
-
-        # Screens should differ
-        from helpers import ScreenAnalyzer
-        analyzer = ScreenAnalyzer()
-        diff = analyzer.compare_screenshots(screenshot_scrolled_up, screenshot_scrolled_down)
-
+        diff = ScreenAnalyzer().compare_screenshots(screenshot_up, screenshot_down)
         assert diff > 5000, "Screen did not change after scroll down"
 
-    def test_ctrl_c_with_no_selection(self, terminal):
-        """Ctrl+C with no selection should not crash (sends SIGINT or no-op)."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
 
-        # Start a simple command
-        terminal.send_keys("echo 'Testing Ctrl+C'\n")
-        time.sleep(0.3)
+class TestBasicKeys:
+    """Basic keyboard input tests."""
 
-        # Send Ctrl+C with nothing selected
+    def test_ctrl_c_no_crash(self, terminal):
+        """Ctrl+C with no selection should not crash."""
+        terminal.send_command("echo 'Testing Ctrl+C'", wait=0.3)
         terminal.send_ctrl_key('c')
         time.sleep(0.3)
+        terminal.send_command("echo CTRL_C_OK")
+        terminal.assert_renders("keyboard_ctrl_c", "CTRL_C_OK")
 
-        # Terminal should still be responsive
-        terminal.send_keys("echo CTRL_C_OK\n")
-        time.sleep(0.5)
-
-        screenshot, _ = terminal.wait_and_screenshot("keyboard_ctrl_c")
-        assert terminal.analyze_text_presence(screenshot), "Terminal unresponsive after Ctrl+C"
-
-    def test_enter_executes_command(self, terminal):
+    def test_enter_executes(self, terminal):
         """Enter key executes the current command."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
+        terminal.send_command("echo ENTER_TEST_SUCCESS")
+        terminal.assert_renders("keyboard_enter", "ENTER")
 
-        terminal.send_keys("echo ENTER_TEST_SUCCESS\n")
-        time.sleep(0.5)
-
-        screenshot, _ = terminal.wait_and_screenshot("keyboard_enter")
-        assert terminal.analyze_text_presence(screenshot), "Enter key command failed"
-
-        # Verify via OCR
-        ocr_text = terminal.get_screen_text(screenshot)
-        if "ENTER" in ocr_text.upper() or "SUCCESS" in ocr_text.upper():
-            print("Enter key test verified via OCR")
-
-    def test_backspace_deletes_character(self, terminal):
+    def test_backspace_deletes(self, terminal):
         """Backspace key deletes the previous character."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-
-        # Type with intentional typo
         terminal.send_keys("echo TESTX")
         time.sleep(0.2)
-
-        # Backspace to delete 'X'
         terminal.send_keys("\b")
         time.sleep(0.1)
+        terminal.send_command("_BACKSPACE_OK")
+        terminal.assert_renders("keyboard_backspace", "BACKSPACE")
 
-        # Complete the command
-        terminal.send_keys("_BACKSPACE_OK\n")
-        time.sleep(0.5)
 
-        screenshot, _ = terminal.wait_and_screenshot("keyboard_backspace")
-        assert terminal.analyze_text_presence(screenshot), "Backspace test failed"
+class TestNavigation:
+    """Arrow key and history navigation tests."""
 
-        # Verify via OCR
-        ocr_text = terminal.get_screen_text(screenshot)
-        if "BACKSPACE" in ocr_text.upper():
-            print("Backspace test verified via OCR")
+    def test_arrow_up_history(self, terminal):
+        """Up arrow recalls previous command."""
+        terminal.send_command("echo FIRST_CMD", wait=0.3)
+        terminal.send_command("echo SECOND_CMD", wait=0.3)
 
-    def test_arrow_keys_navigation(self, terminal):
-        """Arrow keys navigate command history and cursor."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-
-        # Execute a few commands to build history
-        terminal.send_keys("echo FIRST_CMD\n")
-        time.sleep(0.3)
-        terminal.send_keys("echo SECOND_CMD\n")
-        time.sleep(0.3)
-
-        # Press Up arrow to recall previous command
-        import win32api
         win32api.keybd_event(win32con.VK_UP, 0, 0, 0)
         win32api.keybd_event(win32con.VK_UP, 0, win32con.KEYEVENTF_KEYUP, 0)
         time.sleep(0.3)
 
-        screenshot, _ = terminal.wait_and_screenshot("keyboard_arrow_up")
-        assert terminal.analyze_text_presence(screenshot), "Arrow key navigation failed"
+        terminal.assert_renders("keyboard_arrow_up")
 
     def test_tab_completion(self, terminal):
-        """Tab key triggers command/path completion."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-
-        # Type partial command and press Tab
+        """Tab key triggers command completion."""
         terminal.send_keys("Get-Chi")  # Partial for Get-ChildItem
         time.sleep(0.2)
 
-        import win32api
         win32api.keybd_event(win32con.VK_TAB, 0, 0, 0)
         win32api.keybd_event(win32con.VK_TAB, 0, win32con.KEYEVENTF_KEYUP, 0)
         time.sleep(0.5)
 
-        # Cancel with Escape and newline
+        # Cancel and continue
         win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
         win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
         time.sleep(0.2)
-        terminal.send_keys("\n")
-        time.sleep(0.3)
+        terminal.send_command("")
 
-        screenshot, _ = terminal.wait_and_screenshot("keyboard_tab")
-        assert terminal.analyze_text_presence(screenshot), "Tab completion test failed"
+        terminal.assert_renders("keyboard_tab")

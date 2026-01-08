@@ -7,100 +7,59 @@ Tests complete user journeys from launch to interaction.
 
 import pytest
 import time
+import win32api
+import win32con
 
 
 @pytest.mark.slow
 class TestE2EWorkflow:
     """End-to-end workflow tests."""
 
+    def _scroll_wheel(self, terminal, direction: int, count: int = 5):
+        """Scroll mouse wheel in terminal window."""
+        rect = terminal.get_client_rect_screen()
+        center = ((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
+        win32api.SetCursorPos(center)
+        for _ in range(count):
+            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, direction * 120, 0)
+            time.sleep(0.1)
+        time.sleep(0.3)
+
     def test_full_session_workflow(self, terminal):
         """Complete user workflow: type commands, verify output, scroll."""
-        # Step 1: Clear and verify clean state
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
+        # Step 1: Execute command
+        terminal.send_command("echo WORKFLOW_TEST_123")
+        terminal.assert_renders("e2e_step1")
 
-        # Step 2: Execute a command and verify output
-        terminal.send_keys("echo WORKFLOW_TEST_123\n")
-        time.sleep(0.5)
+        # Step 2: Generate scrollback
+        terminal.send_command('1..30 | % { echo "LINE_$_" }', wait=2)
 
-        screenshot1, _ = terminal.wait_and_screenshot("e2e_step1")
-        assert terminal.analyze_text_presence(screenshot1), "No text after echo command"
+        # Step 3: Scroll up and down
+        self._scroll_wheel(terminal, 1)
+        terminal.assert_renders("e2e_step2_scrolled")
 
-        # Step 3: Generate scrollback content
-        terminal.send_keys('1..30 | % { echo "LINE_$_" }\n')
-        time.sleep(2)
+        self._scroll_wheel(terminal, -1)
 
-        # Step 4: Scroll up through history
-        import win32api
-        import win32con
-
-        client_rect = terminal.get_client_rect_screen()
-        center_x = (client_rect[0] + client_rect[2]) // 2
-        center_y = (client_rect[1] + client_rect[3]) // 2
-        win32api.SetCursorPos((center_x, center_y))
-
-        for _ in range(5):
-            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, 120, 0)
-            time.sleep(0.1)
-        time.sleep(0.3)
-
-        screenshot2, _ = terminal.wait_and_screenshot("e2e_step2_scrolled")
-        assert terminal.analyze_text_presence(screenshot2), "No text when scrolled"
-
-        # Step 5: Scroll back down
-        for _ in range(5):
-            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, -120, 0)
-            time.sleep(0.1)
-        time.sleep(0.3)
-
-        # Step 6: Execute another command to verify still responsive
-        terminal.send_keys("echo WORKFLOW_COMPLETE\n")
-        time.sleep(0.5)
-
-        screenshot3, _ = terminal.wait_and_screenshot("e2e_complete")
-        assert terminal.analyze_text_presence(screenshot3), "Terminal unresponsive at end"
-
-        # Log OCR for verification
-        ocr_text = terminal.get_screen_text(screenshot3)
-        if "WORKFLOW" in ocr_text.upper() or "COMPLETE" in ocr_text.upper():
-            print("E2E workflow verified via OCR")
+        # Step 4: Verify still responsive
+        terminal.send_command("echo WORKFLOW_COMPLETE")
+        terminal.assert_renders("e2e_complete", "WORKFLOW")
 
     def test_command_execution_cycle(self, terminal):
         """Test multiple command execution cycles."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
+        commands = ["TEST_A", "TEST_B", "TEST_C"]
+        for cmd in commands:
+            terminal.send_command(f"echo {cmd}", wait=0.3)
 
-        commands = [
-            ("echo TEST_A", "TEST_A"),
-            ("echo TEST_B", "TEST_B"),
-            ("echo TEST_C", "TEST_C"),
-        ]
-
-        for cmd, marker in commands:
-            terminal.send_keys(f"{cmd}\n")
-            time.sleep(0.3)
-
-        time.sleep(0.5)
-        screenshot, _ = terminal.wait_and_screenshot("e2e_commands")
-        assert terminal.analyze_text_presence(screenshot), "Commands did not produce output"
-
-        # Verify via OCR
-        ocr_text = terminal.get_screen_text(screenshot)
-        found = sum(1 for _, marker in commands if marker in ocr_text.upper())
-        print(f"E2E commands: found {found}/{len(commands)} markers in OCR")
+        screenshot = terminal.assert_renders("e2e_commands")
+        ocr = terminal.get_screen_text(screenshot)
+        found = sum(1 for c in commands if c in ocr.upper())
+        print(f"E2E commands: found {found}/{len(commands)} markers")
 
     def test_interactive_input(self, terminal):
         """Test interactive typing and backspace."""
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-
-        # Type with corrections (backspace)
         terminal.send_keys("echo HELLX")
         time.sleep(0.2)
-        terminal.send_keys("\b")  # Backspace
+        terminal.send_keys("\b")
         time.sleep(0.1)
-        terminal.send_keys("O_WORLD\n")
-        time.sleep(0.5)
-
-        screenshot, _ = terminal.wait_and_screenshot("e2e_interactive")
-        assert terminal.analyze_text_presence(screenshot), "Interactive input failed"
+        terminal.send_command("O_WORLD")
+        terminal.assert_renders("e2e_interactive", "HELLO")

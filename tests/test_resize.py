@@ -2,10 +2,7 @@
 """
 Window resize and text reflow tests for TerminalDX12.
 
-These 3 tests cover:
-1. Basic resize to 1/4 size
-2. Resize with scrollback content
-3. Rapid resize stability
+Tests resize behavior and stability.
 """
 
 import pytest
@@ -17,115 +14,56 @@ import win32gui
 class TestResize:
     """Window resize and text reflow tests."""
 
+    def _get_dimensions(self, terminal):
+        """Get window rect and quarter dimensions."""
+        rect = win32gui.GetWindowRect(terminal.hwnd)
+        width, height = rect[2] - rect[0], rect[3] - rect[1]
+        quarter = (max(300, width // 4), max(200, height // 4))
+        return rect, (width, height), quarter
+
+    def _resize(self, hwnd, rect, width, height):
+        """Resize window and wait for settle."""
+        win32gui.MoveWindow(hwnd, rect[0], rect[1], width, height, True)
+        time.sleep(0.5)
+
     def test_resize_to_quarter(self, terminal):
         """Test resizing window to 1/4 size with long text that must wrap."""
-        hwnd = terminal.hwnd
-        rect = win32gui.GetWindowRect(hwnd)
-        original_width = rect[2] - rect[0]
-        original_height = rect[3] - rect[1]
+        rect, (orig_w, orig_h), (qtr_w, qtr_h) = self._get_dimensions(terminal)
 
-        # Type a long line that will need to wrap when narrow
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-        test_text = "RESIZE" + "X" * 70 + "END"
-        terminal.send_keys(f"echo {test_text}\n")
-        time.sleep(0.5)
+        # Long line that will wrap
+        terminal.send_command(f"echo RESIZE{'X' * 70}END")
 
-        # Shrink to 1/4 size
-        quarter_width = max(300, original_width // 4)
-        quarter_height = max(200, original_height // 4)
-        win32gui.MoveWindow(hwnd, rect[0], rect[1], quarter_width, quarter_height, True)
-        time.sleep(0.5)
+        self._resize(terminal.hwnd, rect, qtr_w, qtr_h)
+        terminal.assert_renders("resize_quarter")
 
-        screenshot_small, _ = terminal.wait_and_screenshot("resize_quarter")
-        assert terminal.analyze_text_presence(screenshot_small), "No text visible at 1/4 size"
-
-        # Log OCR for debugging (don't fail on it)
-        ocr_text = terminal.get_screen_text(screenshot_small)
-        print(f"OCR at 1/4 size: {ocr_text[:150]}...")
-
-        # Restore to original size
-        win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
-        time.sleep(0.5)
-
-        screenshot_restored, _ = terminal.wait_and_screenshot("resize_restored")
-        assert terminal.analyze_text_presence(screenshot_restored), "No text visible after restore"
-
-        # Verify expected text with OCR (log result, don't fail)
-        ocr_text = terminal.get_screen_text(screenshot_restored)
-        if "RESIZE" in ocr_text.upper():
-            print("OCR verified: RESIZE marker found")
-        else:
-            print(f"OCR note: RESIZE not found. Got: {ocr_text[:150]}...")
+        self._resize(terminal.hwnd, rect, orig_w, orig_h)
+        terminal.assert_renders("resize_restored", "RESIZE")
 
     def test_resize_with_scrollback(self, terminal):
-        """Test that resize to 1/4 size preserves scrollback content."""
-        hwnd = terminal.hwnd
-        rect = win32gui.GetWindowRect(hwnd)
-        original_width = rect[2] - rect[0]
-        original_height = rect[3] - rect[1]
+        """Test that resize preserves scrollback content."""
+        rect, (orig_w, orig_h), (qtr_w, qtr_h) = self._get_dimensions(terminal)
 
-        # Generate scrollback content
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-        terminal.send_keys('1..20 | % { echo "SCROLL_$_" }\n')
-        time.sleep(2)
+        terminal.send_command('1..20 | % { echo "SCROLL_$_" }', wait=2)
 
-        # Resize to 1/4 size
-        quarter_width = max(300, original_width // 4)
-        quarter_height = max(200, original_height // 4)
-        win32gui.MoveWindow(hwnd, rect[0], rect[1], quarter_width, quarter_height, True)
-        time.sleep(0.5)
+        self._resize(terminal.hwnd, rect, qtr_w, qtr_h)
+        terminal.assert_renders("scrollback_resized")
 
-        screenshot, _ = terminal.wait_and_screenshot("scrollback_resized")
-        assert terminal.analyze_text_presence(screenshot), "No text visible after resize with scrollback"
-
-        # Log OCR for debugging
-        ocr_text = terminal.get_screen_text(screenshot)
-        print(f"OCR with scrollback: {ocr_text[:150]}...")
-
-        # Restore
-        win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
+        self._resize(terminal.hwnd, rect, orig_w, orig_h)
 
     def test_rapid_resize_stability(self, terminal):
-        """Test that rapid resize between full and 1/4 size doesn't crash."""
-        hwnd = terminal.hwnd
-        rect = win32gui.GetWindowRect(hwnd)
-        original_width = rect[2] - rect[0]
-        original_height = rect[3] - rect[1]
+        """Test that rapid resize doesn't crash."""
+        rect, (orig_w, orig_h), (qtr_w, qtr_h) = self._get_dimensions(terminal)
 
-        # Generate content
-        terminal.send_keys("cls\n")
-        time.sleep(0.5)
-        terminal.send_keys("echo RAPID_START\n")
-        time.sleep(0.3)
-
-        quarter_width = max(300, original_width // 4)
-        quarter_height = max(200, original_height // 4)
+        terminal.send_command("echo RAPID_START", wait=0.3)
 
         # Rapid resize cycles
         for i in range(5):
-            if i % 2 == 0:
-                win32gui.MoveWindow(hwnd, rect[0], rect[1], quarter_width, quarter_height, True)
-            else:
-                win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
+            w, h = (qtr_w, qtr_h) if i % 2 == 0 else (orig_w, orig_h)
+            win32gui.MoveWindow(terminal.hwnd, rect[0], rect[1], w, h, True)
             time.sleep(0.15)
 
-        # Settle and restore
         time.sleep(0.5)
-        win32gui.MoveWindow(hwnd, rect[0], rect[1], original_width, original_height, True)
-        time.sleep(0.5)
+        self._resize(terminal.hwnd, rect, orig_w, orig_h)
 
-        # Terminal should still work - type and verify text appears
-        terminal.send_keys("echo RAPID_END\n")
-        time.sleep(0.5)
-
-        screenshot, _ = terminal.wait_and_screenshot("rapid_resize")
-        assert terminal.analyze_text_presence(screenshot), "Terminal unresponsive after rapid resize"
-
-        # Log OCR result
-        ocr_text = terminal.get_screen_text(screenshot)
-        if "RAPID" in ocr_text.upper():
-            print("OCR verified: RAPID marker found")
-        else:
-            print(f"OCR note: {ocr_text[:150]}...")
+        terminal.send_command("echo RAPID_END")
+        terminal.assert_renders("rapid_resize", "RAPID")

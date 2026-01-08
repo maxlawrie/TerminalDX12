@@ -42,6 +42,8 @@ class TestConfig:
     # Timing - these can be tuned based on system performance
     STARTUP_WAIT: float = float(os.environ.get('STARTUP_WAIT', '2.0'))
     COMMAND_WAIT: float = float(os.environ.get('COMMAND_WAIT', '0.5'))
+    CLEAR_WAIT: float = float(os.environ.get('CLEAR_WAIT', '0.5'))
+    RENDER_WAIT: float = float(os.environ.get('RENDER_WAIT', '0.5'))
     STABILITY_TIME: float = float(os.environ.get('STABILITY_TIME', '0.3'))
     MAX_WAIT: float = float(os.environ.get('MAX_WAIT', '5.0'))
     POLL_INTERVAL: float = float(os.environ.get('POLL_INTERVAL', '0.1'))

@@ -222,11 +222,21 @@ def pytest_runtest_makereport(item, call):
 # Helper Fixtures
 # ============================================================================
 
+@pytest.fixture(autouse=True)
+def auto_clear_screen(request, terminal_session):
+    """Auto-clear screen before each test (can be disabled with @pytest.mark.no_clear)."""
+    if 'no_clear' not in request.keywords:
+        # Only clear if we have a terminal fixture in use
+        if 'terminal' in request.fixturenames or 'terminal_session' in request.fixturenames:
+            terminal_session.send_keys("cls\n")
+            time.sleep(TestConfig.CLEAR_WAIT)
+
+
 @pytest.fixture
 def clear_screen(terminal):
-    """Fixture that clears the terminal screen before the test."""
+    """Explicit fixture that clears the terminal screen."""
     terminal.send_keys("cls\n")
-    time.sleep(0.5)
+    time.sleep(TestConfig.CLEAR_WAIT)
     return terminal
 
 

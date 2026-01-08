@@ -842,3 +842,30 @@ class TerminalTester:
     def send_page_down(self, with_shift: bool = False) -> None:
         """Send Page Down key, optionally with Shift."""
         self._keyboard.send_page_down(with_shift=with_shift)
+
+    def send_command(self, command: str, wait: float = None) -> None:
+        """Send a command and wait for rendering."""
+        from config import TestConfig
+        self.send_keys(command + "\n")
+        time.sleep(wait or TestConfig.RENDER_WAIT)
+
+    def assert_renders(self, name: str, expected_text: str = None) -> Image.Image:
+        """
+        Take screenshot and assert text is visible. Optionally verify OCR.
+
+        Args:
+            name: Screenshot name for debugging
+            expected_text: Optional text to verify via OCR
+
+        Returns:
+            The captured screenshot
+        """
+        screenshot, _ = self.wait_and_screenshot(name)
+        assert self.analyze_text_presence(screenshot), f"{name}: text not visible"
+
+        if expected_text and OCR_AVAILABLE:
+            ocr_text = self.get_screen_text(screenshot)
+            if expected_text.upper() in ocr_text.upper():
+                print(f"{name}: '{expected_text}' verified via OCR")
+
+        return screenshot
