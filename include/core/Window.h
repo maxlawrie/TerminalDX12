@@ -90,7 +90,7 @@ public:
     std::function<void()> OnClose;
     std::function<void(int x, int y, int button, bool down)> OnMouseButton;
     std::function<void(int x, int y)> OnMouseMove;
-    std::function<void(int delta)> OnMouseWheel;
+    std::function<void(int x, int y, int delta, bool horizontal)> OnMouseWheel;
 
 private:
     static LRESULT CALLBACK WindowProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

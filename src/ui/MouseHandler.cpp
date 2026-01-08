@@ -161,6 +161,39 @@ void MouseHandler::OnMouseMove(int x, int y) {
     m_selectionManager.ExtendSelection(pos);
 }
 
+bool MouseHandler::OnMouseWheel(int x, int y, int delta, bool horizontal) {
+    // If mouse mode is not enabled, return false to let caller handle scrollback
+    if (!ShouldReportMouse()) {
+        return false;
+    }
+
+    // Convert screen coordinates to cell position
+    CellPos cellPos = m_screenToCell ? m_screenToCell(x, y) : CellPos{0, 0};
+
+    // Mouse wheel button encoding (xterm):
+    // Button 64 = wheel up (button 4)
+    // Button 65 = wheel down (button 5)
+    // Button 66 = wheel left (button 6) - horizontal
+    // Button 67 = wheel right (button 7) - horizontal
+    int button;
+    if (horizontal) {
+        button = (delta > 0) ? 66 : 67;  // Left or right
+    } else {
+        button = (delta > 0) ? 64 : 65;  // Up or down
+    }
+
+    // Send one event per WHEEL_DELTA (120 units = 1 notch)
+    // Most apps expect one event per scroll notch
+    int notches = std::abs(delta) / WHEEL_DELTA;
+    if (notches == 0) notches = 1;  // Always send at least one event
+
+    for (int i = 0; i < notches; ++i) {
+        SendMouseEvent(cellPos.x, cellPos.y, button, true, false);
+    }
+
+    return true;
+}
+
 bool MouseHandler::ShouldReportMouse() const {
     Terminal::VTStateMachine* vtParser = m_callbacks.getActiveVTParser ?
         m_callbacks.getActiveVTParser() : nullptr;

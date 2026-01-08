@@ -125,8 +125,16 @@ bool Application::Initialize(const std::wstring& shell) {
     };
 
     // Mouse handlers
-    m_window->OnMouseWheel = [this](int delta) {
-        if (m_inputHandler) m_inputHandler->OnMouseWheel(delta);
+    m_window->OnMouseWheel = [this](int x, int y, int delta, bool horizontal) {
+        // Try MouseHandler first (for apps with mouse mode enabled)
+        // If it returns false, fall back to local scrollback
+        if (m_mouseHandler && m_mouseHandler->OnMouseWheel(x, y, delta, horizontal)) {
+            return;
+        }
+        // Local scrollback (only for vertical scroll)
+        if (!horizontal && m_inputHandler) {
+            m_inputHandler->OnMouseWheel(delta);
+        }
     };
 
     m_window->OnMouseButton = [this](int x, int y, int button, bool down) {

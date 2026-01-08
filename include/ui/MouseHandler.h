@@ -81,6 +81,16 @@ public:
     void OnMouseMove(int x, int y);
 
     /**
+     * @brief Handle mouse wheel scroll.
+     * @param x Screen X coordinate.
+     * @param y Screen Y coordinate.
+     * @param delta Scroll delta (positive = up, negative = down).
+     * @param horizontal True for horizontal scroll (WM_MOUSEHWHEEL).
+     * @return True if event was sent to application, false if local scroll should occur.
+     */
+    bool OnMouseWheel(int x, int y, int delta, bool horizontal = false);
+
+    /**
      * @brief Set the screen-to-cell conversion function.
      * @param converter Function that converts screen coordinates to cell position.
      */
