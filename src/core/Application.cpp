@@ -265,13 +265,13 @@ bool Application::Initialize(const std::wstring& shell) {
         UpdatePaneLayout();
         spdlog::info("Pane zoom {}", m_paneManager.IsZoomed() ? "enabled" : "disabled");
     };
-    inputCallbacks.onFocusNextPane = [this]() { FocusNextPane(); };
-    inputCallbacks.onFocusPreviousPane = [this]() { FocusPreviousPane(); };
-    inputCallbacks.onOpenSearch = [this]() { OpenSearch(); };
-    inputCallbacks.onCloseSearch = [this]() { CloseSearch(); };
-    inputCallbacks.onSearchNext = [this]() { SearchNext(); };
-    inputCallbacks.onSearchPrevious = [this]() { SearchPrevious(); };
-    inputCallbacks.onUpdateSearchResults = [this]() { UpdateSearchResults(); };
+    inputCallbacks.onFocusNextPane = [this]() { m_paneManager.FocusNextPane(); };
+    inputCallbacks.onFocusPreviousPane = [this]() { m_paneManager.FocusPreviousPane(); };
+    inputCallbacks.onOpenSearch = [this]() { m_searchManager.Open(); };
+    inputCallbacks.onCloseSearch = [this]() { m_searchManager.Close(); };
+    inputCallbacks.onSearchNext = [this]() { m_searchManager.NextMatch(); };
+    inputCallbacks.onSearchPrevious = [this]() { m_searchManager.PreviousMatch(); };
+    inputCallbacks.onUpdateSearchResults = [this]() { m_searchManager.UpdateResults(GetActiveScreenBuffer()); };
     inputCallbacks.onCopySelection = [this]() { CopySelectionToClipboard(); };
     inputCallbacks.onPaste = [this]() { PasteFromClipboard(); };
     inputCallbacks.onUpdatePaneLayout = [this]() { UpdatePaneLayout(); };
@@ -1028,27 +1028,6 @@ void Application::PasteFromClipboard() {
     m_selectionManager.PasteFromClipboard(terminal, hwnd);
 }
 
-// Search functionality - delegates to SearchManager
-void Application::OpenSearch() {
-    m_searchManager.Open();
-}
-
-void Application::CloseSearch() {
-    m_searchManager.Close();
-}
-
-void Application::UpdateSearchResults() {
-    m_searchManager.UpdateResults(GetActiveScreenBuffer());
-}
-
-void Application::SearchNext() {
-    m_searchManager.NextMatch();
-}
-
-void Application::SearchPrevious() {
-    m_searchManager.PreviousMatch();
-}
-
 void Application::ShowSettings() {
     if (!m_window || !m_config) {
         return;
@@ -1111,14 +1090,6 @@ void Application::ClosePane() {
         m_tabManager->CloseTab(tabToClose->GetId());
         UpdatePaneLayout();
     }
-}
-
-void Application::FocusNextPane() {
-    m_paneManager.FocusNextPane();
-}
-
-void Application::FocusPreviousPane() {
-    m_paneManager.FocusPreviousPane();
 }
 
 void Application::UpdatePaneLayout() {

@@ -121,13 +121,6 @@ private:
     void CopySelectionToClipboard();
     void PasteFromClipboard();
 
-    // Search functionality
-    void OpenSearch();
-    void CloseSearch();
-    void SearchNext();
-    void SearchPrevious();
-    void UpdateSearchResults();
-
     // Terminal layout - consistent startY calculation
     int GetTerminalStartY() const;
 
@@ -137,8 +130,6 @@ private:
     // Pane management
     void SplitPane(UI::SplitDirection direction);
     void ClosePane();
-    void FocusNextPane();
-    void FocusPreviousPane();
     void UpdatePaneLayout();
 
     std::unique_ptr<Config> m_config;
