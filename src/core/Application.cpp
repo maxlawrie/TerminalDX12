@@ -524,24 +524,31 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
     int rows, cols;
     screenBuffer->GetDimensions(cols, rows);
 
-    // Calculate normalized selection bounds for rendering
+    // Helper to extract RGB from cell attributes
+    auto getColor = [&palette](const Terminal::CellAttributes& attr, bool foreground) {
+        struct RGB { float r, g, b; };
+        if (foreground ? attr.UsesTrueColorFg() : attr.UsesTrueColorBg()) {
+            return foreground ? RGB{attr.fgR/255.0f, attr.fgG/255.0f, attr.fgB/255.0f}
+                              : RGB{attr.bgR/255.0f, attr.bgG/255.0f, attr.bgB/255.0f};
+        }
+        uint8_t idx = (foreground ? attr.foreground : attr.background) % 16;
+        return RGB{palette[idx][0], palette[idx][1], palette[idx][2]};
+    };
+
+    // Calculate normalized selection bounds
     int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
     if (m_selectionManager.HasSelection()) {
-        const auto& selStart = m_selectionManager.GetSelectionStart();
-        const auto& selEnd = m_selectionManager.GetSelectionEnd();
-        selStartY = std::min(selStart.y, selEnd.y);
-        selEndY = std::max(selStart.y, selEnd.y);
-        // For rectangle selection, use min/max X; for normal selection, use order-based X
+        const auto& s = m_selectionManager.GetSelectionStart();
+        const auto& e = m_selectionManager.GetSelectionEnd();
+        selStartY = std::min(s.y, e.y);
+        selEndY = std::max(s.y, e.y);
         if (m_selectionManager.IsRectangleSelection()) {
-            selStartX = std::min(selStart.x, selEnd.x);
-            selEndX = std::max(selStart.x, selEnd.x);
-        } else if (selStart.y < selEnd.y ||
-            (selStart.y == selEnd.y && selStart.x <= selEnd.x)) {
-            selStartX = selStart.x;
-            selEndX = selEnd.x;
+            selStartX = std::min(s.x, e.x);
+            selEndX = std::max(s.x, e.x);
+        } else if (s.y < e.y || (s.y == e.y && s.x <= e.x)) {
+            selStartX = s.x; selEndX = e.x;
         } else {
-            selStartX = selEnd.x;
-            selEndX = selStart.x;
+            selStartX = e.x; selEndX = s.x;
         }
     }
 
@@ -633,45 +640,12 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
                 continue;
             }
 
-            // Get foreground color
-            float fgR, fgG, fgB;
-            if (cell.attr.UsesTrueColorFg()) {
-                fgR = cell.attr.fgR / 255.0f;
-                fgG = cell.attr.fgG / 255.0f;
-                fgB = cell.attr.fgB / 255.0f;
-            } else {
-                uint8_t fgIndex = cell.attr.foreground % 16;
-                const float* fgColor = palette[fgIndex];
-                fgR = fgColor[0];
-                fgG = fgColor[1];
-                fgB = fgColor[2];
-            }
-
-            // Get background color
-            float bgR, bgG, bgB;
-            if (cell.attr.UsesTrueColorBg()) {
-                bgR = cell.attr.bgR / 255.0f;
-                bgG = cell.attr.bgG / 255.0f;
-                bgB = cell.attr.bgB / 255.0f;
-            } else {
-                uint8_t bgIndex = cell.attr.background % 16;
-                const float* bgColor = palette[bgIndex];
-                bgR = bgColor[0];
-                bgG = bgColor[1];
-                bgB = bgColor[2];
-            }
-
-            // Handle inverse attribute
-            float r, g, b;
-            if (cell.attr.IsInverse()) {
-                r = bgR;
-                g = bgG;
-                b = bgB;
-            } else {
-                r = fgR;
-                g = fgG;
-                b = fgB;
-            }
+            // Get final color (handle inverse)
+            auto fg = getColor(cell.attr, true);
+            auto bg = getColor(cell.attr, false);
+            float r = cell.attr.IsInverse() ? bg.r : fg.r;
+            float g = cell.attr.IsInverse() ? bg.g : fg.g;
+            float b = cell.attr.IsInverse() ? bg.b : fg.b;
 
             // Apply bold by brightening colors (only for non-true-color)
             if (cell.attr.IsBold() && !cell.attr.UsesTrueColorFg()) {
