@@ -312,7 +312,9 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
     constexpr UINT ID_COPY = 1;
     constexpr UINT ID_PASTE = 2;
     constexpr UINT ID_SELECT_ALL = 3;
-    constexpr UINT ID_SETTINGS = 4;
+    constexpr UINT ID_SPLIT_HORIZONTAL = 4;
+    constexpr UINT ID_SPLIT_VERTICAL = 5;
+    constexpr UINT ID_SETTINGS = 6;
 
     // Add menu items
     UINT copyFlags = MF_STRING | (m_hasSelection ? 0 : MF_GRAYED);
@@ -329,6 +331,10 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_SELECT_ALL, L"Select All");
+
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(hMenu, MF_STRING, ID_SPLIT_HORIZONTAL, L"Split Right\tCtrl+Shift+D");
+    AppendMenuW(hMenu, MF_STRING, ID_SPLIT_VERTICAL, L"Split Down\tCtrl+Shift+E");
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_SETTINGS, L"Settings...\tCtrl+,");
@@ -357,6 +363,16 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
                 m_selectionEnd = {screenBuffer->GetCols() - 1, screenBuffer->GetRows() - 1};
                 m_hasSelection = true;
                 m_selecting = false;
+            }
+            break;
+        case ID_SPLIT_HORIZONTAL:
+            if (m_onSplitHorizontal) {
+                m_onSplitHorizontal();
+            }
+            break;
+        case ID_SPLIT_VERTICAL:
+            if (m_onSplitVertical) {
+                m_onSplitVertical();
             }
             break;
         case ID_SETTINGS:

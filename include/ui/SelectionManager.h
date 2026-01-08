@@ -108,8 +108,16 @@ public:
     /// @brief Set callback for opening settings dialog
     void SetSettingsCallback(std::function<void()> callback) { m_onShowSettings = std::move(callback); }
 
+    /// @brief Set callback for splitting pane horizontally
+    void SetSplitHorizontalCallback(std::function<void()> callback) { m_onSplitHorizontal = std::move(callback); }
+
+    /// @brief Set callback for splitting pane vertically
+    void SetSplitVerticalCallback(std::function<void()> callback) { m_onSplitVertical = std::move(callback); }
+
 private:
     std::function<void()> m_onShowSettings;
+    std::function<void()> m_onSplitHorizontal;
+    std::function<void()> m_onSplitVertical;
     SelectionPos m_selectionStart{0, 0};
     SelectionPos m_selectionEnd{0, 0};
     bool m_selecting = false;

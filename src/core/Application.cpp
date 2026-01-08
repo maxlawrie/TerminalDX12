@@ -279,8 +279,10 @@ bool Application::Initialize(const std::wstring& shell) {
     m_inputHandler = std::make_unique<UI::InputHandler>(
         std::move(inputCallbacks), m_searchManager, m_selectionManager);
 
-    // Set up settings callback for context menu
+    // Set up context menu callbacks
     m_selectionManager.SetSettingsCallback([this]() { ShowSettings(); });
+    m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
+    m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
 
     // Create mouse handler with callbacks
     UI::MouseHandlerCallbacks mouseCallbacks;
