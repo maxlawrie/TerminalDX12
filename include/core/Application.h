@@ -130,6 +130,8 @@ private:
     void SplitPane(UI::SplitDirection direction);
     void ClosePane();
     void UpdatePaneLayout();
+    void ResizeAllPaneBuffers();
+    void RenderPaneDividers(UI::Pane* pane);
 
     std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;

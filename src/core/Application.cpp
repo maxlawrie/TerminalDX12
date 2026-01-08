@@ -330,18 +330,30 @@ void Application::Shutdown() {
     m_window.reset();
 }
 
-// Helper accessors for active tab's components
+// Helper accessors - use focused pane when available, fallback to active tab
 Terminal::ScreenBuffer* Application::GetActiveScreenBuffer() {
+    UI::Pane* pane = m_paneManager.GetFocusedPane();
+    if (pane && pane->IsLeaf() && pane->GetTab()) {
+        return pane->GetTab()->GetScreenBuffer();
+    }
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
     return tab ? tab->GetScreenBuffer() : nullptr;
 }
 
 Terminal::VTStateMachine* Application::GetActiveVTParser() {
+    UI::Pane* pane = m_paneManager.GetFocusedPane();
+    if (pane && pane->IsLeaf() && pane->GetTab()) {
+        return pane->GetTab()->GetVTParser();
+    }
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
     return tab ? tab->GetVTParser() : nullptr;
 }
 
 Pty::ConPtySession* Application::GetActiveTerminal() {
+    UI::Pane* pane = m_paneManager.GetFocusedPane();
+    if (pane && pane->IsLeaf() && pane->GetTab()) {
+        return pane->GetTab()->GetTerminal();
+    }
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
     return tab ? tab->GetTerminal() : nullptr;
 }
@@ -567,8 +579,7 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
 }
 
 void Application::Render() {
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    if (!m_renderer || !screenBuffer) {
+    if (!m_renderer) {
         return;
     }
 
@@ -583,12 +594,7 @@ void Application::Render() {
     // Resize ConPTY after DX12 has stabilized (one frame later)
     if (m_pendingConPTYResize) {
         m_pendingConPTYResize = false;
-        auto [newCols, newRows] = CalculateTerminalSize(m_pendingWidth, m_pendingHeight);
-        if (m_tabManager) {
-            for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) { tab->ResizeScreenBuffer(newCols, newRows); tab->ResizeConPTY(newCols, newRows); }
-            }
-        }
+        ResizeAllPaneBuffers();
         m_resizeStabilizeFrames = 2;
         return;
     }
@@ -598,11 +604,12 @@ void Application::Render() {
     m_renderer->BeginFrame();
     m_renderer->ClearText();
 
-    int startY = GetTerminalStartY();
+    // Render tab bar if multiple tabs exist
+    RenderTabBar(kCharWidth);
 
-    // Build color palette
-    float colorPalette[256][3];
-    BuildColorPalette(colorPalette, screenBuffer);
+    // Get all leaf panes to render
+    std::vector<UI::Pane*> leafPanes;
+    m_paneManager.GetAllLeafPanes(leafPanes);
 
     // Cursor color from config
     const auto& colorConfig = m_config->GetColors();
@@ -610,14 +617,44 @@ void Application::Render() {
     float cursorG = colorConfig.cursor.g / 255.0f;
     float cursorB = colorConfig.cursor.b / 255.0f;
 
-    // Render tab bar if multiple tabs exist
-    RenderTabBar(kCharWidth);
+    UI::Pane* focusedPane = m_paneManager.GetFocusedPane();
 
-    // Render terminal content (selection, backgrounds, text)
-    RenderTerminalContent(screenBuffer, kStartX, startY, kCharWidth, kLineHeight, colorPalette);
+    // Render each pane's terminal content
+    for (UI::Pane* pane : leafPanes) {
+        if (!pane || !pane->GetTab()) continue;
+        Terminal::ScreenBuffer* buffer = pane->GetTab()->GetScreenBuffer();
+        if (!buffer) continue;
 
-    // Render cursor
-    RenderCursor(screenBuffer, kStartX, startY, kCharWidth, kLineHeight, cursorR, cursorG, cursorB);
+        const UI::PaneRect& bounds = pane->GetBounds();
+
+        // Build color palette for this pane's buffer
+        float colorPalette[256][3];
+        BuildColorPalette(colorPalette, buffer);
+
+        // Render terminal content at pane position
+        RenderTerminalContent(buffer, bounds.x, bounds.y, kCharWidth, kLineHeight, colorPalette);
+
+        // Render cursor only for focused pane
+        if (pane == focusedPane) {
+            RenderCursor(buffer, bounds.x, bounds.y, kCharWidth, kLineHeight, cursorR, cursorG, cursorB);
+        }
+
+        // Draw focused pane border if multiple panes
+        if (leafPanes.size() > 1 && pane == focusedPane) {
+            float bx = static_cast<float>(bounds.x);
+            float by = static_cast<float>(bounds.y);
+            float bw = static_cast<float>(bounds.width);
+            float bh = static_cast<float>(bounds.height);
+            // Blue accent border
+            m_renderer->RenderRect(bx, by, bw, 2.0f, 0.3f, 0.5f, 0.9f, 1.0f);           // Top
+            m_renderer->RenderRect(bx, by + bh - 2.0f, bw, 2.0f, 0.3f, 0.5f, 0.9f, 1.0f); // Bottom
+            m_renderer->RenderRect(bx, by, 2.0f, bh, 0.3f, 0.5f, 0.9f, 1.0f);           // Left
+            m_renderer->RenderRect(bx + bw - 2.0f, by, 2.0f, bh, 0.3f, 0.5f, 0.9f, 1.0f); // Right
+        }
+    }
+
+    // Render pane dividers
+    RenderPaneDividers(m_paneManager.GetRootPane());
 
     // Render search bar and highlights
     RenderSearchBar(kStartX, kCharWidth, kLineHeight);
@@ -630,11 +667,12 @@ void Application::OnWindowResize(int width, int height) {
     m_minimized = (width == 0 || height == 0);
 
     if (!m_minimized && m_renderer) {
-        // Check if any tab is using alt buffer (TUI app running)
-        bool anyAltBuffer = m_tabManager && std::any_of(
-            m_tabManager->GetTabs().begin(), m_tabManager->GetTabs().end(),
-            [](const auto& tab) {
-                auto* buf = tab ? tab->GetScreenBuffer() : nullptr;
+        // Check if any pane's tab is using alt buffer (TUI app running)
+        std::vector<UI::Pane*> leaves;
+        m_paneManager.GetAllLeafPanes(leaves);
+        bool anyAltBuffer = std::any_of(leaves.begin(), leaves.end(),
+            [](UI::Pane* pane) {
+                auto* buf = pane && pane->GetTab() ? pane->GetTab()->GetScreenBuffer() : nullptr;
                 return buf && buf->IsUsingAlternativeBuffer();
             });
 
@@ -643,15 +681,17 @@ void Application::OnWindowResize(int width, int height) {
         m_pendingWidth = width;
         m_pendingHeight = height;
 
-        // If TUI is running, skip buffer resize
+        // If TUI is running, skip buffer resize (will be handled in Render)
         if (anyAltBuffer) return;
 
-        // Resize terminal buffers immediately (protected by mutex)
-        auto [newCols, newRows] = CalculateTerminalSize(width, height);
-        if (m_tabManager) {
-            for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) tab->ResizeScreenBuffer(newCols, newRows);
-            }
+        // Update pane layout and resize buffers immediately
+        UpdatePaneLayout();
+        for (UI::Pane* pane : leaves) {
+            if (!pane || !pane->GetTab()) continue;
+            const UI::PaneRect& bounds = pane->GetBounds();
+            int cols = std::max(20, bounds.width / kCharWidth);
+            int rows = std::max(5, bounds.height / kLineHeight);
+            pane->GetTab()->ResizeScreenBuffer(cols, rows);
         }
     }
 }
@@ -692,7 +732,8 @@ void Application::SplitPane(UI::SplitDirection direction) {
     UI::Tab* newTab = m_tabManager->CreateTab(m_shellCommand, buf->GetCols(), buf->GetRows(),
                                                m_config->GetTerminal().scrollbackLines);
     if (newTab && m_paneManager.SplitFocusedPane(direction, newTab)) {
-        UpdatePaneLayout();
+        // Resize all pane buffers to fit their new bounds
+        ResizeAllPaneBuffers();
     }
 }
 
@@ -700,7 +741,8 @@ void Application::ClosePane() {
     UI::Tab* tabToClose = m_paneManager.CloseFocusedPane();
     if (tabToClose) {
         m_tabManager->CloseTab(tabToClose->GetId());
-        UpdatePaneLayout();
+        // Resize remaining pane buffers
+        ResizeAllPaneBuffers();
     }
 }
 
@@ -708,6 +750,43 @@ void Application::UpdatePaneLayout() {
     if (!m_window) return;
     int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? kTabBarHeight : 0;
     m_paneManager.UpdateLayout(m_window->GetWidth(), m_window->GetHeight(), tabBar);
+}
+
+void Application::ResizeAllPaneBuffers() {
+    UpdatePaneLayout();
+    std::vector<UI::Pane*> leaves;
+    m_paneManager.GetAllLeafPanes(leaves);
+    for (UI::Pane* pane : leaves) {
+        if (!pane || !pane->GetTab()) continue;
+        const UI::PaneRect& bounds = pane->GetBounds();
+        int cols = std::max(20, bounds.width / kCharWidth);
+        int rows = std::max(5, bounds.height / kLineHeight);
+        pane->GetTab()->ResizeScreenBuffer(cols, rows);
+        pane->GetTab()->ResizeConPTY(cols, rows);
+    }
+}
+
+void Application::RenderPaneDividers(UI::Pane* pane) {
+    if (!pane || pane->IsLeaf()) return;
+
+    const UI::PaneRect& bounds = pane->GetBounds();
+    float splitRatio = pane->GetSplitRatio();
+
+    if (pane->GetSplitDirection() == UI::SplitDirection::Horizontal) {
+        // Vertical divider for left/right split
+        int dividerX = bounds.x + static_cast<int>(bounds.width * splitRatio);
+        m_renderer->RenderRect(static_cast<float>(dividerX - 1), static_cast<float>(bounds.y),
+                               2.0f, static_cast<float>(bounds.height), 0.3f, 0.3f, 0.3f, 1.0f);
+    } else if (pane->GetSplitDirection() == UI::SplitDirection::Vertical) {
+        // Horizontal divider for top/bottom split
+        int dividerY = bounds.y + static_cast<int>(bounds.height * splitRatio);
+        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(dividerY - 1),
+                               static_cast<float>(bounds.width), 2.0f, 0.3f, 0.3f, 0.3f, 1.0f);
+    }
+
+    // Recurse into children
+    RenderPaneDividers(pane->GetFirstChild());
+    RenderPaneDividers(pane->GetSecondChild());
 }
 
 } // namespace Core
