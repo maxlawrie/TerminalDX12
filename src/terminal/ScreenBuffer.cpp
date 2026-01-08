@@ -400,39 +400,16 @@ void ScreenBuffer::ClearRect(int x, int y, int width, int height) {
 
 const Cell& ScreenBuffer::GetCell(int x, int y) const {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-
-    // Thread-local to avoid data races when multiple threads access out-of-bounds
     thread_local Cell emptyCell;
-
-    if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
-        return emptyCell;
-    }
-
-    // Extra safety: verify index is within buffer bounds
-    int idx = CellIndex(x, y);
-    if (idx < 0 || idx >= static_cast<int>(m_buffer.size())) {
-        return emptyCell;
-    }
-
-    return m_buffer[idx];
+    int idx = ValidCellIndex(x, y);
+    return (idx >= 0) ? m_buffer[idx] : emptyCell;
 }
 
 Cell& ScreenBuffer::GetCellMutable(int x, int y) {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-
-    // Thread-local to avoid data races when multiple threads access out-of-bounds
     thread_local Cell emptyCell;
-
-    if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
-        return emptyCell;
-    }
-
-    // Extra safety: verify index is within buffer bounds
-    int idx = CellIndex(x, y);
-    if (idx < 0 || idx >= static_cast<int>(m_buffer.size())) {
-        return emptyCell;
-    }
-
+    int idx = ValidCellIndex(x, y);
+    if (idx < 0) return emptyCell;
     m_dirty = true;
     return m_buffer[idx];
 }
@@ -440,39 +417,21 @@ Cell& ScreenBuffer::GetCellMutable(int x, int y) {
 Cell ScreenBuffer::GetCellWithScrollback(int x, int y) const {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
-    // Return empty cell for out-of-bounds access
-    if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) {
-        return Cell();  // Returns by value - safe copy
-    }
+    if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) return Cell();
 
-    // If we're scrolled back, get from scrollback buffer
+    // If scrolled back, try scrollback buffer first
     if (m_scrollOffset > 0) {
-        // Calculate which line in scrollback this corresponds to
-        // scrollOffset = 0 means viewing current buffer
-        // scrollOffset = 1 means viewing 1 line back, etc.
-
-        int scrollbackLineIndex = m_scrollbackUsed - m_scrollOffset + y;
-
-        if (scrollbackLineIndex >= 0 && scrollbackLineIndex < m_scrollbackUsed) {
-            // Get from scrollback
-            int scrollbackIdx = scrollbackLineIndex * m_cols + x;
+        int scrollbackLine = m_scrollbackUsed - m_scrollOffset + y;
+        if (scrollbackLine >= 0 && scrollbackLine < m_scrollbackUsed) {
+            int scrollbackIdx = scrollbackLine * m_cols + x;
             if (scrollbackIdx >= 0 && scrollbackIdx < static_cast<int>(m_scrollback.size())) {
-                return m_scrollback[scrollbackIdx];  // Returns by value - safe copy
+                return m_scrollback[scrollbackIdx];
             }
         }
     }
 
-    // Extra safety: verify index is within buffer bounds
-    // This catches any mismatch between m_cols/m_rows and actual buffer size
-    int idx = CellIndex(x, y);
-    if (idx < 0 || idx >= static_cast<int>(m_buffer.size())) {
-        return Cell();  // Return empty cell for out-of-bounds
-    }
-
-    // Get from current buffer - returns by value to prevent dangling references
-    // This is critical: if caller holds reference while resize happens,
-    // the old buffer is freed and reference becomes invalid (use-after-free)
-    return m_buffer[idx];
+    int idx = ValidCellIndex(x, y);
+    return (idx >= 0) ? m_buffer[idx] : Cell();
 }
 
 

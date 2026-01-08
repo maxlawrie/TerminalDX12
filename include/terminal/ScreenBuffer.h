@@ -249,6 +249,11 @@ private:
     void ClearLineInternal(int y, int startX, int endX);  // Internal - caller must hold mutex
 
     int CellIndex(int x, int y) const { return y * m_cols + x; }
+    int ValidCellIndex(int x, int y) const {
+        if (x < 0 || x >= m_cols || y < 0 || y >= m_rows) return -1;
+        int idx = CellIndex(x, y);
+        return (idx >= 0 && idx < static_cast<int>(m_buffer.size())) ? idx : -1;
+    }
     void ClampCursor();
 
     // Primary buffer
