@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Resizable Split Panes** - Drag dividers between panes to resize
+  - Horizontal splits (Ctrl+Shift+D) with left/right resize cursor
+  - Vertical splits (Ctrl+Shift+E) with up/down resize cursor
+  - Close pane (Ctrl+Shift+W) with remaining pane expanding to fill space
+  - Per-pane text selection (selection only highlights in the pane where it started)
+  - Right-click context menu with Split Right, Split Down, Close Pane options
+- Settings in right-click context menu for quick access
 - **Settings Dialog** (Ctrl+Comma) for GUI configuration
   - General tab: Shell path, working directory, scrollback lines
   - Appearance tab: Font selection (monospace fonts via DirectWrite enumeration), font size, color scheme
@@ -22,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Doxygen API documentation generation
 
 ### Fixed
+- Crash when closing pane after process exit (dangling pointer in PaneManager)
 - Crash on window maximize while TUI apps (nano, vim) are running
   - Root cause: Buffer overrun when dimensions updated before buffer swap during resize
   - Fix: Swap buffer BEFORE updating dimensions to maintain thread-safe invariant

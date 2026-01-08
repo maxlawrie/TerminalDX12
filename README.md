@@ -85,10 +85,12 @@ bin\Release\TerminalDX12.exe wsl.exe
 | Ctrl+V | Paste from clipboard |
 | Ctrl+T | Open new tab |
 | Ctrl+W | Close current tab |
-| Ctrl+Shift+D | Split pane vertically |
-| Ctrl+Shift+E | Split pane horizontally |
+| Ctrl+Shift+D | Split pane horizontally (left/right) |
+| Ctrl+Shift+E | Split pane vertically (top/bottom) |
+| Ctrl+Shift+W | Close focused pane |
 | Ctrl+Shift+F | Open in-terminal search |
 | Ctrl+Shift+Z | Toggle pane zoom |
+| Ctrl+, | Open settings dialog |
 | Ctrl+Plus | Zoom in (increase font size) |
 | Ctrl+Minus | Zoom out (decrease font size) |
 | Ctrl+0 | Reset zoom |
@@ -100,8 +102,14 @@ bin\Release\TerminalDX12.exe wsl.exe
 | Action | Result |
 |--------|--------|
 | Click and drag | Select text |
+| Double-click | Select word |
+| Triple-click | Select line |
+| Alt+drag | Rectangle selection |
 | Single click | Clear selection |
 | Mouse wheel | Scroll through buffer |
+| Drag divider | Resize split panes |
+| Click in pane | Focus that pane |
+| Right-click | Context menu (copy, paste, split, settings) |
 
 ## Project Structure
 
