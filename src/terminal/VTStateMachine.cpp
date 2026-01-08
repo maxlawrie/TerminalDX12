@@ -5,6 +5,30 @@
 
 namespace TerminalDX12::Terminal {
 
+namespace {
+// Map 256-color palette index to 16-color palette index
+int Map256ColorTo16(int colorIndex) {
+    if (colorIndex < 16) return colorIndex;
+    if (colorIndex >= 232) {
+        // Grayscale ramp (232-255) -> map to closest standard color
+        int gray = (colorIndex - 232) * 255 / 23;
+        if (gray < 64) return 0;        // Black
+        if (gray < 192) return 8;       // Gray
+        return 7;                        // White
+    }
+    // Color cube (16-231) -> map to closest 16-color
+    int idx = colorIndex - 16;
+    int r = idx / 36, g = (idx % 36) / 6, b = idx % 6;
+    if (r > g && r > b) return (r > 3) ? 9 : 1;        // Red
+    if (g > r && g > b) return (g > 3) ? 10 : 2;       // Green
+    if (b > r && b > g) return (b > 3) ? 12 : 4;       // Blue
+    if (r == g && r > b) return (r > 3) ? 11 : 3;      // Yellow
+    if (r == b && r > g) return (r > 3) ? 13 : 5;      // Magenta
+    if (g == b && g > r) return (g > 3) ? 14 : 6;      // Cyan
+    return (r > 2) ? 15 : 7;                            // White/Gray
+}
+} // anonymous namespace
+
 VTStateMachine::VTStateMachine(ScreenBuffer* screenBuffer)
     : m_screenBuffer(screenBuffer)
     , m_state(State::Ground)
@@ -695,41 +719,14 @@ void VTStateMachine::HandleSGR() {
             case 38:
                 if (i + 1 < m_params.size()) {
                     if (m_params[i + 1] == 5 && i + 2 < m_params.size()) {
-                        // 256-color mode: 38;5;N
-                        int colorIndex = m_params[i + 2];
-                        // Map 256-color to 16-color for now (first 16 are the same)
-                        if (colorIndex < 16) {
-                            attr.foreground = colorIndex;
-                        } else if (colorIndex >= 232) {
-                            // Grayscale ramp (232-255) -> map to closest standard color
-                            int gray = (colorIndex - 232) * 255 / 23;
-                            if (gray < 64) attr.foreground = 0;       // Black
-                            else if (gray < 192) attr.foreground = 8; // Gray
-                            else attr.foreground = 7;                 // White
-                        } else {
-                            // Color cube (16-231) -> map to closest 16-color
-                            // Color cube is 6x6x6: index = 16 + 36*r + 6*g + b where r,g,b in [0,5]
-                            int idx = colorIndex - 16;
-                            int r = idx / 36;
-                            int g = (idx % 36) / 6;
-                            int b = idx % 6;
-                            // Map to standard colors based on which channel is highest
-                            if (r > g && r > b) attr.foreground = (r > 3) ? 9 : 1;      // Red
-                            else if (g > r && g > b) attr.foreground = (g > 3) ? 10 : 2; // Green
-                            else if (b > r && b > g) attr.foreground = (b > 3) ? 12 : 4; // Blue
-                            else if (r == g && r > b) attr.foreground = (r > 3) ? 11 : 3; // Yellow
-                            else if (r == b && r > g) attr.foreground = (r > 3) ? 13 : 5; // Magenta
-                            else if (g == b && g > r) attr.foreground = (g > 3) ? 14 : 6; // Cyan
-                            else attr.foreground = (r > 2) ? 15 : 7;                      // White/Gray
-                        }
-                        i += 2;  // Skip the 5 and N parameters
+                        attr.foreground = Map256ColorTo16(m_params[i + 2]);
+                        i += 2;
                     } else if (m_params[i + 1] == 2 && i + 4 < m_params.size()) {
-                        // True color mode: 38;2;R;G;B - store actual RGB
                         attr.SetForegroundRGB(
                             static_cast<uint8_t>(m_params[i + 2]),
                             static_cast<uint8_t>(m_params[i + 3]),
                             static_cast<uint8_t>(m_params[i + 4]));
-                        i += 4;  // Skip the 2, R, G, B parameters
+                        i += 4;
                     }
                 }
                 break;
@@ -747,31 +744,9 @@ void VTStateMachine::HandleSGR() {
             case 48:
                 if (i + 1 < m_params.size()) {
                     if (m_params[i + 1] == 5 && i + 2 < m_params.size()) {
-                        // 256-color mode: 48;5;N
-                        int colorIndex = m_params[i + 2];
-                        if (colorIndex < 16) {
-                            attr.background = colorIndex;
-                        } else if (colorIndex >= 232) {
-                            int gray = (colorIndex - 232) * 255 / 23;
-                            if (gray < 64) attr.background = 0;
-                            else if (gray < 192) attr.background = 8;
-                            else attr.background = 7;
-                        } else {
-                            int idx = colorIndex - 16;
-                            int r = idx / 36;
-                            int g = (idx % 36) / 6;
-                            int b = idx % 6;
-                            if (r > g && r > b) attr.background = (r > 3) ? 9 : 1;
-                            else if (g > r && g > b) attr.background = (g > 3) ? 10 : 2;
-                            else if (b > r && b > g) attr.background = (b > 3) ? 12 : 4;
-                            else if (r == g && r > b) attr.background = (r > 3) ? 11 : 3;
-                            else if (r == b && r > g) attr.background = (r > 3) ? 13 : 5;
-                            else if (g == b && g > r) attr.background = (g > 3) ? 14 : 6;
-                            else attr.background = (r > 2) ? 15 : 7;
-                        }
+                        attr.background = Map256ColorTo16(m_params[i + 2]);
                         i += 2;
                     } else if (m_params[i + 1] == 2 && i + 4 < m_params.size()) {
-                        // True color mode: 48;2;R;G;B - store actual RGB
                         attr.SetBackgroundRGB(
                             static_cast<uint8_t>(m_params[i + 2]),
                             static_cast<uint8_t>(m_params[i + 3]),
@@ -1365,49 +1340,22 @@ void VTStateMachine::HandleTabClear() {
 }
 
 void VTStateMachine::HandleCursorStyle() {
-    // CSI n SP q - Set cursor style (DECSCUSR)
-    // 0 or default: Blinking block (default)
-    // 1: Blinking block
-    // 2: Steady block
-    // 3: Blinking underline
-    // 4: Steady underline
-    // 5: Blinking bar
-    // 6: Steady bar
+    // CSI n SP q - Set cursor style (DECSCUSR): 0/1=blink block, 2=steady block,
+    // 3=blink underline, 4=steady underline, 5=blink bar, 6=steady bar
+    static constexpr struct { CursorStyle style; bool blink; } kStyles[] = {
+        {CursorStyle::BlinkingBlock, true}, {CursorStyle::BlinkingBlock, true},
+        {CursorStyle::SteadyBlock, false}, {CursorStyle::BlinkingUnderline, true},
+        {CursorStyle::SteadyUnderline, false}, {CursorStyle::BlinkingBar, true},
+        {CursorStyle::SteadyBar, false}
+    };
     int style = GetParam(0, 0);
-
-    switch (style) {
-        case 0:
-        case 1:
-            m_cursorStyle = CursorStyle::BlinkingBlock;
-            m_cursorBlink = true;
-            break;
-        case 2:
-            m_cursorStyle = CursorStyle::SteadyBlock;
-            m_cursorBlink = false;
-            break;
-        case 3:
-            m_cursorStyle = CursorStyle::BlinkingUnderline;
-            m_cursorBlink = true;
-            break;
-        case 4:
-            m_cursorStyle = CursorStyle::SteadyUnderline;
-            m_cursorBlink = false;
-            break;
-        case 5:
-            m_cursorStyle = CursorStyle::BlinkingBar;
-            m_cursorBlink = true;
-            break;
-        case 6:
-            m_cursorStyle = CursorStyle::SteadyBar;
-            m_cursorBlink = false;
-            break;
-        default:
-            // Unknown style, use default
-            m_cursorStyle = CursorStyle::BlinkingBlock;
-            m_cursorBlink = true;
-            break;
+    if (style >= 0 && style <= 6) {
+        m_cursorStyle = kStyles[style].style;
+        m_cursorBlink = kStyles[style].blink;
+    } else {
+        m_cursorStyle = CursorStyle::BlinkingBlock;
+        m_cursorBlink = true;
     }
-
     spdlog::debug("DECSCUSR: Cursor style set to {} (blink={})", style, m_cursorBlink);
 }
 
