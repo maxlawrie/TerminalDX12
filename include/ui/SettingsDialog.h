@@ -28,28 +28,13 @@ public:
 
 private:
     static INT_PTR CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    INT_PTR HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     void InitializeControls(HWND hwnd);
     void LoadCurrentSettings(HWND hwnd);
     void ApplySettings(HWND hwnd);
     void PreviewSettings(HWND hwnd);
     void RestoreSettings();
-
-    // Tab page initialization
-    void InitFontTab(HWND hwnd);
-    void InitColorsTab(HWND hwnd);
-    void InitTerminalTab(HWND hwnd);
-
-    // Control value readers
-    std::wstring GetEditText(HWND hwnd, int controlId);
-    int GetEditInt(HWND hwnd, int controlId, int defaultValue);
-    bool GetCheckState(HWND hwnd, int controlId);
-
-    // Color picker helper
     void ShowColorPicker(HWND hwnd, COLORREF& color, int controlId);
-
-    // Reset to defaults
     void ResetToDefaults(HWND hwnd);
 
     HWND m_parentWindow;

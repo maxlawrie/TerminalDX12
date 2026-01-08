@@ -12,6 +12,60 @@
 
 namespace TerminalDX12::UI {
 
+namespace {
+constexpr int kColorSwatchIds[] = {1020, 1021, 1022, 1023}; // FG, BG, Cursor, Selection
+
+void InvalidateColorSwatches(HWND hwnd) {
+    for (int id : kColorSwatchIds)
+        InvalidateRect(GetDlgItem(hwnd, id), nullptr, TRUE);
+}
+
+// Helper struct for control layout
+struct LayoutParams {
+    HWND hwnd;
+    HINSTANCE hInst;
+    int leftMargin = 20, labelWidth = 130, controlWidth = 200, controlHeight = 22;
+    int spacing = 28, controlX = 160;
+    int y = 10;
+
+    void Label(const wchar_t* text, int width = 200) {
+        CreateWindowW(L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
+                      leftMargin, y + 3, width, 20, hwnd, nullptr, hInst, nullptr);
+    }
+
+    void Section(const wchar_t* text) {
+        CreateWindowW(L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
+                      10, y, 200, 20, hwnd, nullptr, hInst, nullptr);
+        y += 22;
+    }
+
+    HWND Edit(int id, int width = 200, DWORD extraStyle = 0) {
+        HWND ctrl = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | extraStyle,
+                      controlX, y, width, controlHeight, hwnd, (HMENU)(INT_PTR)id, hInst, nullptr);
+        return ctrl;
+    }
+
+    void EditWithLabel(const wchar_t* label, int id, int width = 200, DWORD extraStyle = 0, const wchar_t* hint = nullptr) {
+        Label(label);
+        Edit(id, width, extraStyle);
+        if (hint) {
+            CreateWindowW(L"STATIC", hint, WS_CHILD | WS_VISIBLE | SS_LEFT,
+                          controlX + width + 10, y + 3, 90, 20, hwnd, nullptr, hInst, nullptr);
+        }
+        y += spacing;
+    }
+
+    void ColorSwatch(const wchar_t* label, int id) {
+        Label(label);
+        CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                      controlX, y, 28, 28, hwnd, (HMENU)(INT_PTR)id, hInst, nullptr);
+        y += spacing + 2;
+    }
+
+    void NextRow() { y += spacing; }
+};
+} // anonymous namespace
+
 // Control IDs
 enum {
     IDC_TAB_CONTROL = 1001,
@@ -55,20 +109,8 @@ SettingsDialog::SettingsDialog(HWND parentWindow, Core::Config* config)
 
 SettingsDialog::~SettingsDialog() = default;
 
-INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* dialog = nullptr;
-
-    if (msg == WM_INITDIALOG) {
-        dialog = reinterpret_cast<SettingsDialog*>(lParam);
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(dialog));
-    } else {
-        dialog = reinterpret_cast<SettingsDialog*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-    }
-
-    if (dialog) {
-        return dialog->HandleMessage(hwnd, msg, wParam, lParam);
-    }
-
+INT_PTR CALLBACK SettingsDialog::DialogProc(HWND, UINT, WPARAM, LPARAM) {
+    // Not used - using window proc directly in Show()
     return FALSE;
 }
 
@@ -125,17 +167,19 @@ bool SettingsDialog::Show() {
                             dialog->ResetToDefaults(hwnd);
                             return 0;
                         case IDC_COLOR_FOREGROUND:
-                            dialog->ShowColorPicker(hwnd, dialog->m_foregroundColor, IDC_COLOR_FOREGROUND);
-                            return 0;
                         case IDC_COLOR_BACKGROUND:
-                            dialog->ShowColorPicker(hwnd, dialog->m_backgroundColor, IDC_COLOR_BACKGROUND);
-                            return 0;
                         case IDC_COLOR_CURSOR:
-                            dialog->ShowColorPicker(hwnd, dialog->m_cursorColor, IDC_COLOR_CURSOR);
+                        case IDC_COLOR_SELECTION: {
+                            COLORREF* colorPtrs[] = {&dialog->m_foregroundColor, &dialog->m_backgroundColor,
+                                                     &dialog->m_cursorColor, &dialog->m_selectionColor};
+                            for (int i = 0; i < 4; ++i) {
+                                if (id == kColorSwatchIds[i]) {
+                                    dialog->ShowColorPicker(hwnd, *colorPtrs[i], id);
+                                    break;
+                                }
+                            }
                             return 0;
-                        case IDC_COLOR_SELECTION:
-                            dialog->ShowColorPicker(hwnd, dialog->m_selectionColor, IDC_COLOR_SELECTION);
-                            return 0;
+                        }
                     }
 
                     // Live preview on control changes
@@ -144,27 +188,24 @@ bool SettingsDialog::Show() {
                     }
                 }
                 break;
-            case WM_DRAWITEM: {
-                // Custom draw for color swatch buttons
+            case WM_DRAWITEM:
                 if (dialog) {
                     DRAWITEMSTRUCT* dis = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
                     if (dis->CtlType == ODT_BUTTON) {
-                        COLORREF color = 0;
-                        switch (dis->CtlID) {
-                            case IDC_COLOR_FOREGROUND: color = dialog->m_foregroundColor; break;
-                            case IDC_COLOR_BACKGROUND: color = dialog->m_backgroundColor; break;
-                            case IDC_COLOR_CURSOR: color = dialog->m_cursorColor; break;
-                            case IDC_COLOR_SELECTION: color = dialog->m_selectionColor; break;
+                        COLORREF colors[] = {dialog->m_foregroundColor, dialog->m_backgroundColor,
+                                             dialog->m_cursorColor, dialog->m_selectionColor};
+                        for (int i = 0; i < 4; ++i) {
+                            if (dis->CtlID == kColorSwatchIds[i]) {
+                                HBRUSH brush = CreateSolidBrush(colors[i]);
+                                FillRect(dis->hDC, &dis->rcItem, brush);
+                                DeleteObject(brush);
+                                FrameRect(dis->hDC, &dis->rcItem, (HBRUSH)GetStockObject(BLACK_BRUSH));
+                                return TRUE;
+                            }
                         }
-                        HBRUSH brush = CreateSolidBrush(color);
-                        FillRect(dis->hDC, &dis->rcItem, brush);
-                        DeleteObject(brush);
-                        FrameRect(dis->hDC, &dis->rcItem, (HBRUSH)GetStockObject(BLACK_BRUSH));
-                        return TRUE;
                     }
                 }
                 break;
-            }
             case WM_CLOSE:
                 if (dialog) {
                     dialog->RestoreSettings();
@@ -227,162 +268,63 @@ bool SettingsDialog::Show() {
 
 void SettingsDialog::InitializeControls(HWND hwnd) {
     HINSTANCE hInstance = GetModuleHandle(nullptr);
-    int y = 10;
-    int labelWidth = 130;
-    int controlWidth = 200;
-    int controlHeight = 22;
-    int spacing = 28;
-    int leftMargin = 20;
-    int controlX = leftMargin + labelWidth + 10;
+    LayoutParams L{hwnd, hInstance};
 
-    // ========== APPEARANCE SECTION ==========
-    CreateWindowW(L"STATIC", L"Appearance", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  10, y, 200, 20, hwnd, nullptr, hInstance, nullptr);
-    y += 22;
+    // Appearance section
+    L.Section(L"Appearance");
 
-    // Font dropdown (ComboBox)
-    CreateWindowW(L"STATIC", L"Font Family:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
+    // Font dropdown
+    L.Label(L"Font Family:");
     HWND fontCombo = CreateWindowW(L"COMBOBOX", L"",
-                  WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_DROPDOWNLIST | CBS_HASSTRINGS,
-                  controlX, y, controlWidth, 200, hwnd,
-                  (HMENU)IDC_FONT_COMBO, hInstance, nullptr);
-
-    // Populate font dropdown with monospace fonts
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_DROPDOWNLIST | CBS_HASSTRINGS,
+        L.controlX, L.y, L.controlWidth, 200, hwnd, (HMENU)IDC_FONT_COMBO, hInstance, nullptr);
     FontEnumerator fontEnum;
-    auto fonts = fontEnum.EnumerateMonospaceFonts();
-    for (const auto& font : fonts) {
+    for (const auto& font : fontEnum.EnumerateMonospaceFonts())
         SendMessageW(fontCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(font.familyName.c_str()));
-    }
-    y += spacing;
+    L.NextRow();
 
-    // Font size
-    CreateWindowW(L"STATIC", L"Font Size:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER,
-                  controlX, y, 60, controlHeight, hwnd,
-                  (HMENU)IDC_FONT_SIZE, hInstance, nullptr);
-    CreateWindowW(L"STATIC", L"(6-72)", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  controlX + 70, y + 3, 50, 20, hwnd, nullptr, hInstance, nullptr);
-    y += spacing;
+    L.EditWithLabel(L"Font Size:", IDC_FONT_SIZE, 60, ES_NUMBER, L"(6-72)");
 
     // Color swatches
-    int swatchSize = 28;
-    CreateWindowW(L"STATIC", L"Foreground:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-                  controlX, y, swatchSize, swatchSize, hwnd,
-                  (HMENU)IDC_COLOR_FOREGROUND, hInstance, nullptr);
-    y += spacing + 2;
+    L.ColorSwatch(L"Foreground:", IDC_COLOR_FOREGROUND);
+    L.ColorSwatch(L"Background:", IDC_COLOR_BACKGROUND);
+    L.ColorSwatch(L"Cursor:", IDC_COLOR_CURSOR);
+    L.ColorSwatch(L"Selection:", IDC_COLOR_SELECTION);
+    L.y += 6;
 
-    CreateWindowW(L"STATIC", L"Background:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-                  controlX, y, swatchSize, swatchSize, hwnd,
-                  (HMENU)IDC_COLOR_BACKGROUND, hInstance, nullptr);
-    y += spacing + 2;
-
-    CreateWindowW(L"STATIC", L"Cursor:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-                  controlX, y, swatchSize, swatchSize, hwnd,
-                  (HMENU)IDC_COLOR_CURSOR, hInstance, nullptr);
-    y += spacing + 2;
-
-    CreateWindowW(L"STATIC", L"Selection:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-                  controlX, y, swatchSize, swatchSize, hwnd,
-                  (HMENU)IDC_COLOR_SELECTION, hInstance, nullptr);
-    y += spacing + 8;
-
-    // ========== TERMINAL SECTION ==========
-    CreateWindowW(L"STATIC", L"Terminal", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  10, y, 200, 20, hwnd, nullptr, hInstance, nullptr);
-    y += 22;
-
-    // Shell path
-    CreateWindowW(L"STATIC", L"Shell Path:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-                  controlX, y, controlWidth, controlHeight, hwnd,
-                  (HMENU)IDC_SHELL_PATH, hInstance, nullptr);
-    y += spacing;
-
-    // Working directory
-    CreateWindowW(L"STATIC", L"Working Directory:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-                  controlX, y, controlWidth, controlHeight, hwnd,
-                  (HMENU)IDC_WORKING_DIR, hInstance, nullptr);
-    y += spacing;
-
-    // Scrollback lines
-    CreateWindowW(L"STATIC", L"Scrollback Lines:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER,
-                  controlX, y, 80, controlHeight, hwnd,
-                  (HMENU)IDC_SCROLLBACK_LINES, hInstance, nullptr);
-    CreateWindowW(L"STATIC", L"(100-100,000)", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  controlX + 90, y + 3, 90, 20, hwnd, nullptr, hInstance, nullptr);
-    y += spacing;
+    // Terminal section
+    L.Section(L"Terminal");
+    L.EditWithLabel(L"Shell Path:", IDC_SHELL_PATH, 200, ES_AUTOHSCROLL);
+    L.EditWithLabel(L"Working Directory:", IDC_WORKING_DIR, 200, ES_AUTOHSCROLL);
+    L.EditWithLabel(L"Scrollback Lines:", IDC_SCROLLBACK_LINES, 80, ES_NUMBER, L"(100-100,000)");
 
     // Cursor style radio buttons
-    CreateWindowW(L"STATIC", L"Cursor Style:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
+    L.Label(L"Cursor Style:");
     CreateWindowW(L"BUTTON", L"Block", WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP,
-                  controlX, y, 60, controlHeight, hwnd,
-                  (HMENU)IDC_CURSOR_BLOCK, hInstance, nullptr);
+        L.controlX, L.y, 60, L.controlHeight, hwnd, (HMENU)IDC_CURSOR_BLOCK, hInstance, nullptr);
     CreateWindowW(L"BUTTON", L"Underline", WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                  controlX + 70, y, 80, controlHeight, hwnd,
-                  (HMENU)IDC_CURSOR_UNDERLINE, hInstance, nullptr);
+        L.controlX + 70, L.y, 80, L.controlHeight, hwnd, (HMENU)IDC_CURSOR_UNDERLINE, hInstance, nullptr);
     CreateWindowW(L"BUTTON", L"Bar", WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                  controlX + 160, y, 50, controlHeight, hwnd,
-                  (HMENU)IDC_CURSOR_BAR, hInstance, nullptr);
-    y += spacing;
+        L.controlX + 160, L.y, 50, L.controlHeight, hwnd, (HMENU)IDC_CURSOR_BAR, hInstance, nullptr);
+    L.NextRow();
 
-    // Cursor blink
     CreateWindowW(L"BUTTON", L"Cursor Blink", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-                  leftMargin, y, 150, controlHeight, hwnd,
-                  (HMENU)IDC_CURSOR_BLINK, hInstance, nullptr);
-    y += spacing;
+        L.leftMargin, L.y, 150, L.controlHeight, hwnd, (HMENU)IDC_CURSOR_BLINK, hInstance, nullptr);
+    L.NextRow();
 
-    // Opacity
-    CreateWindowW(L"STATIC", L"Opacity:", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  leftMargin, y + 3, labelWidth, 20, hwnd, nullptr, hInstance, nullptr);
-    CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER,
-                  controlX, y, 60, controlHeight, hwnd,
-                  (HMENU)IDC_OPACITY, hInstance, nullptr);
-    CreateWindowW(L"STATIC", L"% (10-100)", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                  controlX + 70, y + 3, 80, 20, hwnd, nullptr, hInstance, nullptr);
-    y += spacing;
+    L.EditWithLabel(L"Opacity:", IDC_OPACITY, 60, ES_NUMBER, L"% (10-100)");
 
-    // ========== BUTTONS ==========
-    int buttonWidth = 80;
-    int buttonHeight = 28;
-    int buttonY = DIALOG_HEIGHT - 70;
-    int buttonX = 10;
-
-    // Reset to Defaults on the left
+    // Buttons at bottom
+    constexpr int btnW = 80, btnH = 28, btnY = DIALOG_HEIGHT - 70;
     CreateWindowW(L"BUTTON", L"Reset", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                  buttonX, buttonY, buttonWidth, buttonHeight, hwnd,
-                  (HMENU)IDC_RESET, hInstance, nullptr);
-
-    // OK, Apply, Cancel on the right
-    buttonX = DIALOG_WIDTH - buttonWidth * 3 - 50;
+        10, btnY, btnW, btnH, hwnd, (HMENU)IDC_RESET, hInstance, nullptr);
+    int x = DIALOG_WIDTH - btnW * 3 - 50;
     CreateWindowW(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
-                  buttonX, buttonY, buttonWidth, buttonHeight, hwnd,
-                  (HMENU)IDC_OK, hInstance, nullptr);
-    buttonX += buttonWidth + 10;
-
+        x, btnY, btnW, btnH, hwnd, (HMENU)IDC_OK, hInstance, nullptr);
     CreateWindowW(L"BUTTON", L"Apply", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                  buttonX, buttonY, buttonWidth, buttonHeight, hwnd,
-                  (HMENU)IDC_APPLY, hInstance, nullptr);
-    buttonX += buttonWidth + 10;
-
+        x + btnW + 10, btnY, btnW, btnH, hwnd, (HMENU)IDC_APPLY, hInstance, nullptr);
     CreateWindowW(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                  buttonX, buttonY, buttonWidth, buttonHeight, hwnd,
-                  (HMENU)IDC_CANCEL, hInstance, nullptr);
+        x + btnW * 2 + 20, btnY, btnW, btnH, hwnd, (HMENU)IDC_CANCEL, hInstance, nullptr);
 }
 
 void SettingsDialog::LoadCurrentSettings(HWND hwnd) {
@@ -432,11 +374,7 @@ void SettingsDialog::LoadCurrentSettings(HWND hwnd) {
     m_cursorColor = RGB(colors.cursor.r, colors.cursor.g, colors.cursor.b);
     m_selectionColor = RGB(colors.selection.r, colors.selection.g, colors.selection.b);
 
-    // Force redraw of color swatches
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_FOREGROUND), nullptr, TRUE);
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_BACKGROUND), nullptr, TRUE);
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_CURSOR), nullptr, TRUE);
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_SELECTION), nullptr, TRUE);
+    InvalidateColorSwatches(hwnd);
 }
 
 void SettingsDialog::ApplySettings(HWND hwnd) {
@@ -582,11 +520,7 @@ void SettingsDialog::ResetToDefaults(HWND hwnd) {
     m_backgroundColor = RGB(colors.background.r, colors.background.g, colors.background.b);
     m_cursorColor = RGB(colors.cursor.r, colors.cursor.g, colors.cursor.b);
     m_selectionColor = RGB(colors.selection.r, colors.selection.g, colors.selection.b);
-
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_FOREGROUND), nullptr, TRUE);
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_BACKGROUND), nullptr, TRUE);
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_CURSOR), nullptr, TRUE);
-    InvalidateRect(GetDlgItem(hwnd, IDC_COLOR_SELECTION), nullptr, TRUE);
+    InvalidateColorSwatches(hwnd);
 
     spdlog::info("Settings reset to defaults");
 }
@@ -603,39 +537,6 @@ void SettingsDialog::RestoreSettings() {
         *m_config = *m_originalConfig;
         spdlog::info("Settings restored");
     }
-}
-
-std::wstring SettingsDialog::GetEditText(HWND hwnd, int controlId) {
-    wchar_t buffer[256];
-    GetDlgItemTextW(hwnd, controlId, buffer, 256);
-    return buffer;
-}
-
-int SettingsDialog::GetEditInt(HWND hwnd, int controlId, int defaultValue) {
-    BOOL success = FALSE;
-    int value = GetDlgItemInt(hwnd, controlId, &success, FALSE);
-    return success ? value : defaultValue;
-}
-
-bool SettingsDialog::GetCheckState(HWND hwnd, int controlId) {
-    return IsDlgButtonChecked(hwnd, controlId) == BST_CHECKED;
-}
-
-INT_PTR SettingsDialog::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    // Not used currently - using window proc directly
-    return FALSE;
-}
-
-void SettingsDialog::InitFontTab(HWND hwnd) {
-    // Reserved for tabbed interface
-}
-
-void SettingsDialog::InitColorsTab(HWND hwnd) {
-    // Reserved for tabbed interface
-}
-
-void SettingsDialog::InitTerminalTab(HWND hwnd) {
-    // Reserved for tabbed interface
 }
 
 } // namespace TerminalDX12::UI
