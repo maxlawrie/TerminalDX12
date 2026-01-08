@@ -329,37 +329,23 @@ void Application::Shutdown() {
 
 // Helper accessors for active tab's components
 Terminal::ScreenBuffer* Application::GetActiveScreenBuffer() {
-    if (m_tabManager) {
-        UI::Tab* tab = m_tabManager->GetActiveTab();
-        if (tab) return tab->GetScreenBuffer();
-    }
-    return nullptr;
+    UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
+    return tab ? tab->GetScreenBuffer() : nullptr;
 }
 
 Terminal::VTStateMachine* Application::GetActiveVTParser() {
-    if (m_tabManager) {
-        UI::Tab* tab = m_tabManager->GetActiveTab();
-        if (tab) return tab->GetVTParser();
-    }
-    return nullptr;
+    UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
+    return tab ? tab->GetVTParser() : nullptr;
 }
 
 Pty::ConPtySession* Application::GetActiveTerminal() {
-    if (m_tabManager) {
-        UI::Tab* tab = m_tabManager->GetActiveTab();
-        if (tab) return tab->GetTerminal();
-    }
-    return nullptr;
+    UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
+    return tab ? tab->GetTerminal() : nullptr;
 }
 
 int Application::GetTerminalStartY() const {
     int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
-    if (tabCount > 1) {
-        spdlog::debug("GetTerminalStartY: {} tabs, returning {}", tabCount, kTabBarHeight + 5);
-        return kTabBarHeight + 5;  // Tab bar height + padding
-    }
-    spdlog::debug("GetTerminalStartY: {} tabs, returning {}", tabCount, kPadding);
-    return kPadding;  // Default padding when no tab bar
+    return (tabCount > 1) ? kTabBarHeight + 5 : kPadding;
 }
 
 int Application::Run() {
@@ -822,12 +808,6 @@ void Application::Render() {
         return;
     }
 
-    static int frameCount = 0;
-    if (frameCount < 5) {
-        spdlog::info("Render() called - frame {}", frameCount);
-    }
-    frameCount++;
-
     m_renderer->BeginFrame();
     m_renderer->ClearText();
 
@@ -951,14 +931,7 @@ void Application::ShowSettings() {
     }
 
     UI::SettingsDialog dialog(m_window->GetHandle(), m_config.get());
-
-    // Set preview callback to trigger re-render
-    dialog.SetPreviewCallback([this]() {
-        // Re-render with new settings
-    });
-
-    bool changed = dialog.Show();
-    if (changed) {
+    if (dialog.Show()) {
         spdlog::info("Settings were changed and saved");
     }
 }
