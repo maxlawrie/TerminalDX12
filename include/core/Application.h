@@ -106,6 +106,15 @@ private:
     void Update(float deltaTime);
     void Render();
 
+    // Render helpers
+    void BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer);
+    void RenderTabBar(int charWidth);
+    void RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
+                               int charWidth, int lineHeight, const float palette[256][3]);
+    void RenderCursor(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
+                      int charWidth, int lineHeight, float cursorR, float cursorG, float cursorB);
+    void RenderSearchBar(int startX, int charWidth, int lineHeight);
+
     // Selection helpers
     struct CellPos { int x, y; };
     CellPos ScreenToCell(int pixelX, int pixelY) const;

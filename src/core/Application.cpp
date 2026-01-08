@@ -415,105 +415,20 @@ void Application::Update(float deltaTime) {
     (void)deltaTime; // Suppress unused parameter warning
 }
 
-void Application::Render() {
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    if (!m_renderer || !screenBuffer) {
-        return;
-    }
-
-    // Apply any pending resize BEFORE starting the frame
-    if (m_pendingResize) {
-        m_pendingResize = false;
-
-        spdlog::info("Applying deferred DX12 resize: {}x{}", m_pendingWidth, m_pendingHeight);
-
-        // Resize renderer only, skip buffer resize for this frame
-        m_renderer->Resize(m_pendingWidth, m_pendingHeight);
-
-        // Queue ConPTY resize for next frame
-        m_pendingConPTYResize = true;
-
-        // Skip rest of frame to let DX12 stabilize
-        return;
-    }
-
-    // Resize ConPTY after DX12 has stabilized (one frame later)
-    if (m_pendingConPTYResize) {
-        m_pendingConPTYResize = false;
-
-        // Check if any tab is using alt buffer - skip buffer resize if so
-        bool anyAltBuffer = false;
-        if (m_tabManager) {
-            for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) {
-                    auto* screenBuffer = tab->GetScreenBuffer();
-                    if (screenBuffer && screenBuffer->IsUsingAlternativeBuffer()) {
-                        anyAltBuffer = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        const int charWidth = 10;
-        const int lineHeight = 25;
-        const int startX = 10;
-        const int startY = GetTerminalStartY();
-        const int padding = 10;
-
-        int availableWidth = m_pendingWidth - startX - padding;
-        int availableHeight = m_pendingHeight - startY - padding;
-        int newCols = std::max(20, availableWidth / charWidth);
-        int newRows = std::max(5, availableHeight / lineHeight);
-
-        spdlog::info("Applying deferred ConPTY resize: {}x{}", newCols, newRows);
-
-        if (m_tabManager) {
-            for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) {
-                    // Resize ScreenBuffer (simplified for alt buffer to avoid races)
-                    tab->ResizeScreenBuffer(newCols, newRows);
-                    // Resize ConPTY so TUI app gets SIGWINCH and redraws
-                    tab->ResizeConPTY(newCols, newRows);
-                }
-            }
-        }
-
-        // Skip this frame to let TUI app process resize
-        m_resizeStabilizeFrames = 2;
-        return;
-    }
-
-    // Skip frames while resize is stabilizing
-    if (m_resizeStabilizeFrames > 0) {
-        m_resizeStabilizeFrames--;
-        return;
-    }
-
-    static int frameCount = 0;
-    if (frameCount < 5) {
-        spdlog::info("Render() called - frame {}", frameCount);
-    }
-    frameCount++;
-
-    m_renderer->BeginFrame();
-    m_renderer->ClearText();
-
-    // Get color palette from config, with OSC 4 overrides from ScreenBuffer
+void Application::BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer) {
     const auto& colorConfig = m_config->GetColors();
-    float colorPalette[256][3];
     for (int i = 0; i < 256; ++i) {
         // Check if this color was modified via OSC 4
         if (screenBuffer && screenBuffer->IsPaletteColorModified(i)) {
             const auto& paletteColor = screenBuffer->GetPaletteColor(i);
-            colorPalette[i][0] = paletteColor.r / 255.0f;
-            colorPalette[i][1] = paletteColor.g / 255.0f;
-            colorPalette[i][2] = paletteColor.b / 255.0f;
+            palette[i][0] = paletteColor.r / 255.0f;
+            palette[i][1] = paletteColor.g / 255.0f;
+            palette[i][2] = paletteColor.b / 255.0f;
         } else if (i < 16) {
             // Use config palette for first 16 colors
-            colorPalette[i][0] = colorConfig.palette[i].r / 255.0f;
-            colorPalette[i][1] = colorConfig.palette[i].g / 255.0f;
-            colorPalette[i][2] = colorConfig.palette[i].b / 255.0f;
+            palette[i][0] = colorConfig.palette[i].r / 255.0f;
+            palette[i][1] = colorConfig.palette[i].g / 255.0f;
+            palette[i][2] = colorConfig.palette[i].b / 255.0f;
         } else {
             // Generate 256-color palette (colors 16-255)
             if (i < 232) {
@@ -522,99 +437,176 @@ void Application::Render() {
                 int r = idx / 36;
                 int g = (idx / 6) % 6;
                 int b = idx % 6;
-                colorPalette[i][0] = r ? (r * 40 + 55) / 255.0f : 0.0f;
-                colorPalette[i][1] = g ? (g * 40 + 55) / 255.0f : 0.0f;
-                colorPalette[i][2] = b ? (b * 40 + 55) / 255.0f : 0.0f;
+                palette[i][0] = r ? (r * 40 + 55) / 255.0f : 0.0f;
+                palette[i][1] = g ? (g * 40 + 55) / 255.0f : 0.0f;
+                palette[i][2] = b ? (b * 40 + 55) / 255.0f : 0.0f;
             } else {
                 // Grayscale (indices 232-255)
                 int gray = (i - 232) * 10 + 8;
-                colorPalette[i][0] = gray / 255.0f;
-                colorPalette[i][1] = gray / 255.0f;
-                colorPalette[i][2] = gray / 255.0f;
+                palette[i][0] = gray / 255.0f;
+                palette[i][1] = gray / 255.0f;
+                palette[i][2] = gray / 255.0f;
             }
         }
     }
-    
-    // Cursor color from config
-    float cursorR = colorConfig.cursor.r / 255.0f;
-    float cursorG = colorConfig.cursor.g / 255.0f;
-    float cursorB = colorConfig.cursor.b / 255.0f;
+}
 
-    // Render screen buffer contents
-    const int fontSize = 16;  // Should match the font size used by renderer
-    const int lineHeight = 25;  // Should match the line height from GlyphAtlas
-    const int charWidth = 10;   // Approximate width for monospace font
-    const int startX = 10;
-    const int tabBarHeight = 30;  // Height reserved for tab bar
-
-    // Use centralized startY calculation for consistent coordinate handling
-    int startY = GetTerminalStartY();
-
-    // Render tab bar if multiple tabs exist
-    if (m_tabManager && m_tabManager->GetTabCount() > 1) {
-        // Render tab bar background (dark gray)
-        m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(tabBarHeight),
-                               0.15f, 0.15f, 0.15f, 1.0f);
-
-        // Render each tab
-        float tabX = 5.0f;
-        int activeIndex = m_tabManager->GetActiveTabIndex();
-        const auto& tabs = m_tabManager->GetTabs();
-
-        for (size_t i = 0; i < tabs.size(); ++i) {
-            const auto& tab = tabs[i];
-            bool isActive = (static_cast<int>(i) == activeIndex);
-
-            // Tab background
-            float bgR = isActive ? 0.3f : 0.2f;
-            float bgG = isActive ? 0.3f : 0.2f;
-            float bgB = isActive ? 0.35f : 0.2f;
-
-            // Get tab title (convert wstring to UTF-8)
-            std::wstring wTitle = tab->GetTitle();
-            std::string title;
-            for (wchar_t wc : wTitle) {
-                if (wc < 128) title += static_cast<char>(wc);
-                else title += '?';
-            }
-            if (title.length() > 15) {
-                title = title.substr(0, 12) + "...";
-            }
-
-            float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
-
-            // Render tab background
-            m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(tabBarHeight - 6),
-                                   bgR, bgG, bgB, 1.0f);
-
-            // Activity indicator (orange dot if tab has activity and isn't active)
-            if (!isActive && tab->HasActivity()) {
-                m_renderer->RenderText("\xE2\x97\x8F", tabX + 5.0f, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
-            }
-
-            // Render tab title
-            float textX = tabX + 15.0f + (!isActive && tab->HasActivity() ? 10.0f : 0.0f);
-            float textR = isActive ? 1.0f : 0.7f;
-            float textG = isActive ? 1.0f : 0.7f;
-            float textB = isActive ? 1.0f : 0.7f;
-            m_renderer->RenderText(title.c_str(), textX, 8.0f, textR, textG, textB, 1.0f);
-
-            // Tab separator
-            m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(tabBarHeight - 10),
-                                   0.4f, 0.4f, 0.4f, 1.0f);
-
-            tabX += tabWidth + 5.0f;
-        }
+void Application::RenderTabBar(int charWidth) {
+    if (!m_tabManager || m_tabManager->GetTabCount() <= 1) {
+        return;
     }
 
-    // Get dimensions atomically to avoid race with resize
-    int rows, cols;
-    screenBuffer->GetDimensions(cols, rows);
+    const int tabBarHeight = 30;
 
-    // Get cursor position for rendering
+    // Render tab bar background (dark gray)
+    m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(tabBarHeight),
+                           0.15f, 0.15f, 0.15f, 1.0f);
+
+    // Render each tab
+    float tabX = 5.0f;
+    int activeIndex = m_tabManager->GetActiveTabIndex();
+    const auto& tabs = m_tabManager->GetTabs();
+
+    for (size_t i = 0; i < tabs.size(); ++i) {
+        const auto& tab = tabs[i];
+        bool isActive = (static_cast<int>(i) == activeIndex);
+
+        // Tab background
+        float bgR = isActive ? 0.3f : 0.2f;
+        float bgG = isActive ? 0.3f : 0.2f;
+        float bgB = isActive ? 0.35f : 0.2f;
+
+        // Get tab title (convert wstring to UTF-8)
+        std::wstring wTitle = tab->GetTitle();
+        std::string title;
+        for (wchar_t wc : wTitle) {
+            if (wc < 128) title += static_cast<char>(wc);
+            else title += '?';
+        }
+        if (title.length() > 15) {
+            title = title.substr(0, 12) + "...";
+        }
+
+        float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
+
+        // Render tab background
+        m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(tabBarHeight - 6),
+                               bgR, bgG, bgB, 1.0f);
+
+        // Activity indicator (orange dot if tab has activity and isn't active)
+        if (!isActive && tab->HasActivity()) {
+            m_renderer->RenderText("\xE2\x97\x8F", tabX + 5.0f, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
+        }
+
+        // Render tab title
+        float textX = tabX + 15.0f + (!isActive && tab->HasActivity() ? 10.0f : 0.0f);
+        float textR = isActive ? 1.0f : 0.7f;
+        float textG = isActive ? 1.0f : 0.7f;
+        float textB = isActive ? 1.0f : 0.7f;
+        m_renderer->RenderText(title.c_str(), textX, 8.0f, textR, textG, textB, 1.0f);
+
+        // Tab separator
+        m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(tabBarHeight - 10),
+                               0.4f, 0.4f, 0.4f, 1.0f);
+
+        tabX += tabWidth + 5.0f;
+    }
+}
+
+void Application::RenderCursor(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
+                               int charWidth, int lineHeight, float cursorR, float cursorG, float cursorB) {
     int cursorX, cursorY;
     screenBuffer->GetCursorPos(cursorX, cursorY);
     bool cursorVisible = screenBuffer->IsCursorVisible();
+    int scrollOffset = screenBuffer->GetScrollOffset();
+
+    int rows, cols;
+    screenBuffer->GetDimensions(cols, rows);
+
+    if (!cursorVisible || scrollOffset != 0 || cursorY < 0 || cursorY >= rows || cursorX < 0 || cursorX >= cols) {
+        return;
+    }
+
+    // Calculate blink state (blink every 500ms)
+    static auto startTime = std::chrono::steady_clock::now();
+    auto currentTime = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+    bool showCursor = (elapsed / 500) % 2 == 0;
+
+    if (showCursor) {
+        float cursorPosX = static_cast<float>(startX + cursorX * charWidth);
+        float cursorPosY = static_cast<float>(startY + cursorY * lineHeight);
+        m_renderer->RenderText("_", cursorPosX, cursorPosY, cursorR, cursorG, cursorB, 1.0f);
+    }
+}
+
+void Application::RenderSearchBar(int startX, int charWidth, int lineHeight) {
+    if (!m_searchManager.IsActive()) {
+        return;
+    }
+
+    const int searchBarHeight = 30;
+    int windowHeight = m_window ? m_window->GetHeight() : 720;
+    float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
+
+    // Search bar background
+    m_renderer->RenderRect(0.0f, searchBarY, 2000.0f, static_cast<float>(searchBarHeight),
+                           0.2f, 0.2f, 0.25f, 1.0f);
+
+    // Search label
+    m_renderer->RenderText("Search:", 10.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
+
+    // Search query (convert wstring to UTF-8)
+    std::string queryUtf8;
+    for (wchar_t wc : m_searchManager.GetQuery()) {
+        if (wc < 128) queryUtf8 += static_cast<char>(wc);
+        else queryUtf8 += '?';
+    }
+    m_renderer->RenderText(queryUtf8.c_str(), 80.0f, searchBarY + 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    // Search results count
+    char countBuf[64];
+    if (m_searchManager.GetMatches().empty()) {
+        snprintf(countBuf, sizeof(countBuf), "No matches");
+    } else {
+        snprintf(countBuf, sizeof(countBuf), "%d of %d",
+                 m_searchManager.GetCurrentMatchIndex() + 1, static_cast<int>(m_searchManager.GetMatches().size()));
+    }
+    m_renderer->RenderText(countBuf, 400.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
+
+    // Instructions
+    m_renderer->RenderText("F3/Enter: Next  Shift+F3: Prev  Esc: Close",
+                           550.0f, searchBarY + 5.0f, 0.5f, 0.5f, 0.5f, 1.0f);
+
+    // Highlight search matches
+    if (!m_searchManager.GetMatches().empty()) {
+        int startY = GetTerminalStartY();
+        int queryLen = static_cast<int>(m_searchManager.GetQuery().length());
+        for (int i = 0; i < static_cast<int>(m_searchManager.GetMatches().size()); ++i) {
+            const auto& match = m_searchManager.GetMatches()[i];
+            bool isCurrent = (i == m_searchManager.GetCurrentMatchIndex());
+
+            for (int j = 0; j < queryLen; ++j) {
+                float posX = static_cast<float>(startX + (match.x + j) * charWidth);
+                float posY = static_cast<float>(startY + match.y * lineHeight);
+
+                // Current match: bright yellow, other matches: dim yellow
+                if (isCurrent) {
+                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
+                                           static_cast<float>(lineHeight), 0.8f, 0.6f, 0.0f, 0.6f);
+                } else {
+                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
+                                           static_cast<float>(lineHeight), 0.5f, 0.4f, 0.0f, 0.4f);
+                }
+            }
+        }
+    }
+}
+
+void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
+                                        int charWidth, int lineHeight, const float palette[256][3]) {
+    int rows, cols;
+    screenBuffer->GetDimensions(cols, rows);
 
     // Calculate normalized selection bounds for rendering
     int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
@@ -642,11 +634,9 @@ void Application::Render() {
         if (m_selectionManager.HasSelection() && y >= selStartY && y <= selEndY) {
             int rowSelStart, rowSelEnd;
             if (m_selectionManager.IsRectangleSelection()) {
-                // Rectangle selection: same column range for all rows
                 rowSelStart = selStartX;
                 rowSelEnd = selEndX;
             } else {
-                // Normal selection: variable range per row
                 rowSelStart = (y == selStartY) ? selStartX : 0;
                 rowSelEnd = (y == selEndY) ? selEndX : cols - 1;
             }
@@ -654,7 +644,6 @@ void Application::Render() {
             for (int x = rowSelStart; x <= rowSelEnd; ++x) {
                 float posX = static_cast<float>(startX + x * charWidth);
                 float posY = static_cast<float>(startY + y * lineHeight);
-                // Render blue selection highlight using block character
                 m_renderer->RenderText("\xE2\x96\x88", posX, posY, 0.2f, 0.4f, 0.8f, 0.5f);
             }
         }
@@ -663,12 +652,10 @@ void Application::Render() {
         for (int x = 0; x < cols; ) {
             auto cell = screenBuffer->GetCellWithScrollback(x, y);
 
-            // Determine if this cell has a non-default background
             bool hasTrueColorBg = cell.attr.UsesTrueColorBg();
             bool hasTrueColorFg = cell.attr.UsesTrueColorFg();
             uint8_t bgIndex = cell.attr.IsInverse() ? cell.attr.foreground % 16 : cell.attr.background % 16;
 
-            // For inverse, we use the foreground color as background
             bool hasNonDefaultBg = false;
             float bgR = 0.0f, bgG = 0.0f, bgB = 0.0f;
 
@@ -679,7 +666,7 @@ void Application::Render() {
                     bgB = cell.attr.fgB / 255.0f;
                     hasNonDefaultBg = true;
                 } else if (bgIndex != 0) {
-                    const float* color = colorPalette[bgIndex];
+                    const float* color = palette[bgIndex];
                     bgR = color[0];
                     bgG = color[1];
                     bgB = color[2];
@@ -692,7 +679,7 @@ void Application::Render() {
                     bgB = cell.attr.bgB / 255.0f;
                     hasNonDefaultBg = true;
                 } else if (bgIndex != 0) {
-                    const float* color = colorPalette[bgIndex];
+                    const float* color = palette[bgIndex];
                     bgR = color[0];
                     bgG = color[1];
                     bgB = color[2];
@@ -700,13 +687,11 @@ void Application::Render() {
                 }
             }
 
-            // Skip default background (black)
             if (!hasNonDefaultBg) {
                 x++;
                 continue;
             }
 
-            // Render single background cell
             float posX = static_cast<float>(startX + x * charWidth);
             float posY = static_cast<float>(startY + y * lineHeight);
             m_renderer->RenderText("\xE2\x96\x88", posX, posY, bgR, bgG, bgB, 1.0f);
@@ -714,58 +699,47 @@ void Application::Render() {
             x++;
         }
 
-        // Second pass: Render foreground text character by character for precise grid alignment
+        // Second pass: Render foreground text character by character
         for (int x = 0; x < cols; ++x) {
             auto cell = screenBuffer->GetCellWithScrollback(x, y);
 
-            // Skip spaces and null
             if (cell.ch == U' ' || cell.ch == U'\0') {
                 continue;
             }
 
-            // Skip invalid/garbage codepoints with strict validation:
-            // - Control characters (0x00-0x1F) except tab (0x09)
-            // - Surrogate range (0xD800-0xDFFF) - invalid in UTF-32
-            // - Noncharacters (0xFFFE, 0xFFFF, and 0xnFFFE, 0xnFFFF for each plane)
-            // - Beyond Unicode max (> 0x10FFFF)
-            // - Private Use Area planes 15-16 (0xF0000-0x10FFFF) - unlikely in normal text
-            // - Supplementary Private Use Area-B (0x100000-0x10FFFF) - garbage indicator
+            // Skip invalid/garbage codepoints
             if (cell.ch > 0x10FFFF ||
                 (cell.ch < 0x20 && cell.ch != U'\t') ||
                 (cell.ch >= 0xD800 && cell.ch <= 0xDFFF) ||
-                (cell.ch >= 0xF0000) ||  // Private use planes - garbage indicator
+                (cell.ch >= 0xF0000) ||
                 ((cell.ch & 0xFFFF) == 0xFFFE) ||
                 ((cell.ch & 0xFFFF) == 0xFFFF)) {
                 continue;
             }
 
-            // Get foreground color - check for true color first
+            // Get foreground color
             float fgR, fgG, fgB;
             if (cell.attr.UsesTrueColorFg()) {
-                // Use 24-bit true color
                 fgR = cell.attr.fgR / 255.0f;
                 fgG = cell.attr.fgG / 255.0f;
                 fgB = cell.attr.fgB / 255.0f;
             } else {
-                // Use palette color
                 uint8_t fgIndex = cell.attr.foreground % 16;
-                const float* fgColor = colorPalette[fgIndex];
+                const float* fgColor = palette[fgIndex];
                 fgR = fgColor[0];
                 fgG = fgColor[1];
                 fgB = fgColor[2];
             }
 
-            // Get background color - check for true color first
+            // Get background color
             float bgR, bgG, bgB;
             if (cell.attr.UsesTrueColorBg()) {
-                // Use 24-bit true color
                 bgR = cell.attr.bgR / 255.0f;
                 bgG = cell.attr.bgG / 255.0f;
                 bgB = cell.attr.bgB / 255.0f;
             } else {
-                // Use palette color
                 uint8_t bgIndex = cell.attr.background % 16;
-                const float* bgColor = colorPalette[bgIndex];
+                const float* bgColor = palette[bgIndex];
                 bgR = bgColor[0];
                 bgG = bgColor[1];
                 bgB = bgColor[2];
@@ -797,106 +771,118 @@ void Application::Render() {
                 b *= 0.5f;
             }
 
-            // Calculate exact grid position for this character
             float posX = static_cast<float>(startX + x * charWidth);
             float posY = static_cast<float>(startY + y * lineHeight);
 
-            // Convert single character to UTF-8
             std::string utf8Char = Utf32ToUtf8(cell.ch);
-
-            // Render single character at exact grid position
             m_renderer->RenderChar(utf8Char, posX, posY, r, g, b, 1.0f);
 
-            // Render underline if the cell has the underline attribute
+            // Render underline if present
             if (cell.attr.IsUnderline()) {
-                // Render underline extending slightly below the cell for visibility
-                // This ensures underlined text is visually distinct (2-3 pixels taller)
-                float underlineY = posY + lineHeight - 1;  // Start near bottom of cell
-                float underlineHeight = 3.0f;  // 3 pixels thick, extends below cell
-                // Use same color as the text
+                float underlineY = posY + lineHeight - 1;
+                float underlineHeight = 3.0f;
                 m_renderer->RenderRect(posX, underlineY, static_cast<float>(charWidth),
                                        underlineHeight, r, g, b, 1.0f);
             }
         }
     }
+}
 
-    // Render blinking cursor (only when not scrolled back)
-    int scrollOffset = screenBuffer->GetScrollOffset();
-    if (cursorVisible && scrollOffset == 0 && cursorY >= 0 && cursorY < rows && cursorX >= 0 && cursorX < cols) {
-        // Calculate blink state (blink every 500ms)
-        static auto startTime = std::chrono::steady_clock::now();
-        auto currentTime = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
-        bool showCursor = (elapsed / 500) % 2 == 0;
-
-        if (showCursor) {
-            // Render cursor as a block character
-            float cursorPosX = static_cast<float>(startX + cursorX * charWidth);
-            float cursorPosY = static_cast<float>(startY + cursorY * lineHeight);
-
-            // Render underscore or block cursor
-            m_renderer->RenderText("_", cursorPosX, cursorPosY, cursorR, cursorG, cursorB, 1.0f);
-        }
+void Application::Render() {
+    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
+    if (!m_renderer || !screenBuffer) {
+        return;
     }
 
-    // Render search bar if in search mode
-    if (m_searchManager.IsActive()) {
-        const int searchBarHeight = 30;
-        int windowHeight = m_window ? m_window->GetHeight() : 720;
-        float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
+    // Apply any pending resize BEFORE starting the frame
+    if (m_pendingResize) {
+        m_pendingResize = false;
 
-        // Search bar background
-        m_renderer->RenderRect(0.0f, searchBarY, 2000.0f, static_cast<float>(searchBarHeight),
-                               0.2f, 0.2f, 0.25f, 1.0f);
+        spdlog::info("Applying deferred DX12 resize: {}x{}", m_pendingWidth, m_pendingHeight);
 
-        // Search label
-        m_renderer->RenderText("Search:", 10.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
+        // Resize renderer only, skip buffer resize for this frame
+        m_renderer->Resize(m_pendingWidth, m_pendingHeight);
 
-        // Search query (convert wstring to UTF-8)
-        std::string queryUtf8;
-        for (wchar_t wc : m_searchManager.GetQuery()) {
-            if (wc < 128) queryUtf8 += static_cast<char>(wc);
-            else queryUtf8 += '?';
-        }
-        m_renderer->RenderText(queryUtf8.c_str(), 80.0f, searchBarY + 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+        // Queue ConPTY resize for next frame
+        m_pendingConPTYResize = true;
 
-        // Search results count
-        char countBuf[64];
-        if (m_searchManager.GetMatches().empty()) {
-            snprintf(countBuf, sizeof(countBuf), "No matches");
-        } else {
-            snprintf(countBuf, sizeof(countBuf), "%d of %d",
-                     m_searchManager.GetCurrentMatchIndex() + 1, static_cast<int>(m_searchManager.GetMatches().size()));
-        }
-        m_renderer->RenderText(countBuf, 400.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
-
-        // Instructions
-        m_renderer->RenderText("F3/Enter: Next  Shift+F3: Prev  Esc: Close",
-                               550.0f, searchBarY + 5.0f, 0.5f, 0.5f, 0.5f, 1.0f);
+        // Skip rest of frame to let DX12 stabilize
+        return;
     }
 
-    // Highlight search matches
-    if (m_searchManager.IsActive() && !m_searchManager.GetMatches().empty()) {
-        int queryLen = static_cast<int>(m_searchManager.GetQuery().length());
-        for (int i = 0; i < static_cast<int>(m_searchManager.GetMatches().size()); ++i) {
-            const auto& match = m_searchManager.GetMatches()[i];
-            bool isCurrent = (i == m_searchManager.GetCurrentMatchIndex());
+    // Resize ConPTY after DX12 has stabilized (one frame later)
+    if (m_pendingConPTYResize) {
+        m_pendingConPTYResize = false;
 
-            for (int j = 0; j < queryLen; ++j) {
-                float posX = static_cast<float>(startX + (match.x + j) * charWidth);
-                float posY = static_cast<float>(startY + match.y * lineHeight);
+        const int charWidth = 10;
+        const int lineHeight = 25;
+        const int startX = 10;
+        const int startY = GetTerminalStartY();
+        const int padding = 10;
 
-                // Current match: bright yellow, other matches: dim yellow
-                if (isCurrent) {
-                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
-                                           static_cast<float>(lineHeight), 0.8f, 0.6f, 0.0f, 0.6f);
-                } else {
-                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
-                                           static_cast<float>(lineHeight), 0.5f, 0.4f, 0.0f, 0.4f);
+        int availableWidth = m_pendingWidth - startX - padding;
+        int availableHeight = m_pendingHeight - startY - padding;
+        int newCols = std::max(20, availableWidth / charWidth);
+        int newRows = std::max(5, availableHeight / lineHeight);
+
+        spdlog::info("Applying deferred ConPTY resize: {}x{}", newCols, newRows);
+
+        if (m_tabManager) {
+            for (const auto& tab : m_tabManager->GetTabs()) {
+                if (tab) {
+                    tab->ResizeScreenBuffer(newCols, newRows);
+                    tab->ResizeConPTY(newCols, newRows);
                 }
             }
         }
+
+        // Skip this frame to let TUI app process resize
+        m_resizeStabilizeFrames = 2;
+        return;
     }
+
+    // Skip frames while resize is stabilizing
+    if (m_resizeStabilizeFrames > 0) {
+        m_resizeStabilizeFrames--;
+        return;
+    }
+
+    static int frameCount = 0;
+    if (frameCount < 5) {
+        spdlog::info("Render() called - frame {}", frameCount);
+    }
+    frameCount++;
+
+    m_renderer->BeginFrame();
+    m_renderer->ClearText();
+
+    // Layout constants
+    const int lineHeight = 25;
+    const int charWidth = 10;
+    const int startX = 10;
+    int startY = GetTerminalStartY();
+
+    // Build color palette
+    float colorPalette[256][3];
+    BuildColorPalette(colorPalette, screenBuffer);
+
+    // Cursor color from config
+    const auto& colorConfig = m_config->GetColors();
+    float cursorR = colorConfig.cursor.r / 255.0f;
+    float cursorG = colorConfig.cursor.g / 255.0f;
+    float cursorB = colorConfig.cursor.b / 255.0f;
+
+    // Render tab bar if multiple tabs exist
+    RenderTabBar(charWidth);
+
+    // Render terminal content (selection, backgrounds, text)
+    RenderTerminalContent(screenBuffer, startX, startY, charWidth, lineHeight, colorPalette);
+
+    // Render cursor
+    RenderCursor(screenBuffer, startX, startY, charWidth, lineHeight, cursorR, cursorG, cursorB);
+
+    // Render search bar and highlights
+    RenderSearchBar(startX, charWidth, lineHeight);
 
     m_renderer->EndFrame();
     m_renderer->Present();
