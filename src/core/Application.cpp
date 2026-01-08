@@ -409,37 +409,18 @@ void Application::RenderTabBar(int charWidth) {
 
     for (size_t i = 0; i < tabs.size(); ++i) {
         const auto& tab = tabs[i];
-        bool isActive = (static_cast<int>(i) == activeIndex);
-
-        // Tab background
-        float bgR = isActive ? 0.3f : 0.2f;
-        float bgG = isActive ? 0.3f : 0.2f;
-        float bgB = isActive ? 0.35f : 0.2f;
-
+        bool active = (static_cast<int>(i) == activeIndex);
+        bool hasActivity = !active && tab->HasActivity();
         std::string title = WStringToAscii(tab->GetTitle(), 15);
-
         float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
 
-        // Render tab background
+        // Tab background and title
+        float bg = active ? 0.3f : 0.2f, text = active ? 1.0f : 0.7f;
         m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(kTabBarHeight - 6),
-                               bgR, bgG, bgB, 1.0f);
-
-        // Activity indicator (orange dot if tab has activity and isn't active)
-        if (!isActive && tab->HasActivity()) {
-            m_renderer->RenderText("\xE2\x97\x8F", tabX + 5.0f, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
-        }
-
-        // Render tab title
-        float textX = tabX + 15.0f + (!isActive && tab->HasActivity() ? 10.0f : 0.0f);
-        float textR = isActive ? 1.0f : 0.7f;
-        float textG = isActive ? 1.0f : 0.7f;
-        float textB = isActive ? 1.0f : 0.7f;
-        m_renderer->RenderText(title.c_str(), textX, 8.0f, textR, textG, textB, 1.0f);
-
-        // Tab separator
-        m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10),
-                               0.4f, 0.4f, 0.4f, 1.0f);
-
+                               bg, bg, active ? 0.35f : 0.2f, 1.0f);
+        if (hasActivity) m_renderer->RenderText("\xE2\x97\x8F", tabX + 5.0f, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
+        m_renderer->RenderText(title.c_str(), tabX + 15.0f + (hasActivity ? 10.0f : 0.0f), 8.0f, text, text, text, 1.0f);
+        m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10), 0.4f, 0.4f, 0.4f, 1.0f);
         tabX += tabWidth + 5.0f;
     }
 }
@@ -572,54 +553,16 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
         }
 
         // First pass: Render backgrounds for non-default colors
-        for (int x = 0; x < cols; ) {
+        for (int x = 0; x < cols; ++x) {
             auto cell = screenBuffer->GetCellWithScrollback(x, y);
+            bool inv = cell.attr.IsInverse();
+            bool hasBg = inv ? (cell.attr.UsesTrueColorFg() || cell.attr.foreground % 16 != 0)
+                             : (cell.attr.UsesTrueColorBg() || cell.attr.background % 16 != 0);
+            if (!hasBg) continue;
 
-            bool hasTrueColorBg = cell.attr.UsesTrueColorBg();
-            bool hasTrueColorFg = cell.attr.UsesTrueColorFg();
-            uint8_t bgIndex = cell.attr.IsInverse() ? cell.attr.foreground % 16 : cell.attr.background % 16;
-
-            bool hasNonDefaultBg = false;
-            float bgR = 0.0f, bgG = 0.0f, bgB = 0.0f;
-
-            if (cell.attr.IsInverse()) {
-                if (hasTrueColorFg) {
-                    bgR = cell.attr.fgR / 255.0f;
-                    bgG = cell.attr.fgG / 255.0f;
-                    bgB = cell.attr.fgB / 255.0f;
-                    hasNonDefaultBg = true;
-                } else if (bgIndex != 0) {
-                    const float* color = palette[bgIndex];
-                    bgR = color[0];
-                    bgG = color[1];
-                    bgB = color[2];
-                    hasNonDefaultBg = true;
-                }
-            } else {
-                if (hasTrueColorBg) {
-                    bgR = cell.attr.bgR / 255.0f;
-                    bgG = cell.attr.bgG / 255.0f;
-                    bgB = cell.attr.bgB / 255.0f;
-                    hasNonDefaultBg = true;
-                } else if (bgIndex != 0) {
-                    const float* color = palette[bgIndex];
-                    bgR = color[0];
-                    bgG = color[1];
-                    bgB = color[2];
-                    hasNonDefaultBg = true;
-                }
-            }
-
-            if (!hasNonDefaultBg) {
-                x++;
-                continue;
-            }
-
-            float posX = static_cast<float>(startX + x * charWidth);
-            float posY = static_cast<float>(startY + y * lineHeight);
-            m_renderer->RenderText("\xE2\x96\x88", posX, posY, bgR, bgG, bgB, 1.0f);
-
-            x++;
+            auto bg = getColor(cell.attr, inv);  // inverse: use fg as bg
+            m_renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth),
+                                   static_cast<float>(startY + y * lineHeight), bg.r, bg.g, bg.b, 1.0f);
         }
 
         // Second pass: Render foreground text character by character
