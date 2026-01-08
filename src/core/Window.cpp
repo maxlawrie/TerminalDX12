@@ -10,6 +10,7 @@ Window::Window()
     , m_height(0)
     , m_dpiScale(1.0f)
     , m_isResizing(false)
+    , m_cursor(nullptr)
 {
 }
 
@@ -110,6 +111,13 @@ void Window::SetOpacity(float opacity) {
     // Set the window opacity
     BYTE alpha = static_cast<BYTE>(opacity * 255.0f);
     SetLayeredWindowAttributes(m_hwnd, 0, alpha, LWA_ALPHA);
+}
+
+void Window::SetCursor(HCURSOR cursor) {
+    m_cursor = cursor;
+    if (cursor) {
+        ::SetCursor(cursor);
+    }
 }
 
 void Window::UpdateDPI() {
@@ -308,6 +316,13 @@ LRESULT Window::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     SWP_NOZORDER | SWP_NOACTIVATE);
             }
             return 0;
+
+        case WM_SETCURSOR:
+            if (LOWORD(lParam) == HTCLIENT && m_cursor) {
+                ::SetCursor(m_cursor);
+                return TRUE;
+            }
+            break;
     }
 
     return DefWindowProcW(hwnd, msg, wParam, lParam);

@@ -96,6 +96,73 @@ Pane* Pane::FindPaneAt(int x, int y) {
     return nullptr;
 }
 
+PaneRect Pane::GetDividerRect() const {
+    if (IsLeaf()) {
+        return {0, 0, 0, 0};
+    }
+
+    constexpr int dividerSize = 4;
+    bool horizontal = (m_splitDirection == SplitDirection::Horizontal);
+    int totalSize = horizontal ? m_bounds.width : m_bounds.height;
+    int firstSize = static_cast<int>((totalSize - dividerSize) * m_splitRatio);
+
+    PaneRect divider;
+    if (horizontal) {
+        divider.x = m_bounds.x + firstSize;
+        divider.y = m_bounds.y;
+        divider.width = dividerSize;
+        divider.height = m_bounds.height;
+    } else {
+        divider.x = m_bounds.x;
+        divider.y = m_bounds.y + firstSize;
+        divider.width = m_bounds.width;
+        divider.height = dividerSize;
+    }
+    return divider;
+}
+
+Pane* Pane::FindDividerAt(int x, int y, SplitDirection& outDirection) {
+    // Check if point is within this pane's bounds
+    if (x < m_bounds.x || x >= m_bounds.x + m_bounds.width ||
+        y < m_bounds.y || y >= m_bounds.y + m_bounds.height) {
+        return nullptr;
+    }
+
+    if (IsLeaf()) {
+        return nullptr;
+    }
+
+    // Check if point is on this pane's divider (with hit margin)
+    constexpr int hitMargin = 4;
+    PaneRect divider = GetDividerRect();
+
+    bool onDivider = false;
+    if (m_splitDirection == SplitDirection::Horizontal) {
+        onDivider = x >= divider.x - hitMargin && x < divider.x + divider.width + hitMargin &&
+                    y >= divider.y && y < divider.y + divider.height;
+    } else {
+        onDivider = y >= divider.y - hitMargin && y < divider.y + divider.height + hitMargin &&
+                    x >= divider.x && x < divider.x + divider.width;
+    }
+
+    if (onDivider) {
+        outDirection = m_splitDirection;
+        return this;
+    }
+
+    // Check children's dividers
+    if (m_firstChild) {
+        Pane* found = m_firstChild->FindDividerAt(x, y, outDirection);
+        if (found) return found;
+    }
+    if (m_secondChild) {
+        Pane* found = m_secondChild->FindDividerAt(x, y, outDirection);
+        if (found) return found;
+    }
+
+    return nullptr;
+}
+
 void Pane::GetAllLeafPanes(std::vector<Pane*>& leaves) {
     if (IsLeaf()) {
         leaves.push_back(this);

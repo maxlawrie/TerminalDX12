@@ -39,14 +39,16 @@ void SelectionManager::ClearSelection() {
     m_rectangleSelection = false;
     m_selectionStart = {0, 0};
     m_selectionEnd = {0, 0};
+    m_selectionPane = nullptr;
 }
 
-void SelectionManager::StartSelection(SelectionPos pos, bool rectangleMode) {
+void SelectionManager::StartSelection(SelectionPos pos, bool rectangleMode, void* pane) {
     m_rectangleSelection = rectangleMode;
     m_selectionStart = pos;
     m_selectionEnd = pos;
     m_selecting = true;
     m_hasSelection = false;
+    m_selectionPane = pane;
 }
 
 void SelectionManager::ExtendSelection(SelectionPos pos) {

@@ -78,10 +78,37 @@ public:
     /// @brief Check if there are multiple panes
     bool HasMultiplePanes() const;
 
+    /// @brief Find divider at screen coordinates
+    /// @return The pane containing the divider, or nullptr
+    Pane* FindDividerAt(int x, int y, SplitDirection& outDirection);
+
+    /// @brief Start resizing a divider
+    /// @param pane The split pane to resize
+    /// @param startPos The starting mouse position
+    void StartDividerResize(Pane* pane, int startPos);
+
+    /// @brief Update divider position during resize
+    /// @param currentPos Current mouse position
+    void UpdateDividerResize(int currentPos);
+
+    /// @brief End divider resize
+    void EndDividerResize();
+
+    /// @brief Check if currently resizing a divider
+    bool IsResizingDivider() const { return m_resizingPane != nullptr; }
+
+    /// @brief Get the direction of the divider being resized
+    SplitDirection GetResizeDirection() const;
+
 private:
     std::unique_ptr<Pane> m_rootPane;
     Pane* m_focusedPane = nullptr;
     bool m_paneZoomed = false;
+
+    // Divider resize state
+    Pane* m_resizingPane = nullptr;
+    int m_resizeStartPos = 0;
+    float m_resizeStartRatio = 0.5f;
 };
 
 } // namespace TerminalDX12::UI

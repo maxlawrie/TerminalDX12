@@ -176,4 +176,61 @@ bool PaneManager::HasMultiplePanes() const {
     return !m_rootPane->IsLeaf();
 }
 
+Pane* PaneManager::FindDividerAt(int x, int y, SplitDirection& outDirection) {
+    if (!m_rootPane || m_rootPane->IsLeaf()) {
+        return nullptr;
+    }
+    return m_rootPane->FindDividerAt(x, y, outDirection);
+}
+
+void PaneManager::StartDividerResize(Pane* pane, int startPos) {
+    if (!pane || pane->IsLeaf()) {
+        return;
+    }
+    m_resizingPane = pane;
+    m_resizeStartPos = startPos;
+    m_resizeStartRatio = pane->GetSplitRatio();
+    spdlog::debug("Started divider resize at {}, ratio={}", startPos, m_resizeStartRatio);
+}
+
+void PaneManager::UpdateDividerResize(int currentPos) {
+    if (!m_resizingPane) {
+        return;
+    }
+
+    const PaneRect& bounds = m_resizingPane->GetBounds();
+    bool horizontal = (m_resizingPane->GetSplitDirection() == SplitDirection::Horizontal);
+
+    int totalSize = horizontal ? bounds.width : bounds.height;
+    int startOffset = horizontal ? bounds.x : bounds.y;
+
+    constexpr int dividerSize = 4;
+    int usableSize = totalSize - dividerSize;
+
+    if (usableSize <= 0) {
+        return;
+    }
+
+    // Calculate new ratio based on mouse position
+    int relativePos = currentPos - startOffset;
+    float newRatio = static_cast<float>(relativePos) / static_cast<float>(totalSize);
+
+    // Clamp ratio (SetSplitRatio clamps to 0.1-0.9)
+    m_resizingPane->SetSplitRatio(newRatio);
+}
+
+void PaneManager::EndDividerResize() {
+    if (m_resizingPane) {
+        spdlog::debug("Ended divider resize, new ratio={}", m_resizingPane->GetSplitRatio());
+    }
+    m_resizingPane = nullptr;
+}
+
+SplitDirection PaneManager::GetResizeDirection() const {
+    if (m_resizingPane) {
+        return m_resizingPane->GetSplitDirection();
+    }
+    return SplitDirection::None;
+}
+
 } // namespace TerminalDX12::UI

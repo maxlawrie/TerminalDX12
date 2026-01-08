@@ -66,6 +66,13 @@ public:
     // Find leaf pane at screen coordinates
     Pane* FindPaneAt(int x, int y);
 
+    // Find if point is on a divider, returns the split pane containing the divider
+    // Also sets outDirection to indicate horizontal or vertical divider
+    Pane* FindDividerAt(int x, int y, SplitDirection& outDirection);
+
+    // Get the divider rectangle for this split pane
+    PaneRect GetDividerRect() const;
+
     // Get all leaf panes
     void GetAllLeafPanes(std::vector<Pane*>& leaves);
 

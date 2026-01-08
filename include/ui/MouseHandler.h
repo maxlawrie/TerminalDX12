@@ -36,6 +36,8 @@ struct MouseHandlerCallbacks {
     std::function<Terminal::ScreenBuffer*()> getActiveScreenBuffer;
     std::function<Terminal::VTStateMachine*()> getActiveVTParser;
     std::function<HWND()> getWindowHandle;
+    std::function<void(HCURSOR)> setCursor;
+    std::function<void()> onDividerResized;  // Called when divider resize ends
 };
 
 /**

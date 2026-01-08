@@ -108,7 +108,8 @@ private:
     void BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer);
     void RenderTabBar(int charWidth);
     void RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
-                               int charWidth, int lineHeight, const float palette[256][3]);
+                               int charWidth, int lineHeight, const float palette[256][3],
+                               void* pane = nullptr);
     void RenderCursor(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
                       int charWidth, int lineHeight, float cursorR, float cursorG, float cursorB);
     void RenderSearchBar(int startX, int charWidth, int lineHeight);

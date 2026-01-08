@@ -301,6 +301,14 @@ bool Application::Initialize(const std::wstring& shell) {
     mouseCallbacks.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
     mouseCallbacks.getActiveVTParser = [this]() { return GetActiveVTParser(); };
     mouseCallbacks.getWindowHandle = [this]() { return m_window ? m_window->GetHandle() : nullptr; };
+    mouseCallbacks.setCursor = [this](HCURSOR cursor) {
+        if (m_window) m_window->SetCursor(cursor);
+    };
+    mouseCallbacks.onDividerResized = [this]() {
+        // Update layout and resize all pane buffers after divider resize
+        UpdatePaneLayout();
+        ResizeAllPaneBuffers();
+    };
 
     m_mouseHandler = std::make_unique<UI::MouseHandler>(
         std::move(mouseCallbacks), m_selectionManager, m_paneManager, m_tabManager.get());
@@ -519,7 +527,8 @@ void Application::RenderSearchBar(int startX, int charWidth, int lineHeight) {
 }
 
 void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
-                                        int charWidth, int lineHeight, const float palette[256][3]) {
+                                        int charWidth, int lineHeight, const float palette[256][3],
+                                        void* pane) {
     int rows, cols;
     screenBuffer->GetDimensions(cols, rows);
 
@@ -532,8 +541,9 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
         return {palette[idx][0], palette[idx][1], palette[idx][2]};
     };
 
-    // Calculate selection bounds
-    bool hasSel = m_selectionManager.HasSelection(), rectSel = m_selectionManager.IsRectangleSelection();
+    // Calculate selection bounds (only if selection is in this pane)
+    bool hasSel = m_selectionManager.HasSelection() && m_selectionManager.GetSelectionPane() == pane;
+    bool rectSel = m_selectionManager.IsRectangleSelection();
     int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
     if (hasSel) {
         const auto& s = m_selectionManager.GetSelectionStart(), e = m_selectionManager.GetSelectionEnd();
@@ -636,7 +646,7 @@ void Application::Render() {
         BuildColorPalette(colorPalette, buffer);
 
         // Render terminal content at pane position
-        RenderTerminalContent(buffer, bounds.x, bounds.y, kCharWidth, kLineHeight, colorPalette);
+        RenderTerminalContent(buffer, bounds.x, bounds.y, kCharWidth, kLineHeight, colorPalette, pane);
 
         // Render cursor only for focused pane
         if (pane == focusedPane) {
@@ -701,6 +711,20 @@ void Application::OnWindowResize(int width, int height) {
 }
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
+    // Find which pane the mouse is in
+    UI::Pane* pane = const_cast<Application*>(this)->m_paneManager.FindPaneAt(pixelX, pixelY);
+    if (pane && pane->IsLeaf()) {
+        const UI::PaneRect& bounds = pane->GetBounds();
+        CellPos pos{(pixelX - bounds.x) / kCharWidth, (pixelY - bounds.y) / kLineHeight};
+        if (pane->GetTab() && pane->GetTab()->GetScreenBuffer()) {
+            auto* buf = pane->GetTab()->GetScreenBuffer();
+            pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
+            pos.y = std::clamp(pos.y, 0, buf->GetRows() - 1);
+        }
+        return pos;
+    }
+
+    // Fallback to focused pane calculation
     CellPos pos{(pixelX - kStartX) / kCharWidth, (pixelY - GetTerminalStartY()) / kLineHeight};
     if (auto* buf = const_cast<Application*>(this)->GetActiveScreenBuffer()) {
         pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);

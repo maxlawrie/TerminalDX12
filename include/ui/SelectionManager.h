@@ -46,7 +46,11 @@ public:
     /// @brief Start a new selection at the given position
     /// @param pos The starting cell position
     /// @param rectangleMode Whether to use rectangle selection mode
-    void StartSelection(SelectionPos pos, bool rectangleMode = false);
+    /// @param pane The pane the selection is in (optional, for multi-pane support)
+    void StartSelection(SelectionPos pos, bool rectangleMode = false, void* pane = nullptr);
+
+    /// @brief Get the pane the current selection belongs to
+    void* GetSelectionPane() const { return m_selectionPane; }
 
     /// @brief Extend the selection to the given position
     /// @param pos The new end position
@@ -131,6 +135,7 @@ private:
     bool m_selecting = false;
     bool m_hasSelection = false;
     bool m_rectangleSelection = false;
+    void* m_selectionPane = nullptr;  // Track which pane selection is in
 };
 
 } // namespace TerminalDX12::UI

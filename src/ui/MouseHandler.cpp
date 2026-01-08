@@ -33,6 +33,33 @@ void MouseHandler::SetUrlDetector(std::function<std::string(int, int)> detector)
 }
 
 void MouseHandler::OnMouseButton(int x, int y, int button, bool down) {
+    // Handle divider resize
+    if (button == 0) {
+        if (down) {
+            // Check if clicking on a divider
+            SplitDirection direction;
+            Pane* dividerPane = m_paneManager.FindDividerAt(x, y, direction);
+            if (dividerPane) {
+                int startPos = (direction == SplitDirection::Horizontal) ? x : y;
+                m_paneManager.StartDividerResize(dividerPane, startPos);
+                return;
+            }
+        } else {
+            // Release - end any active resize
+            if (m_paneManager.IsResizingDivider()) {
+                m_paneManager.EndDividerResize();
+                if (m_callbacks.onDividerResized) {
+                    m_callbacks.onDividerResized();
+                }
+                // Reset cursor to arrow
+                if (m_callbacks.setCursor) {
+                    m_callbacks.setCursor(LoadCursor(nullptr, IDC_ARROW));
+                }
+                return;
+            }
+        }
+    }
+
     // Handle tab bar clicks
     if (HandleTabBarClick(x, y, button, down)) {
         return;
@@ -105,6 +132,9 @@ void MouseHandler::OnMouseButton(int x, int y, int button, bool down) {
         Terminal::ScreenBuffer* screenBuffer = m_callbacks.getActiveScreenBuffer ?
             m_callbacks.getActiveScreenBuffer() : nullptr;
 
+        // Find which pane was clicked for selection tracking
+        Pane* clickedPane = m_paneManager.FindPaneAt(x, y);
+
         // Handle click type
         if (m_clickCount == 3) {
             // Triple-click: select entire line
@@ -124,7 +154,7 @@ void MouseHandler::OnMouseButton(int x, int y, int button, bool down) {
                 // Alt+drag enables rectangle selection mode
                 bool rectMode = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
                 SelectionPos pos{cellPos.x, cellPos.y};
-                m_selectionManager.StartSelection(pos, rectMode);
+                m_selectionManager.StartSelection(pos, rectMode, clickedPane);
             }
         }
         m_mouseButtonDown = true;
@@ -136,6 +166,30 @@ void MouseHandler::OnMouseButton(int x, int y, int button, bool down) {
 }
 
 void MouseHandler::OnMouseMove(int x, int y) {
+    // Handle active divider resize
+    if (m_paneManager.IsResizingDivider()) {
+        SplitDirection direction = m_paneManager.GetResizeDirection();
+        int pos = (direction == SplitDirection::Horizontal) ? x : y;
+        m_paneManager.UpdateDividerResize(pos);
+        return;
+    }
+
+    // Update cursor for divider hover
+    SplitDirection hoverDirection;
+    Pane* dividerPane = m_paneManager.FindDividerAt(x, y, hoverDirection);
+    if (dividerPane) {
+        if (m_callbacks.setCursor) {
+            HCURSOR cursor = (hoverDirection == SplitDirection::Horizontal) ?
+                LoadCursor(nullptr, IDC_SIZEWE) : LoadCursor(nullptr, IDC_SIZENS);
+            m_callbacks.setCursor(cursor);
+        }
+    } else if (!m_mouseButtonDown) {
+        // Reset cursor when not over divider (and not selecting)
+        if (m_callbacks.setCursor) {
+            m_callbacks.setCursor(LoadCursor(nullptr, IDC_ARROW));
+        }
+    }
+
     CellPos cellPos = m_screenToCell ? m_screenToCell(x, y) : CellPos{0, 0};
 
     // Report mouse motion if application wants it

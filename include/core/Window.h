@@ -81,6 +81,7 @@ public:
     // Setters
     void SetTitle(const std::wstring& title);
     void SetOpacity(float opacity);  // 0.0 = transparent, 1.0 = opaque
+    void SetCursor(HCURSOR cursor);  // Set the current cursor
 
     // Event callbacks
     std::function<void(UINT key, bool isDown)> OnKeyEvent;
@@ -104,6 +105,7 @@ private:
     int m_height;
     float m_dpiScale;
     bool m_isResizing;
+    HCURSOR m_cursor;
 
     static constexpr const wchar_t* WINDOW_CLASS_NAME = L"TerminalDX12WindowClass";
 };
