@@ -396,11 +396,9 @@ void Application::BuildColorPalette(float palette[256][3], Terminal::ScreenBuffe
 }
 
 void Application::RenderTabBar(int charWidth) {
-    if (!m_tabManager || m_tabManager->GetTabCount() <= 1) {
-        return;
-    }
+    if (!m_tabManager || m_tabManager->GetTabCount() <= 1) return;
 
-    // Render tab bar background (dark gray)
+    // Render tab bar background
     m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(kTabBarHeight),
                            0.15f, 0.15f, 0.15f, 1.0f);
 
@@ -448,37 +446,28 @@ void Application::RenderTabBar(int charWidth) {
 
 void Application::RenderCursor(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
                                int charWidth, int lineHeight, float cursorR, float cursorG, float cursorB) {
-    int cursorX, cursorY;
+    int cursorX, cursorY, rows, cols;
     screenBuffer->GetCursorPos(cursorX, cursorY);
-    bool cursorVisible = screenBuffer->IsCursorVisible();
-    int scrollOffset = screenBuffer->GetScrollOffset();
-
-    int rows, cols;
     screenBuffer->GetDimensions(cols, rows);
 
-    if (!cursorVisible || scrollOffset != 0 || cursorY < 0 || cursorY >= rows || cursorX < 0 || cursorX >= cols) {
-        return;
-    }
+    bool visible = screenBuffer->IsCursorVisible() && screenBuffer->GetScrollOffset() == 0 &&
+                   cursorX >= 0 && cursorX < cols && cursorY >= 0 && cursorY < rows;
+    if (!visible) return;
 
-    // Calculate blink state (blink every 500ms)
+    // Blink every 500ms
     static auto startTime = std::chrono::steady_clock::now();
-    auto currentTime = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
-    bool showCursor = (elapsed / 500) % 2 == 0;
-
-    if (showCursor) {
-        float cursorPosX = static_cast<float>(startX + cursorX * charWidth);
-        float cursorPosY = static_cast<float>(startY + cursorY * lineHeight);
-        m_renderer->RenderText("_", cursorPosX, cursorPosY, cursorR, cursorG, cursorB, 1.0f);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - startTime).count();
+    if ((elapsed / 500) % 2 == 0) {
+        m_renderer->RenderText("_", static_cast<float>(startX + cursorX * charWidth),
+                               static_cast<float>(startY + cursorY * lineHeight), cursorR, cursorG, cursorB, 1.0f);
     }
 }
 
 void Application::RenderSearchBar(int startX, int charWidth, int lineHeight) {
-    if (!m_searchManager.IsActive()) {
-        return;
-    }
+    if (!m_searchManager.IsActive()) return;
 
-    const int searchBarHeight = 30;
+    constexpr int searchBarHeight = 30;
     int windowHeight = m_window ? m_window->GetHeight() : 720;
     float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
 
@@ -842,40 +831,15 @@ void Application::ShowSettings() {
     }
 }
 
-// Pane management
 void Application::SplitPane(UI::SplitDirection direction) {
     UI::Pane* focusedPane = m_paneManager.GetFocusedPane();
-    if (!focusedPane || !focusedPane->IsLeaf()) {
-        spdlog::warn("Cannot split: no focused leaf pane");
-        return;
-    }
+    UI::Tab* currentTab = focusedPane && focusedPane->IsLeaf() ? focusedPane->GetTab() : nullptr;
+    Terminal::ScreenBuffer* buf = currentTab ? currentTab->GetScreenBuffer() : nullptr;
+    if (!buf) return;
 
-    UI::Tab* currentTab = focusedPane->GetTab();
-    if (!currentTab) {
-        spdlog::warn("Cannot split: focused pane has no tab");
-        return;
-    }
-
-    // Get dimensions from current tab
-    Terminal::ScreenBuffer* screenBuffer = currentTab->GetScreenBuffer();
-    if (!screenBuffer) {
-        return;
-    }
-
-    int cols = screenBuffer->GetCols();
-    int rows = screenBuffer->GetRows();
-    int scrollbackLines = m_config->GetTerminal().scrollbackLines;
-
-    // Create a new tab for the new pane
-    UI::Tab* newTab = m_tabManager->CreateTab(m_shellCommand, cols, rows, scrollbackLines);
-    if (!newTab) {
-        spdlog::error("Failed to create new tab for split pane");
-        return;
-    }
-
-    // Split the focused pane
-    UI::Pane* newPane = m_paneManager.SplitFocusedPane(direction, newTab);
-    if (newPane) {
+    UI::Tab* newTab = m_tabManager->CreateTab(m_shellCommand, buf->GetCols(), buf->GetRows(),
+                                               m_config->GetTerminal().scrollbackLines);
+    if (newTab && m_paneManager.SplitFocusedPane(direction, newTab)) {
         UpdatePaneLayout();
     }
 }
