@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <Windows.h>
 #include "ui/SearchManager.h"
 #include "ui/SelectionManager.h"
@@ -118,8 +119,9 @@ private:
     void CopySelectionToClipboard();
     void PasteFromClipboard();
 
-    // Terminal layout - consistent startY calculation
+    // Terminal layout helpers
     int GetTerminalStartY() const;
+    std::pair<int, int> CalculateTerminalSize(int width, int height) const;
 
     // Settings dialog
     void ShowSettings();

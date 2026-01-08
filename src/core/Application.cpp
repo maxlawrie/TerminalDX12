@@ -10,6 +10,7 @@
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"
+#include <algorithm>
 #include <chrono>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -148,17 +149,9 @@ bool Application::Initialize(const std::wstring& shell) {
     // Set process exit callback - close window when all processes have exited
     m_tabManager->SetProcessExitCallback([this](int tabId, int exitCode) {
         spdlog::info("Process in tab {} exited with code {}", tabId, exitCode);
-
-        // Check if any tabs still have running processes
-        bool anyRunning = false;
-        for (const auto& tab : m_tabManager->GetTabs()) {
-            if (tab && tab->IsRunning()) {
-                anyRunning = true;
-                break;
-            }
-        }
-
-        // If no tabs have running processes, close the window
+        const auto& tabs = m_tabManager->GetTabs();
+        bool anyRunning = std::any_of(tabs.begin(), tabs.end(),
+            [](const auto& tab) { return tab && tab->IsRunning(); });
         if (!anyRunning) {
             spdlog::info("All shell processes have exited, closing window");
             m_running = false;
@@ -166,13 +159,7 @@ bool Application::Initialize(const std::wstring& shell) {
     });
 
     // Calculate terminal size based on window dimensions
-    // For initial tab, there's no tab bar visible yet, so startY should be kPadding
-    const int startY = kPadding;  // Single tab = no tab bar = minimal padding
-
-    int availableWidth = windowDesc.width - kStartX - kPadding;
-    int availableHeight = windowDesc.height - startY - kPadding;
-    int termCols = std::max(20, availableWidth / kCharWidth);
-    int termRows = std::max(5, availableHeight / kLineHeight);
+    auto [termCols, termRows] = CalculateTerminalSize(windowDesc.width, windowDesc.height);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
 
 
@@ -346,6 +333,15 @@ Pty::ConPtySession* Application::GetActiveTerminal() {
 int Application::GetTerminalStartY() const {
     int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
     return (tabCount > 1) ? kTabBarHeight + 5 : kPadding;
+}
+
+std::pair<int, int> Application::CalculateTerminalSize(int width, int height) const {
+    int startY = GetTerminalStartY();
+    int availableWidth = width - kStartX - kPadding;
+    int availableHeight = height - startY - kPadding;
+    int cols = std::max(20, availableWidth / kCharWidth);
+    int rows = std::max(5, availableHeight / kLineHeight);
+    return {cols, rows};
 }
 
 int Application::Run() {
@@ -780,12 +776,7 @@ void Application::Render() {
     if (m_pendingConPTYResize) {
         m_pendingConPTYResize = false;
 
-        int startY = GetTerminalStartY();
-        int availableWidth = m_pendingWidth - kStartX - kPadding;
-        int availableHeight = m_pendingHeight - startY - kPadding;
-        int newCols = std::max(20, availableWidth / kCharWidth);
-        int newRows = std::max(5, availableHeight / kLineHeight);
-
+        auto [newCols, newRows] = CalculateTerminalSize(m_pendingWidth, m_pendingHeight);
         spdlog::info("Applying deferred ConPTY resize: {}x{}", newCols, newRows);
 
         if (m_tabManager) {
@@ -875,12 +866,7 @@ void Application::OnWindowResize(int width, int height) {
         spdlog::info("OnWindowResize: queued deferred resize {}x{}", width, height);
 
         // Resize terminal buffers immediately (protected by mutex)
-        int startY = GetTerminalStartY();
-        int availableWidth = width - kStartX - kPadding;
-        int availableHeight = height - startY - kPadding;
-        int newCols = std::max(20, availableWidth / kCharWidth);
-        int newRows = std::max(5, availableHeight / kLineHeight);
-
+        auto [newCols, newRows] = CalculateTerminalSize(width, height);
         spdlog::info("OnWindowResize: resizing buffers to {}x{}", newCols, newRows);
 
         if (m_tabManager) {
