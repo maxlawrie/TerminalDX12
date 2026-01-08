@@ -327,47 +327,24 @@ void GlyphAtlas::UploadGlyphToGPU(const GlyphInfo& glyph, const unsigned char* b
 }
 
 void GlyphAtlas::UploadAtlasIfDirty() {
-    static bool firstCall = true;
-    if (firstCall) {
-        spdlog::info("UploadAtlasIfDirty called - dirty:{}, cmdList:{}, buffer:{}",
-                     m_atlasDirty, (void*)m_commandList, (void*)m_atlasBuffer.get());
-        firstCall = false;
-    }
-
     if (!m_atlasDirty || !m_commandList || !m_atlasBuffer) {
         return;
     }
 
-    spdlog::info("UploadAtlasIfDirty - starting atlas upload");
-
-    // Map upload buffer
     void* pData;
     D3D12_RANGE readRange = {0, 0};
-    HRESULT hr = m_atlasUploadBuffer->Map(0, &readRange, &pData);
-    if (FAILED(hr)) {
-        spdlog::error("Failed to map atlas upload buffer: 0x{:08X}", hr);
+    if (FAILED(m_atlasUploadBuffer->Map(0, &readRange, &pData))) {
+        spdlog::error("Failed to map atlas upload buffer");
         return;
     }
 
-    spdlog::info("Upload buffer mapped successfully");
-
-    // Copy atlas data to upload buffer
-    const UINT64 uploadPitch = (m_atlasWidth * 4 + 255) & ~255;  // Align to 256 bytes
+    const UINT64 uploadPitch = (m_atlasWidth * 4 + 255) & ~255;
     const UINT64 rowPitch = m_atlasWidth * 4;
-
     for (int y = 0; y < m_atlasHeight; ++y) {
-        memcpy(
-            (uint8_t*)pData + y * uploadPitch,
-            m_atlasBuffer.get() + y * rowPitch,
-            rowPitch
-        );
+        memcpy((uint8_t*)pData + y * uploadPitch, m_atlasBuffer.get() + y * rowPitch, rowPitch);
     }
-    spdlog::info("Atlas data copied to upload buffer");
-
     m_atlasUploadBuffer->Unmap(0, nullptr);
-    spdlog::info("Upload buffer unmapped");
 
-    // Transition texture to COPY_DEST if needed
     D3D12_RESOURCE_BARRIER barrier = {};
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Transition.pResource = m_atlasTexture.Get();
@@ -376,7 +353,6 @@ void GlyphAtlas::UploadAtlasIfDirty() {
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &barrier);
 
-    // Copy upload buffer to texture
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
     footprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     footprint.Footprint.Width = m_atlasWidth;
@@ -384,27 +360,15 @@ void GlyphAtlas::UploadAtlasIfDirty() {
     footprint.Footprint.Depth = 1;
     footprint.Footprint.RowPitch = (UINT)uploadPitch;
 
-    D3D12_TEXTURE_COPY_LOCATION dst = {};
-    dst.pResource = m_atlasTexture.Get();
-    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    dst.SubresourceIndex = 0;
-
-    D3D12_TEXTURE_COPY_LOCATION src = {};
-    src.pResource = m_atlasUploadBuffer.Get();
-    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint = footprint;
-
+    D3D12_TEXTURE_COPY_LOCATION dst = {m_atlasTexture.Get(), D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, {0}};
+    D3D12_TEXTURE_COPY_LOCATION src = {m_atlasUploadBuffer.Get(), D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT, {footprint}};
     m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-    spdlog::info("CopyTextureRegion completed");
 
-    // Transition texture back to PIXEL_SHADER_RESOURCE
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     m_commandList->ResourceBarrier(1, &barrier);
-    spdlog::info("Resource barrier completed");
 
     m_atlasDirty = false;
-    spdlog::info("Atlas texture uploaded to GPU successfully!");
 }
 
 void GlyphAtlas::PreloadASCIIGlyphs() {
@@ -442,55 +406,20 @@ void GlyphAtlas::PreloadASCIIGlyphs() {
         spdlog::info("Created solid white pixel for underline rendering");
     }
 
-    int loaded = 0;
-    int failed = 0;
+    int loaded = 0, failed = 0;
 
-    // Preload all printable ASCII characters
-    for (char32_t ch = 32; ch <= 126; ++ch) {
-        const GlyphInfo* glyph = GetGlyph(ch, false, false);
-        if (glyph) {
-            loaded++;
-        } else {
-            failed++;
-            spdlog::warn("Failed to preload glyph for char '{}' (U+{:04X})",
-                        static_cast<char>(ch), static_cast<uint32_t>(ch));
+    auto preloadRange = [&](char32_t start, char32_t end) {
+        for (char32_t ch = start; ch <= end; ++ch) {
+            if (GetGlyph(ch, false, false)) loaded++; else failed++;
         }
-    }
+    };
 
-    // Preload box-drawing characters (U+2500-257F)
-    spdlog::info("Preloading box-drawing characters (U+2500-257F)...");
-    for (char32_t ch = 0x2500; ch <= 0x257F; ++ch) {
-        const GlyphInfo* glyph = GetGlyph(ch, false, false);
-        if (glyph) {
-            loaded++;
-        } else {
-            failed++;
-        }
-    }
+    preloadRange(32, 126);       // ASCII printable
+    preloadRange(0x2500, 0x257F); // Box-drawing
+    preloadRange(0x2580, 0x259F); // Block elements
+    preloadRange(0x25A0, 0x25FF); // Geometric shapes
 
-    // Preload block elements (U+2580-259F)
-    spdlog::info("Preloading block elements (U+2580-259F)...");
-    for (char32_t ch = 0x2580; ch <= 0x259F; ++ch) {
-        const GlyphInfo* glyph = GetGlyph(ch, false, false);
-        if (glyph) {
-            loaded++;
-        } else {
-            failed++;
-        }
-    }
-
-    // Preload geometric shapes commonly used in TUIs (U+25A0-25FF)
-    spdlog::info("Preloading geometric shapes (U+25A0-25FF)...");
-    for (char32_t ch = 0x25A0; ch <= 0x25FF; ++ch) {
-        const GlyphInfo* glyph = GetGlyph(ch, false, false);
-        if (glyph) {
-            loaded++;
-        } else {
-            failed++;
-        }
-    }
-
-    spdlog::info("Preloaded {} glyphs total ({} failed)", loaded, failed);
+    spdlog::info("Preloaded {} glyphs ({} failed)", loaded, failed);
 }
 
 std::vector<ShapedGlyph> GlyphAtlas::ShapeText(const std::u32string& text, bool bold, bool italic) {
