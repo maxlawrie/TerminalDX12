@@ -169,61 +169,53 @@ class ScreenAnalyzer:
         mask = color_filter(img_array)
         return np.sum(mask)
 
+    # Color filter definitions: (R_min, R_max, G_min, G_max, B_min, B_max)
+    _COLOR_FILTERS = {
+        'red':     (150, 256, 0, 100, 0, 100),
+        'green':   (0, 100, 100, 256, 0, 150),
+        'blue':    (0, 100, 0, 180, 150, 256),
+        'cyan':    (0, 100, 100, 256, 150, 256),
+        'magenta': (150, 256, 0, 100, 150, 256),
+        'yellow':  (150, 256, 150, 256, 0, 100),
+    }
+
+    def _make_color_filter(self, r_min, r_max, g_min, g_max, b_min, b_max):
+        """Create a color filter lambda for given RGB ranges."""
+        return lambda img: (
+            (img[:, :, 0] >= r_min) & (img[:, :, 0] < r_max) &
+            (img[:, :, 1] >= g_min) & (img[:, :, 1] < g_max) &
+            (img[:, :, 2] >= b_min) & (img[:, :, 2] < b_max)
+        )
+
+    def find_colored_pixels(self, screenshot: Image.Image, color: str) -> int:
+        """Count pixels of a specific color (red, green, blue, cyan, magenta, yellow)."""
+        if color not in self._COLOR_FILTERS:
+            raise ValueError(f"Unknown color: {color}. Use: {list(self._COLOR_FILTERS.keys())}")
+        return self.find_color_pixels(screenshot, self._make_color_filter(*self._COLOR_FILTERS[color]))
+
     def find_red_pixels(self, screenshot: Image.Image) -> int:
-        """Count reddish pixels (high R, low G and B)."""
-        return self.find_color_pixels(screenshot, lambda img: np.logical_and(
-            img[:, :, 0] > 150,
-            np.logical_and(img[:, :, 1] < 100, img[:, :, 2] < 100)
-        ))
+        return self.find_colored_pixels(screenshot, 'red')
 
     def find_green_pixels(self, screenshot: Image.Image) -> int:
-        """Count greenish pixels (high G, low R and B)."""
-        return self.find_color_pixels(screenshot, lambda img: np.logical_and(
-            img[:, :, 1] > 100,
-            np.logical_and(img[:, :, 0] < 100, img[:, :, 2] < 150)
-        ))
+        return self.find_colored_pixels(screenshot, 'green')
 
     def find_blue_pixels(self, screenshot: Image.Image) -> int:
-        """Count bluish pixels (high B, low R and G)."""
-        return self.find_color_pixels(screenshot, lambda img: np.logical_and(
-            img[:, :, 2] > 150,
-            np.logical_and(img[:, :, 0] < 100, img[:, :, 1] < 180)
-        ))
+        return self.find_colored_pixels(screenshot, 'blue')
 
     def find_cyan_pixels(self, screenshot: Image.Image) -> int:
-        """Count cyanish pixels (low R, high G and B)."""
-        return self.find_color_pixels(screenshot, lambda img: np.logical_and(
-            img[:, :, 0] < 100,
-            np.logical_and(img[:, :, 1] > 100, img[:, :, 2] > 150)
-        ))
+        return self.find_colored_pixels(screenshot, 'cyan')
 
     def find_magenta_pixels(self, screenshot: Image.Image) -> int:
-        """Count magenta pixels (high R and B, low G)."""
-        return self.find_color_pixels(screenshot, lambda img: np.logical_and(
-            img[:, :, 0] > 150,
-            np.logical_and(img[:, :, 1] < 100, img[:, :, 2] > 150)
-        ))
+        return self.find_colored_pixels(screenshot, 'magenta')
 
     def find_yellow_pixels(self, screenshot: Image.Image) -> int:
-        """Count yellowish pixels (high R and G, low B)."""
-        return self.find_color_pixels(screenshot, lambda img: np.logical_and(
-            img[:, :, 0] > 150,
-            np.logical_and(img[:, :, 1] > 150, img[:, :, 2] < 100)
-        ))
+        return self.find_colored_pixels(screenshot, 'yellow')
 
     def find_white_pixels(self, screenshot: Image.Image) -> int:
-        """Count whitish pixels (all channels high)."""
-        return self.find_color_pixels(
-            screenshot,
-            lambda img: np.all(img[:, :, :3] > 150, axis=2)
-        )
+        return self.find_color_pixels(screenshot, lambda img: np.all(img[:, :, :3] > 150, axis=2))
 
     def find_black_pixels(self, screenshot: Image.Image) -> int:
-        """Count blackish pixels (all channels low)."""
-        return self.find_color_pixels(
-            screenshot,
-            lambda img: np.all(img[:, :, :3] < 30, axis=2)
-        )
+        return self.find_color_pixels(screenshot, lambda img: np.all(img[:, :, :3] < 30, axis=2))
 
     def get_black_ratio(self, screenshot: Image.Image) -> float:
         """Get ratio of black pixels in screenshot."""
@@ -330,43 +322,26 @@ class KeyboardController:
             shift = (vk >> 8) & 0x01
             self._send_key(keycode, with_shift=bool(shift))
 
-    def send_special_key(
-        self,
-        vk_code: int,
-        ctrl: bool = False,
-        shift: bool = False,
-        alt: bool = False
-    ) -> None:
-        """
-        Send a special key with modifiers.
+    # Modifier key mappings
+    _MODIFIERS = {
+        'ctrl': win32con.VK_CONTROL,
+        'shift': win32con.VK_SHIFT,
+        'alt': win32con.VK_MENU,
+    }
 
-        Args:
-            vk_code: Virtual key code
-            ctrl: Hold Ctrl
-            shift: Hold Shift
-            alt: Hold Alt
-        """
+    def send_special_key(self, vk_code: int, ctrl: bool = False, shift: bool = False, alt: bool = False) -> None:
+        """Send a special key with modifiers."""
         self._ensure_focus()
+        mods = [(k, v) for k, v in [('ctrl', ctrl), ('shift', shift), ('alt', alt)] if v]
 
-        # Press modifiers
-        if ctrl:
-            win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
-        if shift:
-            win32api.keybd_event(win32con.VK_SHIFT, 0, 0, 0)
-        if alt:
-            win32api.keybd_event(win32con.VK_MENU, 0, 0, 0)
+        for name, _ in mods:
+            win32api.keybd_event(self._MODIFIERS[name], 0, 0, 0)
 
-        # Press key
         win32api.keybd_event(vk_code, 0, 0, 0)
         win32api.keybd_event(vk_code, 0, win32con.KEYEVENTF_KEYUP, 0)
 
-        # Release modifiers
-        if alt:
-            win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
-        if shift:
-            win32api.keybd_event(win32con.VK_SHIFT, 0, win32con.KEYEVENTF_KEYUP, 0)
-        if ctrl:
-            win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+        for name, _ in reversed(mods):
+            win32api.keybd_event(self._MODIFIERS[name], 0, win32con.KEYEVENTF_KEYUP, 0)
 
     def send_ctrl_c(self) -> None:
         """Send Ctrl+C to interrupt running process."""
