@@ -288,7 +288,10 @@ bool Application::Initialize(const std::wstring& shell) {
     UI::MouseHandlerCallbacks mouseCallbacks;
     mouseCallbacks.onPaste = [this]() { PasteFromClipboard(); };
     mouseCallbacks.onOpenUrl = [](const std::string& url) { UI::UrlHelper::OpenUrl(url); };
-    mouseCallbacks.onShowContextMenu = [this](int x, int y) { ShowContextMenu(x, y); };
+    mouseCallbacks.onShowContextMenu = [this](int x, int y) {
+        HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+        m_selectionManager.ShowContextMenu(x, y, hwnd, GetActiveScreenBuffer(), GetActiveTerminal());
+    };
     mouseCallbacks.onSwitchToTab = [this](int tabId) {
         if (m_tabManager) m_tabManager->SwitchToTab(tabId);
     };
@@ -1056,67 +1059,6 @@ void Application::SelectWord(int cellX, int cellY) {
 void Application::SelectLine(int cellY) {
     Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
     m_selectionManager.SelectLine(screenBuffer, cellY);
-}
-
-void Application::ShowContextMenu(int x, int y) {
-    if (!m_window) return;
-
-    HWND hwnd = m_window->GetHandle();
-    HMENU hMenu = CreatePopupMenu();
-    if (!hMenu) return;
-
-    // Menu item IDs
-    constexpr UINT ID_COPY = 1;
-    constexpr UINT ID_PASTE = 2;
-    constexpr UINT ID_SELECT_ALL = 3;
-
-    // Add menu items
-    UINT copyFlags = MF_STRING | (m_selectionManager.HasSelection() ? 0 : MF_GRAYED);
-    AppendMenuW(hMenu, copyFlags, ID_COPY, L"Copy	Ctrl+C");
-
-    // Check if clipboard has text
-    bool hasClipboardText = false;
-    if (OpenClipboard(hwnd)) {
-        hasClipboardText = (GetClipboardData(CF_UNICODETEXT) != nullptr);
-        CloseClipboard();
-    }
-    UINT pasteFlags = MF_STRING | (hasClipboardText ? 0 : MF_GRAYED);
-    AppendMenuW(hMenu, pasteFlags, ID_PASTE, L"Paste	Ctrl+V");
-
-    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hMenu, MF_STRING, ID_SELECT_ALL, L"Select All");
-
-    // Get screen coordinates
-    POINT pt = {x, y};
-    ClientToScreen(hwnd, &pt);
-
-    // Show menu and get selection
-    UINT cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
-                              pt.x, pt.y, 0, hwnd, nullptr);
-
-    DestroyMenu(hMenu);
-
-    // Handle selection
-    switch (cmd) {
-        case ID_COPY:
-            CopySelectionToClipboard();
-            break;
-        case ID_PASTE:
-            PasteFromClipboard();
-            break;
-        case ID_SELECT_ALL:
-            {
-                Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-                if (screenBuffer) {
-                    UI::SelectionPos startPos{0, 0};
-                    UI::SelectionPos endPos{screenBuffer->GetCols() - 1, screenBuffer->GetRows() - 1};
-                    m_selectionManager.StartSelection(startPos, false);
-                    m_selectionManager.ExtendSelection(endPos);
-                    m_selectionManager.EndSelection();
-                }
-            }
-            break;
-    }
 }
 
 // Search functionality - delegates to SearchManager

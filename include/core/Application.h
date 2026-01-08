@@ -130,9 +130,6 @@ private:
     void SelectLine(int cellY);
     bool IsWordChar(char32_t ch) const;
 
-    // Context menu
-    void ShowContextMenu(int x, int y);
-
     // Search functionality
     void OpenSearch();
     void CloseSearch();

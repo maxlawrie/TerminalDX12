@@ -95,6 +95,15 @@ public:
     /// @return true if the character is a word character
     bool IsWordChar(char32_t ch) const;
 
+    /// @brief Show context menu at the given position
+    /// @param x Screen X coordinate
+    /// @param y Screen Y coordinate
+    /// @param hwnd Window handle
+    /// @param screenBuffer Screen buffer for select-all operation
+    /// @param terminal Terminal for paste operation
+    void ShowContextMenu(int x, int y, HWND hwnd, Terminal::ScreenBuffer* screenBuffer,
+                         Pty::ConPtySession* terminal);
+
 private:
     SelectionPos m_selectionStart{0, 0};
     SelectionPos m_selectionEnd{0, 0};
