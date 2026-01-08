@@ -311,92 +311,36 @@ bool InputHandler::HandleCtrlShortcuts(UINT key) {
 }
 
 bool InputHandler::HandleAltArrowNavigation(UINT key) {
-    if (key == VK_LEFT || key == VK_RIGHT) {
-        if (key == VK_LEFT) {
-            if (m_callbacks.onFocusPreviousPane) {
-                m_callbacks.onFocusPreviousPane();
-            }
-        } else {
-            if (m_callbacks.onFocusNextPane) {
-                m_callbacks.onFocusNextPane();
-            }
-        }
+    if (key == VK_LEFT || key == VK_UP) {
+        if (m_callbacks.onFocusPreviousPane) m_callbacks.onFocusPreviousPane();
         return true;
     }
-    if (key == VK_UP || key == VK_DOWN) {
-        if (key == VK_UP) {
-            if (m_callbacks.onFocusPreviousPane) {
-                m_callbacks.onFocusPreviousPane();
-            }
-        } else {
-            if (m_callbacks.onFocusNextPane) {
-                m_callbacks.onFocusNextPane();
-            }
-        }
+    if (key == VK_RIGHT || key == VK_DOWN) {
+        if (m_callbacks.onFocusNextPane) m_callbacks.onFocusNextPane();
         return true;
     }
     return false;
 }
 
 bool InputHandler::HandleSpecialKeys(UINT key, DWORD controlState) {
-    switch (key) {
-        case VK_BACK:
-            SendWin32InputKey(VK_BACK, L'\b', true, controlState);
-            return true;
-        case VK_RETURN:
-            SendWin32InputKey(VK_RETURN, L'\r', true, controlState);
-            return true;
-        case VK_TAB:
-            SendWin32InputKey(VK_TAB, L'\t', true, controlState);
-            return true;
-        case VK_ESCAPE:
-            SendWin32InputKey(VK_ESCAPE, L'\x1b', true, controlState);
-            return true;
-        case VK_UP:
-            SendWin32InputKey(VK_UP, 0, true, controlState);
-            return true;
-        case VK_DOWN:
-            SendWin32InputKey(VK_DOWN, 0, true, controlState);
-            return true;
-        case VK_RIGHT:
-            SendWin32InputKey(VK_RIGHT, 0, true, controlState);
-            return true;
-        case VK_LEFT:
-            SendWin32InputKey(VK_LEFT, 0, true, controlState);
-            return true;
-        case VK_HOME:
-            SendWin32InputKey(VK_HOME, 0, true, controlState);
-            return true;
-        case VK_END:
-            SendWin32InputKey(VK_END, 0, true, controlState);
-            return true;
-        case VK_PRIOR:  // Page Up
-            SendWin32InputKey(VK_PRIOR, 0, true, controlState);
-            return true;
-        case VK_NEXT:   // Page Down
-            SendWin32InputKey(VK_NEXT, 0, true, controlState);
-            return true;
-        case VK_INSERT:
-            SendWin32InputKey(VK_INSERT, 0, true, controlState);
-            return true;
-        case VK_DELETE:
-            SendWin32InputKey(VK_DELETE, 0, true, controlState);
-            return true;
-        // Function keys F1-F12
-        case VK_F1:
-        case VK_F2:
-        case VK_F3:
-        case VK_F4:
-        case VK_F5:
-        case VK_F6:
-        case VK_F7:
-        case VK_F8:
-        case VK_F9:
-        case VK_F10:
-        case VK_F11:
-        case VK_F12:
-            SendWin32InputKey(key, 0, true, controlState);
-            return true;
+    static const std::pair<UINT, wchar_t> charKeys[] = {
+        {VK_BACK, L'\b'}, {VK_RETURN, L'\r'}, {VK_TAB, L'\t'}, {VK_ESCAPE, L'\x1b'}
+    };
+    for (auto [vk, ch] : charKeys) {
+        if (key == vk) { SendWin32InputKey(vk, ch, true, controlState); return true; }
+    }
+
+    static const UINT navKeys[] = {
+        VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_HOME, VK_END,
+        VK_PRIOR, VK_NEXT, VK_INSERT, VK_DELETE
+    };
+    for (UINT vk : navKeys) {
+        if (key == vk) { SendWin32InputKey(vk, 0, true, controlState); return true; }
+    }
+
+    if (key >= VK_F1 && key <= VK_F12) {
+        SendWin32InputKey(key, 0, true, controlState);
+        return true;
     }
     return false;
 }
@@ -425,45 +369,18 @@ bool InputHandler::HandleScrollbackNavigation(UINT key) {
 
 bool InputHandler::HandleSearchModeKey(UINT key) {
     if (key == VK_ESCAPE) {
-        if (m_callbacks.onCloseSearch) {
-            m_callbacks.onCloseSearch();
-        }
+        if (m_callbacks.onCloseSearch) m_callbacks.onCloseSearch();
         return true;
     }
-    if (key == VK_RETURN) {
-        // Enter: Next match (Shift+Enter: Previous)
-        if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
-            if (m_callbacks.onSearchPrevious) {
-                m_callbacks.onSearchPrevious();
-            }
-        } else {
-            if (m_callbacks.onSearchNext) {
-                m_callbacks.onSearchNext();
-            }
-        }
+    if (key == VK_RETURN || key == VK_F3) {
+        bool prev = GetAsyncKeyState(VK_SHIFT) & 0x8000;
+        if (prev && m_callbacks.onSearchPrevious) m_callbacks.onSearchPrevious();
+        else if (!prev && m_callbacks.onSearchNext) m_callbacks.onSearchNext();
         return true;
     }
-    if (key == VK_F3) {
-        // F3: Next match (Shift+F3: Previous)
-        if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
-            if (m_callbacks.onSearchPrevious) {
-                m_callbacks.onSearchPrevious();
-            }
-        } else {
-            if (m_callbacks.onSearchNext) {
-                m_callbacks.onSearchNext();
-            }
-        }
-        return true;
-    }
-    if (key == VK_BACK) {
-        // Backspace: Remove last character
-        if (!m_searchManager.GetQuery().empty()) {
-            m_searchManager.Backspace();
-            if (m_callbacks.onUpdateSearchResults) {
-                m_callbacks.onUpdateSearchResults();
-            }
-        }
+    if (key == VK_BACK && !m_searchManager.GetQuery().empty()) {
+        m_searchManager.Backspace();
+        if (m_callbacks.onUpdateSearchResults) m_callbacks.onUpdateSearchResults();
         return true;
     }
     return false;
