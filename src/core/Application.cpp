@@ -1016,15 +1016,6 @@ void Application::OnMouseMove(int x, int y) {
     }
 }
 
-void Application::ClearSelection() {
-    m_selectionManager.ClearSelection();
-}
-
-std::string Application::GetSelectedText() const {
-    Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
-    return m_selectionManager.GetSelectedText(screenBuffer);
-}
-
 void Application::CopySelectionToClipboard() {
     Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
     HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
@@ -1035,30 +1026,6 @@ void Application::PasteFromClipboard() {
     Pty::ConPtySession* terminal = GetActiveTerminal();
     HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
     m_selectionManager.PasteFromClipboard(terminal, hwnd);
-}
-
-std::string Application::GetClipboardText() {
-    HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-    return m_selectionManager.GetClipboardText(hwnd);
-}
-
-void Application::SetClipboardText(const std::string& text) {
-    HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-    m_selectionManager.SetClipboardText(text, hwnd);
-}
-
-bool Application::IsWordChar(char32_t ch) const {
-    return m_selectionManager.IsWordChar(ch);
-}
-
-void Application::SelectWord(int cellX, int cellY) {
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    m_selectionManager.SelectWord(screenBuffer, cellX, cellY);
-}
-
-void Application::SelectLine(int cellY) {
-    Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();
-    m_selectionManager.SelectLine(screenBuffer, cellY);
 }
 
 // Search functionality - delegates to SearchManager
@@ -1154,10 +1121,6 @@ void Application::FocusPreviousPane() {
     m_paneManager.FocusPreviousPane();
 }
 
-void Application::FocusPaneInDirection(UI::SplitDirection direction) {
-    m_paneManager.FocusPaneInDirection(direction);
-}
-
 void Application::UpdatePaneLayout() {
     if (!m_window) {
         return;
@@ -1168,46 +1131,6 @@ void Application::UpdatePaneLayout() {
     int tabBarHeight = (m_tabManager && m_tabManager->GetTabCount() > 1) ? 30 : 0;
 
     m_paneManager.UpdateLayout(width, height, tabBarHeight);
-}
-
-void Application::RenderPane(UI::Pane* pane, int windowWidth, int windowHeight) {
-    if (!pane || !pane->IsLeaf()) {
-        return;
-    }
-
-    UI::Tab* tab = pane->GetTab();
-    if (!tab) {
-        return;
-    }
-
-    Terminal::ScreenBuffer* screenBuffer = tab->GetScreenBuffer();
-    if (!screenBuffer) {
-        return;
-    }
-
-    const UI::PaneRect& bounds = pane->GetBounds();
-
-    // Draw pane border if this is the focused pane
-    bool isFocused = (pane == m_paneManager.GetFocusedPane());
-    if (isFocused) {
-        // Highlight focused pane with a subtle border
-        float borderColor = 0.4f;
-        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
-                               static_cast<float>(bounds.width), 2.0f,
-                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
-        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y + bounds.height - 2),
-                               static_cast<float>(bounds.width), 2.0f,
-                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
-        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
-                               2.0f, static_cast<float>(bounds.height),
-                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
-        m_renderer->RenderRect(static_cast<float>(bounds.x + bounds.width - 2), static_cast<float>(bounds.y),
-                               2.0f, static_cast<float>(bounds.height),
-                               borderColor, borderColor, borderColor + 0.1f, 1.0f);
-    }
-
-    // The actual terminal content rendering is done in Render() using the screen buffer
-    // This method just renders pane-specific UI elements
 }
 
 } // namespace Core

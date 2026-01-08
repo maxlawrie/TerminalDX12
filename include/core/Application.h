@@ -118,17 +118,8 @@ private:
     // Selection helpers
     struct CellPos { int x, y; };
     CellPos ScreenToCell(int pixelX, int pixelY) const;
-    std::string GetSelectedText() const;
     void CopySelectionToClipboard();
     void PasteFromClipboard();
-    std::string GetClipboardText();          // For OSC 52 read
-    void SetClipboardText(const std::string& text);  // For OSC 52 write
-    void ClearSelection();
-
-    // Word/line selection helpers
-    void SelectWord(int cellX, int cellY);
-    void SelectLine(int cellY);
-    bool IsWordChar(char32_t ch) const;
 
     // Search functionality
     void OpenSearch();
@@ -148,8 +139,6 @@ private:
     void ClosePane();
     void FocusNextPane();
     void FocusPreviousPane();
-    void FocusPaneInDirection(UI::SplitDirection direction);
-    void RenderPane(UI::Pane* pane, int windowWidth, int windowHeight);
     void UpdatePaneLayout();
 
     std::unique_ptr<Config> m_config;
