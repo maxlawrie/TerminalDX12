@@ -314,7 +314,8 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
     constexpr UINT ID_SELECT_ALL = 3;
     constexpr UINT ID_SPLIT_HORIZONTAL = 4;
     constexpr UINT ID_SPLIT_VERTICAL = 5;
-    constexpr UINT ID_SETTINGS = 6;
+    constexpr UINT ID_CLOSE_PANE = 6;
+    constexpr UINT ID_SETTINGS = 7;
 
     // Add menu items
     UINT copyFlags = MF_STRING | (m_hasSelection ? 0 : MF_GRAYED);
@@ -335,6 +336,11 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_SPLIT_HORIZONTAL, L"Split Right\tCtrl+Shift+D");
     AppendMenuW(hMenu, MF_STRING, ID_SPLIT_VERTICAL, L"Split Down\tCtrl+Shift+E");
+
+    // Only show Close Pane if there are multiple panes
+    bool hasMultiple = m_hasMultiplePanes && m_hasMultiplePanes();
+    UINT closePaneFlags = MF_STRING | (hasMultiple ? 0 : MF_GRAYED);
+    AppendMenuW(hMenu, closePaneFlags, ID_CLOSE_PANE, L"Close Pane\tCtrl+Shift+W");
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_SETTINGS, L"Settings...\tCtrl+,");
@@ -373,6 +379,11 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
         case ID_SPLIT_VERTICAL:
             if (m_onSplitVertical) {
                 m_onSplitVertical();
+            }
+            break;
+        case ID_CLOSE_PANE:
+            if (m_onClosePane) {
+                m_onClosePane();
             }
             break;
         case ID_SETTINGS:

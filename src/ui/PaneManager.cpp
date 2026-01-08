@@ -64,22 +64,14 @@ Tab* PaneManager::CloseFocusedPane() {
     // Get the tab from the pane we're closing
     Tab* tabToClose = m_focusedPane->GetTab();
 
-    // Find another pane to focus
-    Pane* newFocus = m_rootPane->FindAdjacentPane(m_focusedPane, SplitDirection::Horizontal, true);
-
-    // Close the child in the parent
+    // Close the child in the parent (this restructures the tree and invalidates pointers)
     if (parent->CloseChild(m_focusedPane)) {
-        // Update focus
-        if (newFocus && newFocus != m_focusedPane) {
-            m_focusedPane = newFocus;
-        } else {
-            // Find any leaf pane
-            leaves.clear();
-            m_rootPane->GetAllLeafPanes(leaves);
-            m_focusedPane = leaves.empty() ? nullptr : leaves[0];
-        }
+        // Find a valid leaf pane to focus (must search AFTER CloseChild as tree structure changed)
+        leaves.clear();
+        m_rootPane->GetAllLeafPanes(leaves);
+        m_focusedPane = leaves.empty() ? nullptr : leaves[0];
 
-        spdlog::info("Closed pane");
+        spdlog::info("Closed pane, {} panes remaining", leaves.size());
         return tabToClose;
     }
 

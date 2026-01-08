@@ -283,6 +283,8 @@ bool Application::Initialize(const std::wstring& shell) {
     m_selectionManager.SetSettingsCallback([this]() { ShowSettings(); });
     m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
     m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
+    m_selectionManager.SetClosePaneCallback([this]() { ClosePane(); });
+    m_selectionManager.SetHasMultiplePanes([this]() { return m_paneManager.HasMultiplePanes(); });
 
     // Create mouse handler with callbacks
     UI::MouseHandlerCallbacks mouseCallbacks;
