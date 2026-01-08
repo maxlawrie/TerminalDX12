@@ -356,37 +356,20 @@ std::pair<int, int> Application::CalculateTerminalSize(int width, int height) co
 }
 
 int Application::Run() {
-    spdlog::info("Application::Run() - entering main loop");
-
     while (m_running) {
-        // Process Windows messages
-        if (!ProcessMessages()) {
-            spdlog::info("ProcessMessages returned false, exiting loop");
-            break;
-        }
-
-        // Render
-        if (!m_minimized) {
-            Render();
-        }
+        if (!ProcessMessages()) break;
+        if (!m_minimized) Render();
     }
-
     return 0;
 }
 
 bool Application::ProcessMessages() {
     MSG msg = {};
-
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-        if (msg.message == WM_QUIT) {
-            m_running = false;
-            return false;
-        }
-
+        if (msg.message == WM_QUIT) return false;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
-
     return true;
 }
 
@@ -755,25 +738,15 @@ void Application::Render() {
     // Apply any pending resize BEFORE starting the frame
     if (m_pendingResize) {
         m_pendingResize = false;
-
-        spdlog::info("Applying deferred DX12 resize: {}x{}", m_pendingWidth, m_pendingHeight);
-
-        // Resize renderer only, skip buffer resize for this frame
         m_renderer->Resize(m_pendingWidth, m_pendingHeight);
-
-        // Queue ConPTY resize for next frame
         m_pendingConPTYResize = true;
-
-        // Skip rest of frame to let DX12 stabilize
         return;
     }
 
     // Resize ConPTY after DX12 has stabilized (one frame later)
     if (m_pendingConPTYResize) {
         m_pendingConPTYResize = false;
-
         auto [newCols, newRows] = CalculateTerminalSize(m_pendingWidth, m_pendingHeight);
-        spdlog::info("Applying deferred ConPTY resize: {}x{}", newCols, newRows);
 
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
@@ -838,36 +811,21 @@ void Application::OnWindowResize(int width, int height) {
                 return buf && buf->IsUsingAlternativeBuffer();
             });
 
-        // If TUI is running, only resize DX12 renderer (skip buffer resize)
-        if (anyAltBuffer) {
-            spdlog::info("OnWindowResize: alt buffer active, only resizing DX12 renderer {}x{}", width, height);
-            m_pendingResize = true;
-            m_pendingWidth = width;
-            m_pendingHeight = height;
-            // Skip ScreenBuffer and ConPTY resize
-            return;
-        }
-
         // Defer DX12 renderer resize to next frame start
         m_pendingResize = true;
         m_pendingWidth = width;
         m_pendingHeight = height;
 
-        spdlog::info("OnWindowResize: queued deferred resize {}x{}", width, height);
+        // If TUI is running, skip buffer resize
+        if (anyAltBuffer) return;
 
         // Resize terminal buffers immediately (protected by mutex)
         auto [newCols, newRows] = CalculateTerminalSize(width, height);
-        spdlog::info("OnWindowResize: resizing buffers to {}x{}", newCols, newRows);
-
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) {
-                    tab->ResizeScreenBuffer(newCols, newRows);
-                }
+                if (tab) tab->ResizeScreenBuffer(newCols, newRows);
             }
         }
-
-        spdlog::info("OnWindowResize: buffer resize complete");
     }
 }
 
