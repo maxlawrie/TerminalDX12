@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <functional>
 #include <Windows.h>
 
 namespace TerminalDX12::Terminal {
@@ -104,7 +105,11 @@ public:
     void ShowContextMenu(int x, int y, HWND hwnd, Terminal::ScreenBuffer* screenBuffer,
                          Pty::ConPtySession* terminal);
 
+    /// @brief Set callback for opening settings dialog
+    void SetSettingsCallback(std::function<void()> callback) { m_onShowSettings = std::move(callback); }
+
 private:
+    std::function<void()> m_onShowSettings;
     SelectionPos m_selectionStart{0, 0};
     SelectionPos m_selectionEnd{0, 0};
     bool m_selecting = false;

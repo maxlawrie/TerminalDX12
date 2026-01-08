@@ -279,6 +279,9 @@ bool Application::Initialize(const std::wstring& shell) {
     m_inputHandler = std::make_unique<UI::InputHandler>(
         std::move(inputCallbacks), m_searchManager, m_selectionManager);
 
+    // Set up settings callback for context menu
+    m_selectionManager.SetSettingsCallback([this]() { ShowSettings(); });
+
     // Create mouse handler with callbacks
     UI::MouseHandlerCallbacks mouseCallbacks;
     mouseCallbacks.onPaste = [this]() { PasteFromClipboard(); };
