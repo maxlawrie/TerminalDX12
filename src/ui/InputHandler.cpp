@@ -3,6 +3,7 @@
 #include "ui/SelectionManager.h"
 #include "ui/Pane.h"
 #include "terminal/ScreenBuffer.h"
+#include "terminal/VTStateMachine.h"
 #include "pty/ConPtySession.h"
 #include <spdlog/spdlog.h>
 
@@ -323,25 +324,135 @@ bool InputHandler::HandleAltArrowNavigation(UINT key) {
 }
 
 bool InputHandler::HandleSpecialKeys(UINT key, DWORD controlState) {
-    static const std::pair<UINT, wchar_t> charKeys[] = {
-        {VK_BACK, L'\b'}, {VK_RETURN, L'\r'}, {VK_TAB, L'\t'}, {VK_ESCAPE, L'\x1b'}
-    };
-    for (auto [vk, ch] : charKeys) {
-        if (key == vk) { SendWin32InputKey(vk, ch, true, controlState); return true; }
+    Pty::ConPtySession* terminal = m_callbacks.getActiveTerminal ? m_callbacks.getActiveTerminal() : nullptr;
+    if (!terminal || !terminal->IsRunning()) {
+        return false;
     }
 
-    static const UINT navKeys[] = {
-        VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_HOME, VK_END,
-        VK_PRIOR, VK_NEXT, VK_INSERT, VK_DELETE
-    };
-    for (UINT vk : navKeys) {
-        if (key == vk) { SendWin32InputKey(vk, 0, true, controlState); return true; }
+    // Check application cursor keys mode (DECCKM)
+    bool appCursorKeys = false;
+    if (m_callbacks.getVTParser) {
+        auto* vtParser = m_callbacks.getVTParser();
+        if (vtParser) {
+            appCursorKeys = vtParser->IsApplicationCursorKeysEnabled();
+        }
     }
 
-    if (key >= VK_F1 && key <= VK_F12) {
-        SendWin32InputKey(key, 0, true, controlState);
+    // Calculate modifier code for xterm-style sequences
+    // mod = 1 + shift + 2*alt + 4*ctrl
+    int mod = 1;
+    if (controlState & SHIFT_PRESSED) mod += 1;
+    if (controlState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) mod += 2;
+    if (controlState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) mod += 4;
+    bool hasModifiers = (mod > 1);
+
+    // Basic control characters
+    switch (key) {
+        case VK_BACK:
+            terminal->WriteInput("", 1);  // DEL character
+            return true;
+        case VK_RETURN:
+            terminal->WriteInput("", 1);  // CR
+            return true;
+        case VK_TAB:
+            terminal->WriteInput("	", 1);  // HT
+            return true;
+        case VK_ESCAPE:
+            terminal->WriteInput("", 1);  // ESC
+            return true;
+    }
+
+    // Arrow keys - respect application cursor mode
+    char arrowBuf[16];
+    int arrowLen = 0;
+    char arrowChar = 0;
+    switch (key) {
+        case VK_UP:    arrowChar = 'A'; break;
+        case VK_DOWN:  arrowChar = 'B'; break;
+        case VK_RIGHT: arrowChar = 'C'; break;
+        case VK_LEFT:  arrowChar = 'D'; break;
+    }
+    if (arrowChar) {
+        if (hasModifiers) {
+            // With modifiers: CSI 1;mod X
+            arrowLen = snprintf(arrowBuf, sizeof(arrowBuf), "[1;%d%c", mod, arrowChar);
+        } else if (appCursorKeys) {
+            // Application mode: SS3 X
+            arrowLen = snprintf(arrowBuf, sizeof(arrowBuf), "O%c", arrowChar);
+        } else {
+            // Normal mode: CSI X
+            arrowLen = snprintf(arrowBuf, sizeof(arrowBuf), "[%c", arrowChar);
+        }
+        terminal->WriteInput(arrowBuf, arrowLen);
         return true;
     }
+
+    // Home/End keys
+    char homeEndBuf[16];
+    int homeEndLen = 0;
+    if (key == VK_HOME) {
+        if (hasModifiers) {
+            homeEndLen = snprintf(homeEndBuf, sizeof(homeEndBuf), "[1;%dH", mod);
+        } else {
+            homeEndLen = snprintf(homeEndBuf, sizeof(homeEndBuf), "[H");
+        }
+        terminal->WriteInput(homeEndBuf, homeEndLen);
+        return true;
+    }
+    if (key == VK_END) {
+        if (hasModifiers) {
+            homeEndLen = snprintf(homeEndBuf, sizeof(homeEndBuf), "[1;%dF", mod);
+        } else {
+            homeEndLen = snprintf(homeEndBuf, sizeof(homeEndBuf), "[F");
+        }
+        terminal->WriteInput(homeEndBuf, homeEndLen);
+        return true;
+    }
+
+    // Editing keys: Insert, Delete, PageUp, PageDown
+    char editBuf[16];
+    int editLen = 0;
+    int editCode = 0;
+    switch (key) {
+        case VK_INSERT: editCode = 2; break;
+        case VK_DELETE: editCode = 3; break;
+        case VK_PRIOR:  editCode = 5; break;  // Page Up
+        case VK_NEXT:   editCode = 6; break;  // Page Down
+    }
+    if (editCode) {
+        if (hasModifiers) {
+            editLen = snprintf(editBuf, sizeof(editBuf), "[%d;%d~", editCode, mod);
+        } else {
+            editLen = snprintf(editBuf, sizeof(editBuf), "[%d~", editCode);
+        }
+        terminal->WriteInput(editBuf, editLen);
+        return true;
+    }
+
+    // Function keys F1-F12
+    if (key >= VK_F1 && key <= VK_F12) {
+        char fkeyBuf[16];
+        int fkeyLen = 0;
+        int fkeyNum = key - VK_F1;  // 0-11
+
+        // F1-F4 use SS3 format, F5-F12 use CSI n ~ format
+        static const int fkeyCodes[] = {11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24};
+
+        if (fkeyNum < 4 && !hasModifiers) {
+            // F1-F4 without modifiers: SS3 P/Q/R/S
+            fkeyLen = snprintf(fkeyBuf, sizeof(fkeyBuf), "O%c", 'P' + fkeyNum);
+        } else {
+            int code = fkeyCodes[fkeyNum];
+            if (hasModifiers) {
+                fkeyLen = snprintf(fkeyBuf, sizeof(fkeyBuf), "[%d;%d~", code, mod);
+            } else {
+                fkeyLen = snprintf(fkeyBuf, sizeof(fkeyBuf), "[%d~", code);
+            }
+        }
+        terminal->WriteInput(fkeyBuf, fkeyLen);
+        return true;
+    }
+
     return false;
 }
 

@@ -3,6 +3,8 @@
 #include <d3d12.h>
 #include <wrl/client.h>
 #include <cstdlib>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 using namespace TerminalDX12;
 using Microsoft::WRL::ComPtr;
@@ -16,6 +18,17 @@ int WINAPI wWinMain(
     (void)hInstance;
     (void)hPrevInstance;
     (void)nShowCmd;
+
+    // Set up file logging for debugging
+    try {
+        auto file_logger = spdlog::basic_logger_mt("default", "terminaldx12_debug.log", true);
+        spdlog::set_default_logger(file_logger);
+        spdlog::set_level(spdlog::level::info);
+        spdlog::flush_on(spdlog::level::info);
+        spdlog::info("=== TerminalDX12 Starting ===");
+    } catch (...) {
+        // Continue without file logging if it fails
+    }
 
     // Parse command line - use lpCmdLine as shell if provided, otherwise default to PowerShell
     std::wstring shell = L"powershell.exe";

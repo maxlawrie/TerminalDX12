@@ -8,6 +8,7 @@ namespace TerminalDX12 {
 
 namespace Terminal {
     class ScreenBuffer;
+    class VTStateMachine;
 }
 
 namespace Pty {
@@ -55,6 +56,7 @@ struct InputHandlerCallbacks {
     std::function<int()> getTabCount;
     std::function<bool()> hasMultiplePanes;
     std::function<const std::wstring&()> getShellCommand;
+    std::function<Terminal::VTStateMachine*()> getVTParser;
 };
 
 /**

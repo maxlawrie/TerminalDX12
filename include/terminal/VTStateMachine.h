@@ -145,6 +145,10 @@ private:
     void HandleScrollDown();         // CSI n T - Scroll down
     void HandleTabClear();           // CSI n g - Tab clear (TBC)
     void HandleCursorStyle();        // CSI n SP q - Set cursor style (DECSCUSR)
+    void HandleXtversion();          // CSI > q - Terminal version query
+    void HandleKittyKeyboard();      // CSI > u / < u / ? u - Kitty keyboard protocol
+    void HandleDECRQM();             // CSI ? Ps $ p - Request mode
+    void HandleWindowManipulation(); // CSI n t - Window manipulation (XTWINOPS)
 
     // Utility
     int GetParam(size_t index, int defaultValue = 0) const;
@@ -170,6 +174,7 @@ private:
     // Saved cursor states
     SavedCursorState m_savedCursor;      // For DECSC/DECRC (ESC 7 / ESC 8)
     SavedCursorState m_savedCursorCSI;   // For CSI s / CSI u
+    SavedCursorState m_savedCursor1049;  // For mode 1049 (alt buffer switch)
 
     // Terminal modes
     bool m_applicationCursorKeys = false;  // DECCKM (mode 1)
@@ -193,6 +198,8 @@ private:
     // Mouse modes
     MouseMode m_mouseMode = MouseMode::None;  // Current mouse tracking mode
     bool m_sgrMouseMode = false;              // Mode 1006 - SGR extended format
+    bool m_focusReporting = false;            // Mode 1004 - Report focus in/out
+    bool m_synchronizedOutput = false;        // Mode 2026 - Buffered output
 
     // OSC 52 clipboard security
     Osc52Policy m_osc52Policy = Osc52Policy::WriteOnly;  // Default: safer write-only

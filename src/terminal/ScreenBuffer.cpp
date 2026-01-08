@@ -184,8 +184,14 @@ void ScreenBuffer::Resize(int cols, int rows) {
 }
 
 void ScreenBuffer::SetCursorPos(int x, int y) {
+    int oldX = m_cursorX, oldY = m_cursorY;
     m_cursorX = std::clamp(x, 0, m_cols - 1);
     m_cursorY = std::clamp(y, 0, m_rows - 1);
+    m_pendingWrap = false;  // Cancel pending wrap when cursor is explicitly moved
+    if (m_cursorX != x || m_cursorY != y) {
+        spdlog::info("SetCursorPos: ({},{}) CLAMPED to ({},{}) [screen={}x{}]",
+                     x, y, m_cursorX, m_cursorY, m_cols, m_rows);
+    }
     m_dirty = true;
 }
 
@@ -203,33 +209,27 @@ void ScreenBuffer::WriteChar(char32_t ch, const CellAttributes& attr) {
     // Handle control characters
     switch (ch) {
         case U'\n':
+            // Traditional behavior: LF does CR+LF (many Windows programs expect this)
+            m_pendingWrap = false;  // Cancel pending wrap
             NewLine();
             return;
         case U'\r':
+            m_pendingWrap = false;  // Cancel pending wrap
             CarriageReturn();
             return;
         case U'\t':
+            m_pendingWrap = false;  // Cancel pending wrap
             Tab();
             return;
         case U'\b':
+            m_pendingWrap = false;  // Cancel pending wrap
             Backspace();
             return;
     }
 
-    // Write character at cursor position
-    if (m_cursorY >= 0 && m_cursorY < m_rows &&
-        m_cursorX >= 0 && m_cursorX < m_cols) {
-        int idx = CellIndex(m_cursorX, m_cursorY);
-        m_buffer[idx].ch = ch;
-        m_buffer[idx].attr = attr;
-        m_dirty = true;
-    }
-
-    // Advance cursor
-    m_cursorX++;
-
-    // Wrap to next line if needed
-    if (m_cursorX >= m_cols) {
+    // If there's a pending wrap from the previous character, do the wrap now
+    if (m_pendingWrap) {
+        m_pendingWrap = false;
         m_cursorX = 0;
         m_cursorY++;
 
@@ -241,18 +241,31 @@ void ScreenBuffer::WriteChar(char32_t ch, const CellAttributes& attr) {
         // Scroll if at bottom of scroll region
         int bottom = GetScrollRegionBottom();
         if (m_cursorY > bottom) {
-            // Check if an explicit scroll region is set (m_scrollBottom >= 0)
             bool hasExplicitScrollRegion = (m_scrollBottom >= 0);
-            
             if (hasExplicitScrollRegion) {
-                // Explicit scroll region - scroll within region, discard top
                 ScrollRegionUp(1);
             } else {
-                // No explicit scroll region - scroll whole screen, add to scrollback
                 ScrollUp(1);
             }
             m_cursorY = bottom;
         }
+    }
+
+    // Write character at cursor position
+    if (m_cursorY >= 0 && m_cursorY < m_rows &&
+        m_cursorX >= 0 && m_cursorX < m_cols) {
+        int idx = CellIndex(m_cursorX, m_cursorY);
+        m_buffer[idx].ch = ch;
+        m_buffer[idx].attr = attr;
+        m_dirty = true;
+    }
+
+    // Advance cursor (with deferred wrap at right margin)
+    m_cursorX++;
+    if (m_cursorX >= m_cols) {
+        // At right margin - set pending wrap but keep cursor at last column
+        m_cursorX = m_cols - 1;
+        m_pendingWrap = true;
     }
 }
 
@@ -356,6 +369,7 @@ void ScreenBuffer::Clear() {
     std::fill(m_lineWrapped.begin(), m_lineWrapped.end(), false);
     m_cursorX = 0;
     m_cursorY = 0;
+    m_pendingWrap = false;
     m_dirty = true;
 }
 
@@ -458,10 +472,39 @@ void ScreenBuffer::UseAlternativeBuffer(bool use) {
 
     }
 
+    m_pendingWrap = false;  // Reset pending wrap on buffer switch
+    m_dirty = true;
+}
+
+void ScreenBuffer::LineFeed() {
+    // LF: Move cursor down without changing column
+    int oldY = m_cursorY;
+    m_cursorY++;
+
+    // Scroll if at bottom of scroll region
+    int bottom = GetScrollRegionBottom();
+    if (m_cursorY > bottom) {
+        // Check if an explicit scroll region is set (m_scrollBottom >= 0)
+        bool hasExplicitScrollRegion = (m_scrollBottom >= 0);
+
+        spdlog::debug("LineFeed: cursorY {} -> {} exceeds bottom {}, scrolling (explicit={})",
+                      oldY, m_cursorY, bottom, hasExplicitScrollRegion);
+
+        if (hasExplicitScrollRegion) {
+            // Explicit scroll region - scroll within region, discard top
+            ScrollRegionUp(1);
+        } else {
+            // No explicit scroll region - scroll whole screen, add to scrollback
+            ScrollUp(1);
+        }
+        m_cursorY = bottom;
+    }
+
     m_dirty = true;
 }
 
 void ScreenBuffer::NewLine() {
+    // CR + LF: Move to column 0 and move down
     m_cursorX = 0;
     m_cursorY++;
 
@@ -477,7 +520,7 @@ void ScreenBuffer::NewLine() {
         // If no explicit region, use ScrollUp to add to scrollback
         // If explicit region, use ScrollRegionUp which discards top of region
         bool hasExplicitScrollRegion = (m_scrollBottom >= 0);
-        
+
         if (hasExplicitScrollRegion) {
             // Explicit scroll region - scroll within region, discard top
             ScrollRegionUp(1);
@@ -576,6 +619,7 @@ void ScreenBuffer::ScrollRegionUp(int lines) {
     if (lines <= 0) return;
 
     int bottom = GetScrollRegionBottom();
+    spdlog::debug("ScrollRegionUp({}) scrollTop={} scrollBottom={}", lines, m_scrollTop, bottom);
     
     int regionHeight = bottom - m_scrollTop + 1;
     lines = std::min(lines, regionHeight);

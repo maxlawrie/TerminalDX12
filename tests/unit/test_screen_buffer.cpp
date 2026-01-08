@@ -157,26 +157,38 @@ TEST_F(ScreenBufferTest, WriteCharUsesCurrentAttributes) {
 }
 
 TEST_F(ScreenBufferTest, WriteCharLineWrap) {
-    // Write at end of line
+    // Write at end of line - deferred wrap behavior
     buffer->SetCursorPos(79, 0);  // Last column
     buffer->WriteChar(U'A');
 
-    // Should wrap to next line
-    EXPECT_EQ(buffer->GetCursorX(), 0);
+    // Cursor stays at last column (pending wrap)
+    EXPECT_EQ(buffer->GetCursorX(), 79);
+    EXPECT_EQ(buffer->GetCursorY(), 0);
+
+    // Writing another character triggers the wrap
+    buffer->WriteChar(U'B');
+    EXPECT_EQ(buffer->GetCursorX(), 1);  // After writing 'B' at col 0, cursor is at col 1
     EXPECT_EQ(buffer->GetCursorY(), 1);
+    EXPECT_EQ(buffer->GetCell(0, 1).ch, U'B');  // 'B' is on next line
 }
 
 TEST_F(ScreenBufferTest, WriteCharScrollAtBottom) {
-    // Position at last row, last column
+    // Position at last row, last column - deferred wrap behavior
     buffer->SetCursorPos(79, 23);
     buffer->WriteChar(U'A');
 
-    // Should scroll and stay at bottom
-    EXPECT_EQ(buffer->GetCursorX(), 0);
+    // Cursor stays at last column (pending wrap)
+    EXPECT_EQ(buffer->GetCursorX(), 79);
     EXPECT_EQ(buffer->GetCursorY(), 23);
+
+    // Writing another character triggers wrap AND scroll
+    buffer->WriteChar(U'B');
+    EXPECT_EQ(buffer->GetCursorX(), 1);  // After writing 'B' at col 0, cursor is at col 1
+    EXPECT_EQ(buffer->GetCursorY(), 23);  // Still at bottom after scroll
 }
 
 TEST_F(ScreenBufferTest, WriteCharNewline) {
+    // LF does CR+LF (traditional Windows behavior)
     buffer->SetCursorPos(10, 5);
     buffer->WriteChar(U'\n');
 

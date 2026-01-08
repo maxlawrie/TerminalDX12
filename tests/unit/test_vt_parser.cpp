@@ -53,6 +53,7 @@ TEST_F(VTStateMachineTest, ProcessPlainText) {
 }
 
 TEST_F(VTStateMachineTest, ProcessNewline) {
+    // LF does CR+LF (traditional behavior)
     ProcessString("Line1\nLine2");
 
     EXPECT_EQ(buffer->GetCell(0, 0).ch, U'L');

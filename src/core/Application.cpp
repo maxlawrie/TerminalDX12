@@ -274,6 +274,7 @@ bool Application::Initialize(const std::wstring& shell) {
     inputCallbacks.getTabCount = [this]() { return m_tabManager ? m_tabManager->GetTabCount() : 0; };
     inputCallbacks.hasMultiplePanes = [this]() { return m_paneManager.HasMultiplePanes(); };
     inputCallbacks.getShellCommand = [this]() -> const std::wstring& { return m_shellCommand; };
+    inputCallbacks.getVTParser = [this]() { return GetActiveVTParser(); };
 
     m_inputHandler = std::make_unique<UI::InputHandler>(
         std::move(inputCallbacks), m_searchManager, m_selectionManager);

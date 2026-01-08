@@ -49,6 +49,10 @@ set(PTY_SOURCES
 set(TERMINAL_SOURCES
     src/terminal/ScreenBuffer.cpp
     src/terminal/VTStateMachine.cpp
+    src/terminal/VTStateMachineCSI.cpp
+    src/terminal/VTStateMachineSGR.cpp
+    src/terminal/VTStateMachineOSC.cpp
+    src/terminal/VTStateMachineModes.cpp
 )
 
 set(UI_SOURCES

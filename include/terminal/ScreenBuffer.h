@@ -241,8 +241,11 @@ public:
     void ResetPaletteColor(int index);
     void ResetAllPaletteColors();
 
+    // Line feed (move down only, no CR unless specified)
+    void LineFeed();
+
 private:
-    void NewLine();
+    void NewLine();  // Internal: CR + LF (for WriteChar('\n') when LNM is on)
     void CarriageReturn();
     void Tab();
     void Backspace();
@@ -279,6 +282,7 @@ private:
     int m_cursorX;
     int m_cursorY;
     bool m_cursorVisible;
+    bool m_pendingWrap = false;  // Deferred wrap: cursor at margin, wrap on next char
 
     // Current text attributes
     CellAttributes m_currentAttr;
