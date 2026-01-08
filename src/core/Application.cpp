@@ -97,24 +97,24 @@ bool Application::Initialize(const std::wstring& shell) {
 
     // Keyboard input handlers
     m_window->OnCharEvent = [this](wchar_t ch) {
-        OnChar(ch);
+        if (m_inputHandler) m_inputHandler->OnChar(ch);
     };
 
     m_window->OnKeyEvent = [this](UINT key, bool isDown) {
-        OnKey(key, isDown);
+        if (m_inputHandler) m_inputHandler->OnKey(key, isDown);
     };
 
     // Mouse handlers
     m_window->OnMouseWheel = [this](int delta) {
-        OnMouseWheel(delta);
+        if (m_inputHandler) m_inputHandler->OnMouseWheel(delta);
     };
 
     m_window->OnMouseButton = [this](int x, int y, int button, bool down) {
-        OnMouseButton(x, y, button, down);
+        if (m_mouseHandler) m_mouseHandler->OnMouseButton(x, y, button, down);
     };
 
     m_window->OnMouseMove = [this](int x, int y) {
-        OnMouseMove(x, y);
+        if (m_mouseHandler) m_mouseHandler->OnMouseMove(x, y);
     };
 
     // Paint handler for live resize
@@ -957,31 +957,6 @@ void Application::OnWindowClose() {
     m_running = false;
 }
 
-void Application::OnTerminalOutput(const char* data, size_t size) {
-    // This is now handled internally by each Tab
-    // Kept for potential external callbacks
-    (void)data;
-    (void)size;
-}
-
-void Application::OnChar(wchar_t ch) {
-    if (m_inputHandler) {
-        m_inputHandler->OnChar(ch);
-    }
-}
-
-
-void Application::OnKey(UINT key, bool isDown) {
-    if (m_inputHandler) {
-        m_inputHandler->OnKey(key, isDown);
-    }
-}
-
-void Application::OnMouseWheel(int delta) {
-    if (m_inputHandler) {
-        m_inputHandler->OnMouseWheel(delta);
-    }
-}
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
     // Terminal layout constants (same as in Render())
@@ -1004,17 +979,6 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
     return pos;
 }
 
-void Application::OnMouseButton(int x, int y, int button, bool down) {
-    if (m_mouseHandler) {
-        m_mouseHandler->OnMouseButton(x, y, button, down);
-    }
-}
-
-void Application::OnMouseMove(int x, int y) {
-    if (m_mouseHandler) {
-        m_mouseHandler->OnMouseMove(x, y);
-    }
-}
 
 void Application::CopySelectionToClipboard() {
     Terminal::ScreenBuffer* screenBuffer = GetActiveScreenBuffer();

@@ -96,12 +96,6 @@ public:
 private:
     void OnWindowResize(int width, int height);
     void OnWindowClose();
-    void OnTerminalOutput(const char* data, size_t size);
-    void OnChar(wchar_t ch);
-    void OnKey(UINT key, bool isDown);
-    void OnMouseWheel(int delta);
-    void OnMouseButton(int x, int y, int button, bool down);
-    void OnMouseMove(int x, int y);
     bool ProcessMessages();
     void Update(float deltaTime);
     void Render();
