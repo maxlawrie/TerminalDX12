@@ -6,6 +6,33 @@
 
 namespace TerminalDX12::UI {
 
+namespace {
+void TrimTrailingSpaces(std::u32string& s) {
+    while (!s.empty() && s.back() == U' ') s.pop_back();
+}
+
+std::string Utf32ToUtf8(const std::u32string& text) {
+    std::string utf8;
+    for (char32_t ch : text) {
+        if (ch < 0x80) utf8 += static_cast<char>(ch);
+        else if (ch < 0x800) {
+            utf8 += static_cast<char>(0xC0 | (ch >> 6));
+            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
+        } else if (ch < 0x10000) {
+            utf8 += static_cast<char>(0xE0 | (ch >> 12));
+            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
+            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
+        } else {
+            utf8 += static_cast<char>(0xF0 | (ch >> 18));
+            utf8 += static_cast<char>(0x80 | ((ch >> 12) & 0x3F));
+            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
+            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
+        }
+    }
+    return utf8;
+}
+} // anonymous namespace
+
 void SelectionManager::ClearSelection() {
     m_hasSelection = false;
     m_selecting = false;
@@ -52,81 +79,27 @@ std::string SelectionManager::GetSelectedText(Terminal::ScreenBuffer* screenBuff
     std::u32string text;
     int cols = screenBuffer->GetCols();
 
+    auto appendRow = [&](int y, int rowStartX, int rowEndX) {
+        for (int x = rowStartX; x <= rowEndX; ++x)
+            text += screenBuffer->GetCellWithScrollback(x, y).ch;
+        if (y < endY) { TrimTrailingSpaces(text); text += U'\n'; }
+    };
+
     if (m_rectangleSelection) {
-        // Rectangle selection: same column range for all rows
-        for (int y = startY; y <= endY; ++y) {
-            for (int x = startX; x <= endX; ++x) {
-                auto cell = screenBuffer->GetCellWithScrollback(x, y);
-                text += cell.ch;
-            }
-            // Add newline between rows (but not after last row)
-            if (y < endY) {
-                // Trim trailing spaces from line before adding newline
-                while (!text.empty() && text.back() == U' ') {
-                    text.pop_back();
-                }
-                text += U'\n';
-            }
-        }
+        for (int y = startY; y <= endY; ++y)
+            appendRow(y, startX, endX);
     } else {
-        // Normal line selection
-        // For normal selection, use full coordinates
-        int normalStartX, normalEndX;
-        if (m_selectionStart.y < m_selectionEnd.y ||
-            (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x)) {
-            normalStartX = m_selectionStart.x;
-            normalEndX = m_selectionEnd.x;
-        } else {
-            normalStartX = m_selectionEnd.x;
-            normalEndX = m_selectionStart.x;
-        }
+        bool startFirst = (m_selectionStart.y < m_selectionEnd.y) ||
+            (m_selectionStart.y == m_selectionEnd.y && m_selectionStart.x <= m_selectionEnd.x);
+        int normalStartX = startFirst ? m_selectionStart.x : m_selectionEnd.x;
+        int normalEndX = startFirst ? m_selectionEnd.x : m_selectionStart.x;
 
-        for (int y = startY; y <= endY; ++y) {
-            int rowStartX = (y == startY) ? normalStartX : 0;
-            int rowEndX = (y == endY) ? normalEndX : cols - 1;
-
-            for (int x = rowStartX; x <= rowEndX; ++x) {
-                auto cell = screenBuffer->GetCellWithScrollback(x, y);
-                text += cell.ch;
-            }
-
-            // Add newline between rows (but not after last row)
-            if (y < endY) {
-                // Trim trailing spaces from line before adding newline
-                while (!text.empty() && text.back() == U' ') {
-                    text.pop_back();
-                }
-                text += U'\n';
-            }
-        }
+        for (int y = startY; y <= endY; ++y)
+            appendRow(y, (y == startY) ? normalStartX : 0, (y == endY) ? normalEndX : cols - 1);
     }
 
-    // Trim trailing spaces from last line
-    while (!text.empty() && text.back() == U' ') {
-        text.pop_back();
-    }
-
-    // Convert to UTF-8
-    std::string utf8;
-    for (char32_t ch : text) {
-        if (ch < 0x80) {
-            utf8 += static_cast<char>(ch);
-        } else if (ch < 0x800) {
-            utf8 += static_cast<char>(0xC0 | (ch >> 6));
-            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
-        } else if (ch < 0x10000) {
-            utf8 += static_cast<char>(0xE0 | (ch >> 12));
-            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
-            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
-        } else {
-            utf8 += static_cast<char>(0xF0 | (ch >> 18));
-            utf8 += static_cast<char>(0x80 | ((ch >> 12) & 0x3F));
-            utf8 += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
-            utf8 += static_cast<char>(0x80 | (ch & 0x3F));
-        }
-    }
-
-    return utf8;
+    TrimTrailingSpaces(text);
+    return Utf32ToUtf8(text);
 }
 
 void SelectionManager::CopySelectionToClipboard(Terminal::ScreenBuffer* screenBuffer, HWND hwnd) {
