@@ -92,7 +92,7 @@ bool Application::Initialize(const std::wstring& shell) {
     };
 
     m_window->OnClose = [this]() {
-        OnWindowClose();
+        m_running = false;
     };
 
     // Keyboard input handlers
@@ -166,18 +166,13 @@ bool Application::Initialize(const std::wstring& shell) {
     });
 
     // Calculate terminal size based on window dimensions
-    const int charWidth = 10;
-    const int lineHeight = 25;
-    const int startX = 10;
-    // For initial tab, there's no tab bar visible yet, so startY should be 10
-    // This matches what GetTerminalStartY() returns for single tab
-    const int startY = 10;  // Single tab = no tab bar = minimal padding
-    const int padding = 10;
+    // For initial tab, there's no tab bar visible yet, so startY should be kPadding
+    const int startY = kPadding;  // Single tab = no tab bar = minimal padding
 
-    int availableWidth = windowDesc.width - startX - padding;
-    int availableHeight = windowDesc.height - startY - padding;
-    int termCols = std::max(20, availableWidth / charWidth);
-    int termRows = std::max(5, availableHeight / lineHeight);
+    int availableWidth = windowDesc.width - kStartX - kPadding;
+    int availableHeight = windowDesc.height - startY - kPadding;
+    int termCols = std::max(20, availableWidth / kCharWidth);
+    int termRows = std::max(5, availableHeight / kLineHeight);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
 
 
@@ -358,20 +353,16 @@ Pty::ConPtySession* Application::GetActiveTerminal() {
 }
 
 int Application::GetTerminalStartY() const {
-    const int tabBarHeight = 30;
     int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
     if (tabCount > 1) {
-        spdlog::debug("GetTerminalStartY: {} tabs, returning 35", tabCount);
-        return tabBarHeight + 5;  // Tab bar height + padding
+        spdlog::debug("GetTerminalStartY: {} tabs, returning {}", tabCount, kTabBarHeight + 5);
+        return kTabBarHeight + 5;  // Tab bar height + padding
     }
-    spdlog::debug("GetTerminalStartY: {} tabs, returning 10", tabCount);
-    return 10;  // Default padding when no tab bar
+    spdlog::debug("GetTerminalStartY: {} tabs, returning {}", tabCount, kPadding);
+    return kPadding;  // Default padding when no tab bar
 }
 
 int Application::Run() {
-    using Clock = std::chrono::high_resolution_clock;
-    auto lastTime = Clock::now();
-
     spdlog::info("Application::Run() - entering main loop");
 
     while (m_running) {
@@ -380,14 +371,6 @@ int Application::Run() {
             spdlog::info("ProcessMessages returned false, exiting loop");
             break;
         }
-
-        // Calculate delta time
-        auto currentTime = Clock::now();
-        float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
-        lastTime = currentTime;
-
-        // Update
-        Update(deltaTime);
 
         // Render
         if (!m_minimized) {
@@ -412,11 +395,6 @@ bool Application::ProcessMessages() {
     }
 
     return true;
-}
-
-void Application::Update(float deltaTime) {
-    // Terminal state updates and input handled via callbacks (OnKeyDown, OnChar, etc.)
-    (void)deltaTime; // Suppress unused parameter warning
 }
 
 void Application::BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer) {
@@ -460,10 +438,8 @@ void Application::RenderTabBar(int charWidth) {
         return;
     }
 
-    const int tabBarHeight = 30;
-
     // Render tab bar background (dark gray)
-    m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(tabBarHeight),
+    m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(kTabBarHeight),
                            0.15f, 0.15f, 0.15f, 1.0f);
 
     // Render each tab
@@ -494,7 +470,7 @@ void Application::RenderTabBar(int charWidth) {
         float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
 
         // Render tab background
-        m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(tabBarHeight - 6),
+        m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(kTabBarHeight - 6),
                                bgR, bgG, bgB, 1.0f);
 
         // Activity indicator (orange dot if tab has activity and isn't active)
@@ -510,7 +486,7 @@ void Application::RenderTabBar(int charWidth) {
         m_renderer->RenderText(title.c_str(), textX, 8.0f, textR, textG, textB, 1.0f);
 
         // Tab separator
-        m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(tabBarHeight - 10),
+        m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10),
                                0.4f, 0.4f, 0.4f, 1.0f);
 
         tabX += tabWidth + 5.0f;
@@ -818,16 +794,11 @@ void Application::Render() {
     if (m_pendingConPTYResize) {
         m_pendingConPTYResize = false;
 
-        const int charWidth = 10;
-        const int lineHeight = 25;
-        const int startX = 10;
-        const int startY = GetTerminalStartY();
-        const int padding = 10;
-
-        int availableWidth = m_pendingWidth - startX - padding;
-        int availableHeight = m_pendingHeight - startY - padding;
-        int newCols = std::max(20, availableWidth / charWidth);
-        int newRows = std::max(5, availableHeight / lineHeight);
+        int startY = GetTerminalStartY();
+        int availableWidth = m_pendingWidth - kStartX - kPadding;
+        int availableHeight = m_pendingHeight - startY - kPadding;
+        int newCols = std::max(20, availableWidth / kCharWidth);
+        int newRows = std::max(5, availableHeight / kLineHeight);
 
         spdlog::info("Applying deferred ConPTY resize: {}x{}", newCols, newRows);
 
@@ -860,10 +831,6 @@ void Application::Render() {
     m_renderer->BeginFrame();
     m_renderer->ClearText();
 
-    // Layout constants
-    const int lineHeight = 25;
-    const int charWidth = 10;
-    const int startX = 10;
     int startY = GetTerminalStartY();
 
     // Build color palette
@@ -877,16 +844,16 @@ void Application::Render() {
     float cursorB = colorConfig.cursor.b / 255.0f;
 
     // Render tab bar if multiple tabs exist
-    RenderTabBar(charWidth);
+    RenderTabBar(kCharWidth);
 
     // Render terminal content (selection, backgrounds, text)
-    RenderTerminalContent(screenBuffer, startX, startY, charWidth, lineHeight, colorPalette);
+    RenderTerminalContent(screenBuffer, kStartX, startY, kCharWidth, kLineHeight, colorPalette);
 
     // Render cursor
-    RenderCursor(screenBuffer, startX, startY, charWidth, lineHeight, cursorR, cursorG, cursorB);
+    RenderCursor(screenBuffer, kStartX, startY, kCharWidth, kLineHeight, cursorR, cursorG, cursorB);
 
     // Render search bar and highlights
-    RenderSearchBar(startX, charWidth, lineHeight);
+    RenderSearchBar(kStartX, kCharWidth, kLineHeight);
 
     m_renderer->EndFrame();
     m_renderer->Present();
@@ -928,16 +895,11 @@ void Application::OnWindowResize(int width, int height) {
         spdlog::info("OnWindowResize: queued deferred resize {}x{}", width, height);
 
         // Resize terminal buffers immediately (protected by mutex)
-        const int charWidth = 10;
-        const int lineHeight = 25;
-        const int startX = 10;
-        const int startY = GetTerminalStartY();
-        const int padding = 10;
-
-        int availableWidth = width - startX - padding;
-        int availableHeight = height - startY - padding;
-        int newCols = std::max(20, availableWidth / charWidth);
-        int newRows = std::max(5, availableHeight / lineHeight);
+        int startY = GetTerminalStartY();
+        int availableWidth = width - kStartX - kPadding;
+        int availableHeight = height - startY - kPadding;
+        int newCols = std::max(20, availableWidth / kCharWidth);
+        int newRows = std::max(5, availableHeight / kLineHeight);
 
         spdlog::info("OnWindowResize: resizing buffers to {}x{}", newCols, newRows);
 
@@ -953,21 +915,12 @@ void Application::OnWindowResize(int width, int height) {
     }
 }
 
-void Application::OnWindowClose() {
-    m_running = false;
-}
-
-
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
-    // Terminal layout constants (same as in Render())
-    const int startX = 10;
-    const int startY = GetTerminalStartY();  // Use centralized calculation
-    const int charWidth = 10;
-    const int lineHeight = 25;
+    int startY = GetTerminalStartY();
 
     CellPos pos;
-    pos.x = (pixelX - startX) / charWidth;
-    pos.y = (pixelY - startY) / lineHeight;
+    pos.x = (pixelX - kStartX) / kCharWidth;
+    pos.y = (pixelY - startY) / kLineHeight;
 
     // Clamp to valid range
     Terminal::ScreenBuffer* screenBuffer = const_cast<Application*>(this)->GetActiveScreenBuffer();
@@ -1063,9 +1016,9 @@ void Application::UpdatePaneLayout() {
 
     int width = m_window->GetWidth();
     int height = m_window->GetHeight();
-    int tabBarHeight = (m_tabManager && m_tabManager->GetTabCount() > 1) ? 30 : 0;
+    int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? kTabBarHeight : 0;
 
-    m_paneManager.UpdateLayout(width, height, tabBarHeight);
+    m_paneManager.UpdateLayout(width, height, tabBar);
 }
 
 } // namespace Core

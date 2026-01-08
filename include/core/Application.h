@@ -10,8 +10,6 @@
 
 #include <memory>
 #include <string>
-#include <chrono>
-#include <vector>
 #include <Windows.h>
 #include "ui/SearchManager.h"
 #include "ui/SelectionManager.h"
@@ -94,10 +92,15 @@ public:
     Window* GetWindow() { return m_window.get(); }
 
 private:
+    // Layout constants
+    static constexpr int kCharWidth = 10;
+    static constexpr int kLineHeight = 25;
+    static constexpr int kStartX = 10;
+    static constexpr int kPadding = 10;
+    static constexpr int kTabBarHeight = 30;
+
     void OnWindowResize(int width, int height);
-    void OnWindowClose();
     bool ProcessMessages();
-    void Update(float deltaTime);
     void Render();
 
     // Render helpers
