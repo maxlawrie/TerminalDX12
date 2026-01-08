@@ -29,6 +29,13 @@ std::string WStringToAscii(const std::wstring& ws, size_t maxLen = 0) {
     return result;
 }
 
+// Check if codepoint is valid for rendering
+bool IsValidCodepoint(char32_t ch) {
+    return ch <= 0x10FFFF && (ch >= 0x20 || ch == U'\t') &&
+           (ch < 0xD800 || ch > 0xDFFF) && ch < 0xF0000 &&
+           (ch & 0xFFFF) != 0xFFFE && (ch & 0xFFFF) != 0xFFFF;
+}
+
 // Convert a single UTF-32 codepoint to UTF-8 string
 std::string Utf32ToUtf8(char32_t codepoint) {
     std::string result;
@@ -476,25 +483,19 @@ void Application::RenderSearchBar(int startX, int charWidth, int lineHeight) {
                            550.0f, searchBarY + 5.0f, 0.5f, 0.5f, 0.5f, 1.0f);
 
     // Highlight search matches
-    if (!m_searchManager.GetMatches().empty()) {
-        int startY = GetTerminalStartY();
+    const auto& matches = m_searchManager.GetMatches();
+    if (!matches.empty()) {
+        int termStartY = GetTerminalStartY();
         int queryLen = static_cast<int>(m_searchManager.GetQuery().length());
-        for (int i = 0; i < static_cast<int>(m_searchManager.GetMatches().size()); ++i) {
-            const auto& match = m_searchManager.GetMatches()[i];
-            bool isCurrent = (i == m_searchManager.GetCurrentMatchIndex());
-
+        int currentIdx = m_searchManager.GetCurrentMatchIndex();
+        for (size_t i = 0; i < matches.size(); ++i) {
+            float intensity = (static_cast<int>(i) == currentIdx) ? 0.8f : 0.5f;
+            float alpha = (static_cast<int>(i) == currentIdx) ? 0.6f : 0.4f;
             for (int j = 0; j < queryLen; ++j) {
-                float posX = static_cast<float>(startX + (match.x + j) * charWidth);
-                float posY = static_cast<float>(startY + match.y * lineHeight);
-
-                // Current match: bright yellow, other matches: dim yellow
-                if (isCurrent) {
-                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
-                                           static_cast<float>(lineHeight), 0.8f, 0.6f, 0.0f, 0.6f);
-                } else {
-                    m_renderer->RenderRect(posX, posY, static_cast<float>(charWidth),
-                                           static_cast<float>(lineHeight), 0.5f, 0.4f, 0.0f, 0.4f);
-                }
+                m_renderer->RenderRect(static_cast<float>(startX + (matches[i].x + j) * charWidth),
+                                       static_cast<float>(termStartY + matches[i].y * lineHeight),
+                                       static_cast<float>(charWidth), static_cast<float>(lineHeight),
+                                       intensity, intensity * 0.75f, 0.0f, alpha);
             }
         }
     }
@@ -568,54 +569,25 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
         // Second pass: Render foreground text character by character
         for (int x = 0; x < cols; ++x) {
             auto cell = screenBuffer->GetCellWithScrollback(x, y);
+            if (cell.ch == U' ' || cell.ch == U'\0' || !IsValidCodepoint(cell.ch)) continue;
 
-            if (cell.ch == U' ' || cell.ch == U'\0') {
-                continue;
-            }
+            // Get color (inverse swaps fg/bg)
+            bool inv = cell.attr.IsInverse();
+            auto color = getColor(cell.attr, !inv);
+            float r = color.r, g = color.g, b = color.b;
 
-            // Skip invalid/garbage codepoints
-            if (cell.ch > 0x10FFFF ||
-                (cell.ch < 0x20 && cell.ch != U'\t') ||
-                (cell.ch >= 0xD800 && cell.ch <= 0xDFFF) ||
-                (cell.ch >= 0xF0000) ||
-                ((cell.ch & 0xFFFF) == 0xFFFE) ||
-                ((cell.ch & 0xFFFF) == 0xFFFF)) {
-                continue;
-            }
-
-            // Get final color (handle inverse)
-            auto fg = getColor(cell.attr, true);
-            auto bg = getColor(cell.attr, false);
-            float r = cell.attr.IsInverse() ? bg.r : fg.r;
-            float g = cell.attr.IsInverse() ? bg.g : fg.g;
-            float b = cell.attr.IsInverse() ? bg.b : fg.b;
-
-            // Apply bold by brightening colors (only for non-true-color)
+            // Apply bold/dim modifiers
             if (cell.attr.IsBold() && !cell.attr.UsesTrueColorFg()) {
-                r = std::min(1.0f, r + 0.2f);
-                g = std::min(1.0f, g + 0.2f);
-                b = std::min(1.0f, b + 0.2f);
+                r = std::min(1.0f, r + 0.2f); g = std::min(1.0f, g + 0.2f); b = std::min(1.0f, b + 0.2f);
             }
-
-            // Apply dim by reducing intensity
-            if (cell.attr.IsDim()) {
-                r *= 0.5f;
-                g *= 0.5f;
-                b *= 0.5f;
-            }
+            if (cell.attr.IsDim()) { r *= 0.5f; g *= 0.5f; b *= 0.5f; }
 
             float posX = static_cast<float>(startX + x * charWidth);
             float posY = static_cast<float>(startY + y * lineHeight);
+            m_renderer->RenderChar(Utf32ToUtf8(cell.ch), posX, posY, r, g, b, 1.0f);
 
-            std::string utf8Char = Utf32ToUtf8(cell.ch);
-            m_renderer->RenderChar(utf8Char, posX, posY, r, g, b, 1.0f);
-
-            // Render underline if present
             if (cell.attr.IsUnderline()) {
-                float underlineY = posY + lineHeight - 1;
-                float underlineHeight = 3.0f;
-                m_renderer->RenderRect(posX, underlineY, static_cast<float>(charWidth),
-                                       underlineHeight, r, g, b, 1.0f);
+                m_renderer->RenderRect(posX, posY + lineHeight - 1, static_cast<float>(charWidth), 3.0f, r, g, b, 1.0f);
             }
         }
     }
