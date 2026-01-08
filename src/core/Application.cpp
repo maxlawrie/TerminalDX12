@@ -534,22 +534,17 @@ void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, in
         }
     }
 
-    for (int y = 0; y < rows; ++y) {
-        // Selection highlight pass (render blue highlight for selected text)
-        if (m_selectionManager.HasSelection() && y >= selStartY && y <= selEndY) {
-            int rowSelStart, rowSelEnd;
-            if (m_selectionManager.IsRectangleSelection()) {
-                rowSelStart = selStartX;
-                rowSelEnd = selEndX;
-            } else {
-                rowSelStart = (y == selStartY) ? selStartX : 0;
-                rowSelEnd = (y == selEndY) ? selEndX : cols - 1;
-            }
+    bool hasSel = m_selectionManager.HasSelection();
+    bool rectSel = m_selectionManager.IsRectangleSelection();
 
-            for (int x = rowSelStart; x <= rowSelEnd; ++x) {
-                float posX = static_cast<float>(startX + x * charWidth);
-                float posY = static_cast<float>(startY + y * lineHeight);
-                m_renderer->RenderText("\xE2\x96\x88", posX, posY, 0.2f, 0.4f, 0.8f, 0.5f);
+    for (int y = 0; y < rows; ++y) {
+        // Selection highlight pass
+        if (hasSel && y >= selStartY && y <= selEndY) {
+            int xs = rectSel ? selStartX : (y == selStartY ? selStartX : 0);
+            int xe = rectSel ? selEndX : (y == selEndY ? selEndX : cols - 1);
+            for (int x = xs; x <= xe; ++x) {
+                m_renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth),
+                                       static_cast<float>(startY + y * lineHeight), 0.2f, 0.4f, 0.8f, 0.5f);
             }
         }
 
@@ -611,26 +606,16 @@ void Application::Render() {
     if (m_pendingConPTYResize) {
         m_pendingConPTYResize = false;
         auto [newCols, newRows] = CalculateTerminalSize(m_pendingWidth, m_pendingHeight);
-
         if (m_tabManager) {
             for (const auto& tab : m_tabManager->GetTabs()) {
-                if (tab) {
-                    tab->ResizeScreenBuffer(newCols, newRows);
-                    tab->ResizeConPTY(newCols, newRows);
-                }
+                if (tab) { tab->ResizeScreenBuffer(newCols, newRows); tab->ResizeConPTY(newCols, newRows); }
             }
         }
-
-        // Skip this frame to let TUI app process resize
         m_resizeStabilizeFrames = 2;
         return;
     }
 
-    // Skip frames while resize is stabilizing
-    if (m_resizeStabilizeFrames > 0) {
-        m_resizeStabilizeFrames--;
-        return;
-    }
+    if (m_resizeStabilizeFrames > 0) { m_resizeStabilizeFrames--; return; }
 
     m_renderer->BeginFrame();
     m_renderer->ClearText();
