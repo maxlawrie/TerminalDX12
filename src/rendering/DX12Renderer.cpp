@@ -618,48 +618,32 @@ bool DX12Renderer::CreateTextRootSignature() {
 }
 
 bool DX12Renderer::CreateTextPipelineState() {
-    // Load compiled shaders
-    ComPtr<ID3DBlob> vertexShader;
-    ComPtr<ID3DBlob> pixelShader;
-
     // Get executable directory for shader paths
     std::string exeDir = GetExecutableDirectory();
-    std::string vsPath = exeDir + "shaders\\GlyphVertex.cso";
-    std::string psPath = exeDir + "shaders\\GlyphPixel.cso";
-
     spdlog::info("Loading shaders from: {}", exeDir);
 
-    // Read vertex shader
-    std::ifstream vsFile(vsPath, std::ios::binary);
-    if (!vsFile.is_open()) {
-        spdlog::error("Failed to open vertex shader: {}", vsPath);
-        return false;
-    }
-    vsFile.seekg(0, std::ios::end);
-    size_t vsSize = vsFile.tellg();
-    vsFile.seekg(0, std::ios::beg);
-    std::vector<char> vsData(vsSize);
-    vsFile.read(vsData.data(), vsSize);
-    vsFile.close();
+    auto loadShader = [&](const std::string& filename) -> ComPtr<ID3DBlob> {
+        std::string path = exeDir + "shaders\\" + filename;
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) {
+            spdlog::error("Failed to open shader: {}", path);
+            return nullptr;
+        }
+        file.seekg(0, std::ios::end);
+        size_t size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        std::vector<char> data(size);
+        file.read(data.data(), size);
 
-    D3DCreateBlob(vsSize, &vertexShader);
-    memcpy(vertexShader->GetBufferPointer(), vsData.data(), vsSize);
+        ComPtr<ID3DBlob> blob;
+        D3DCreateBlob(size, &blob);
+        memcpy(blob->GetBufferPointer(), data.data(), size);
+        return blob;
+    };
 
-    // Read pixel shader
-    std::ifstream psFile(psPath, std::ios::binary);
-    if (!psFile.is_open()) {
-        spdlog::error("Failed to open pixel shader: {}", psPath);
-        return false;
-    }
-    psFile.seekg(0, std::ios::end);
-    size_t psSize = psFile.tellg();
-    psFile.seekg(0, std::ios::beg);
-    std::vector<char> psData(psSize);
-    psFile.read(psData.data(), psSize);
-    psFile.close();
-
-    D3DCreateBlob(psSize, &pixelShader);
-    memcpy(pixelShader->GetBufferPointer(), psData.data(), psSize);
+    ComPtr<ID3DBlob> vertexShader = loadShader("GlyphVertex.cso");
+    ComPtr<ID3DBlob> pixelShader = loadShader("GlyphPixel.cso");
+    if (!vertexShader || !pixelShader) return false;
 
     // Define input layout for instance data
     D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
@@ -703,28 +687,18 @@ bool DX12Renderer::CreateTextPipelineState() {
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
 
-    spdlog::info("Creating graphics pipeline state with VS size: {}, PS size: {}", vsSize, psSize);
-
     HRESULT hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_textPipelineState));
     if (FAILED(hr)) {
         spdlog::error("CreateGraphicsPipelineState failed with HRESULT: 0x{:08X}", static_cast<unsigned int>(hr));
-    } else {
-        spdlog::info("Graphics pipeline state created successfully");
+        return false;
     }
-    return SUCCEEDED(hr);
+    spdlog::info("Graphics pipeline state created successfully");
+    return true;
 }
 
 void DX12Renderer::RenderText(const std::string& text, float x, float y, float r, float g, float b, float a) {
     if (m_textRenderer) {
-        DirectX::XMFLOAT4 color(r, g, b, a);
-        m_textRenderer->RenderText(text, x, y, color);
-        static int callCount = 0;
-        if (callCount < 10) {
-            spdlog::info("RenderText called: \"{}\" at ({}, {})", text, x, y);
-            callCount++;
-        }
-    } else {
-        spdlog::warn("RenderText called but m_textRenderer is null");
+        m_textRenderer->RenderText(text, x, y, DirectX::XMFLOAT4(r, g, b, a));
     }
 }
 
