@@ -80,7 +80,9 @@ target_link_libraries(ConPtyLib PRIVATE
 add_library(UILib STATIC
     ${CMAKE_SOURCE_DIR}/src/ui/TabManager.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/Tab.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/TerminalSession.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/Pane.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/PaneManager.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/FontEnumerator.cpp
 )
 
@@ -99,7 +101,7 @@ target_link_libraries(UILib PRIVATE
 set(CONTRACT_TEST_SOURCES
     unit/contract/test_conpty_contract.cpp
     unit/contract/test_tab_manager.cpp
-    unit/contract/test_tab.cpp
+    unit/contract/test_terminal_session.cpp
     unit/test_font_enumerator.cpp
 )
 

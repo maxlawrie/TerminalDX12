@@ -4,7 +4,9 @@
 #include "rendering/DX12Renderer.h"
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include "ui/Pane.h"
+#include "ui/PaneManager.h"
 #include "ui/SettingsDialog.h"
 #include "ui/UrlHelper.h"
 #include "pty/ConPtySession.h"
@@ -159,14 +161,14 @@ bool Application::Initialize(const std::wstring& shell) {
     // Create tab manager
     m_tabManager = std::make_unique<UI::TabManager>();
 
-    // Set tab created callback for OSC 52 clipboard access
-    m_tabManager->SetTabCreatedCallback([this](UI::Tab* tab) {
-        if (tab) {
-            tab->SetClipboardReadCallback([this]() {
+    // Set session created callback for OSC 52 clipboard access
+    m_tabManager->SetSessionCreatedCallback([this](UI::TerminalSession* session) {
+        if (session) {
+            session->SetClipboardReadCallback([this]() {
                 HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
                 return m_selectionManager.GetClipboardText(hwnd);
             });
-            tab->SetClipboardWriteCallback([this](const std::string& text) {
+            session->SetClipboardWriteCallback([this](const std::string& text) {
                 HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
                 m_selectionManager.SetClipboardText(text, hwnd);
             });
@@ -174,11 +176,11 @@ bool Application::Initialize(const std::wstring& shell) {
     });
 
     // Set process exit callback - close window when all processes have exited
-    m_tabManager->SetProcessExitCallback([this](int tabId, int exitCode) {
-        spdlog::info("Process in tab {} exited with code {}", tabId, exitCode);
+    m_tabManager->SetProcessExitCallback([this](int tabId, int sessionId, int exitCode) {
+        spdlog::info("Process in tab {} session {} exited with code {}", tabId, sessionId, exitCode);
         const auto& tabs = m_tabManager->GetTabs();
         bool anyRunning = std::any_of(tabs.begin(), tabs.end(),
-            [](const auto& tab) { return tab && tab->IsRunning(); });
+            [](const auto& tab) { return tab && tab->HasRunningSessions(); });
         if (!anyRunning) {
             spdlog::info("All shell processes have exited, closing window");
             m_running = false;
@@ -195,9 +197,6 @@ bool Application::Initialize(const std::wstring& shell) {
         spdlog::warn("Failed to start initial terminal session - continuing without ConPTY");
     } else {
         spdlog::info("Terminal session started successfully");
-
-        // Initialize pane manager with the initial tab
-        m_paneManager.Initialize(initialTab);
         UpdatePaneLayout();
     }
 
@@ -235,9 +234,11 @@ bool Application::Initialize(const std::wstring& shell) {
     inputCallbacks.onNewTab = [this]() {
         if (m_tabManager) {
             int cols = 80, rows = 24;
-            if (auto* tab = m_tabManager->GetActiveTab(); tab && tab->GetScreenBuffer()) {
-                cols = tab->GetScreenBuffer()->GetCols();
-                rows = tab->GetScreenBuffer()->GetRows();
+            if (auto* tab = m_tabManager->GetActiveTab()) {
+                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
+                    cols = session->GetScreenBuffer()->GetCols();
+                    rows = session->GetScreenBuffer()->GetRows();
+                }
             }
             m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
         }
@@ -258,9 +259,9 @@ bool Application::Initialize(const std::wstring& shell) {
     };
     inputCallbacks.onSplitPane = [this](UI::SplitDirection dir) { SplitPane(dir); };
     inputCallbacks.onClosePane = [this]() { ClosePane(); };
-    inputCallbacks.onToggleZoom = [this]() { m_paneManager.ToggleZoom(); UpdatePaneLayout(); };
-    inputCallbacks.onFocusNextPane = [this]() { m_paneManager.FocusNextPane(); };
-    inputCallbacks.onFocusPreviousPane = [this]() { m_paneManager.FocusPreviousPane(); };
+    inputCallbacks.onToggleZoom = [this]() { if (auto* pm = GetActivePaneManager()) { pm->ToggleZoom(); UpdatePaneLayout(); } };
+    inputCallbacks.onFocusNextPane = [this]() { if (auto* pm = GetActivePaneManager()) pm->FocusNextPane(); };
+    inputCallbacks.onFocusPreviousPane = [this]() { if (auto* pm = GetActivePaneManager()) pm->FocusPreviousPane(); };
     inputCallbacks.onOpenSearch = [this]() { m_searchManager.Open(); };
     inputCallbacks.onCloseSearch = [this]() { m_searchManager.Close(); };
     inputCallbacks.onSearchNext = [this]() { m_searchManager.NextMatch(); };
@@ -272,7 +273,7 @@ bool Application::Initialize(const std::wstring& shell) {
     inputCallbacks.getActiveTerminal = [this]() { return GetActiveTerminal(); };
     inputCallbacks.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
     inputCallbacks.getTabCount = [this]() { return m_tabManager ? m_tabManager->GetTabCount() : 0; };
-    inputCallbacks.hasMultiplePanes = [this]() { return m_paneManager.HasMultiplePanes(); };
+    inputCallbacks.hasMultiplePanes = [this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); };
     inputCallbacks.getShellCommand = [this]() -> const std::wstring& { return m_shellCommand; };
     inputCallbacks.getVTParser = [this]() { return GetActiveVTParser(); };
 
@@ -284,7 +285,19 @@ bool Application::Initialize(const std::wstring& shell) {
     m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
     m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
     m_selectionManager.SetClosePaneCallback([this]() { ClosePane(); });
-    m_selectionManager.SetHasMultiplePanes([this]() { return m_paneManager.HasMultiplePanes(); });
+    m_selectionManager.SetNewTabCallback([this]() {
+        if (m_tabManager) {
+            int cols = 80, rows = 24;
+            if (auto* tab = m_tabManager->GetActiveTab()) {
+                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
+                    cols = session->GetScreenBuffer()->GetCols();
+                    rows = session->GetScreenBuffer()->GetRows();
+                }
+            }
+            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
+        }
+    });
+    m_selectionManager.SetHasMultiplePanes([this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); });
 
     // Create mouse handler with callbacks
     UI::MouseHandlerCallbacks mouseCallbacks;
@@ -309,9 +322,10 @@ bool Application::Initialize(const std::wstring& shell) {
         UpdatePaneLayout();
         ResizeAllPaneBuffers();
     };
+    mouseCallbacks.getPaneManager = [this]() { return GetActivePaneManager(); };
 
     m_mouseHandler = std::make_unique<UI::MouseHandler>(
-        std::move(mouseCallbacks), m_selectionManager, m_paneManager, m_tabManager.get());
+        std::move(mouseCallbacks), m_selectionManager, m_tabManager.get());
 
     // Set up screen-to-cell converter
     m_mouseHandler->SetScreenToCellConverter([this](int x, int y) -> UI::CellPos {
@@ -342,32 +356,28 @@ void Application::Shutdown() {
     m_window.reset();
 }
 
+UI::PaneManager* Application::GetActivePaneManager() {
+    UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
+    return tab ? &tab->GetPaneManager() : nullptr;
+}
+
 // Helper accessors - use focused pane when available, fallback to active tab
 Terminal::ScreenBuffer* Application::GetActiveScreenBuffer() {
-    UI::Pane* pane = m_paneManager.GetFocusedPane();
-    if (pane && pane->IsLeaf() && pane->GetTab()) {
-        return pane->GetTab()->GetScreenBuffer();
-    }
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
-    return tab ? tab->GetScreenBuffer() : nullptr;
+    UI::TerminalSession* session = tab ? tab->GetFocusedSession() : nullptr;
+    return session ? session->GetScreenBuffer() : nullptr;
 }
 
 Terminal::VTStateMachine* Application::GetActiveVTParser() {
-    UI::Pane* pane = m_paneManager.GetFocusedPane();
-    if (pane && pane->IsLeaf() && pane->GetTab()) {
-        return pane->GetTab()->GetVTParser();
-    }
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
-    return tab ? tab->GetVTParser() : nullptr;
+    UI::TerminalSession* session = tab ? tab->GetFocusedSession() : nullptr;
+    return session ? session->GetVTParser() : nullptr;
 }
 
 Pty::ConPtySession* Application::GetActiveTerminal() {
-    UI::Pane* pane = m_paneManager.GetFocusedPane();
-    if (pane && pane->IsLeaf() && pane->GetTab()) {
-        return pane->GetTab()->GetTerminal();
-    }
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
-    return tab ? tab->GetTerminal() : nullptr;
+    UI::TerminalSession* session = tab ? tab->GetFocusedSession() : nullptr;
+    return session ? session->GetTerminal() : nullptr;
 }
 
 int Application::GetTerminalStartY() const {
@@ -444,14 +454,43 @@ void Application::RenderTabBar(int charWidth) {
         bool active = (static_cast<int>(i) == activeIndex);
         bool hasActivity = !active && tab->HasActivity();
         std::string title = WStringToAscii(tab->GetTitle(), 15);
-        float tabWidth = static_cast<float>(std::max(80, static_cast<int>(title.length() * charWidth) + 20));
 
-        // Tab background and title
-        float bg = active ? 0.3f : 0.2f, text = active ? 1.0f : 0.7f;
+        // Build session names string (blue text)
+        std::string sessionNames;
+        const auto& sessions = tab->GetSessions();
+        for (size_t j = 0; j < sessions.size(); ++j) {
+            if (j > 0) sessionNames += ", ";
+            sessionNames += WStringToAscii(sessions[j]->GetTitle(), 10);
+        }
+
+        // Calculate tab width based on longer of title or session names
+        int titleLen = static_cast<int>(title.length() * charWidth) + 20;
+        int sessionsLen = static_cast<int>(sessionNames.length() * charWidth * 0.7f) + 20;
+        float tabWidth = static_cast<float>(std::max(100, std::max(titleLen, sessionsLen)));
+
+        // Tab background
+        float bg = active ? 0.3f : 0.2f;
         m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(kTabBarHeight - 6),
                                bg, bg, active ? 0.35f : 0.2f, 1.0f);
-        if (hasActivity) m_renderer->RenderText("\xE2\x97\x8F", tabX + 5.0f, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
-        m_renderer->RenderText(title.c_str(), tabX + 15.0f + (hasActivity ? 10.0f : 0.0f), 8.0f, text, text, text, 1.0f);
+
+        // Activity indicator
+        float textX = tabX + 5.0f;
+        if (hasActivity) {
+            m_renderer->RenderText("â", textX, 4.0f, 1.0f, 0.6f, 0.0f, 1.0f);
+            textX += 12.0f;
+        }
+
+        // Tab title (red)
+        m_renderer->RenderText(title.c_str(), textX, 4.0f,
+                               active ? 1.0f : 0.8f, active ? 0.3f : 0.2f, active ? 0.3f : 0.2f, 1.0f);
+
+        // Session names (blue) - below title
+        if (!sessionNames.empty()) {
+            m_renderer->RenderText(sessionNames.c_str(), tabX + 5.0f, 16.0f,
+                                   active ? 0.4f : 0.3f, active ? 0.6f : 0.5f, active ? 1.0f : 0.8f, 1.0f);
+        }
+
+        // Tab separator
         m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10), 0.4f, 0.4f, 0.4f, 1.0f);
         tabX += tabWidth + 5.0f;
     }
@@ -623,7 +662,8 @@ void Application::Render() {
 
     // Get all leaf panes to render
     std::vector<UI::Pane*> leafPanes;
-    m_paneManager.GetAllLeafPanes(leafPanes);
+    UI::PaneManager* pm = GetActivePaneManager();
+    if (pm) pm->GetAllLeafPanes(leafPanes);
 
     // Cursor color from config
     const auto& colorConfig = m_config->GetColors();
@@ -631,12 +671,12 @@ void Application::Render() {
     float cursorG = colorConfig.cursor.g / 255.0f;
     float cursorB = colorConfig.cursor.b / 255.0f;
 
-    UI::Pane* focusedPane = m_paneManager.GetFocusedPane();
+    UI::Pane* focusedPane = pm ? pm->GetFocusedPane() : nullptr;
 
     // Render each pane's terminal content
     for (UI::Pane* pane : leafPanes) {
-        if (!pane || !pane->GetTab()) continue;
-        Terminal::ScreenBuffer* buffer = pane->GetTab()->GetScreenBuffer();
+        if (!pane || !pane->GetSession()) continue;
+        Terminal::ScreenBuffer* buffer = pane->GetSession()->GetScreenBuffer();
         if (!buffer) continue;
 
         const UI::PaneRect& bounds = pane->GetBounds();
@@ -668,7 +708,7 @@ void Application::Render() {
     }
 
     // Render pane dividers
-    RenderPaneDividers(m_paneManager.GetRootPane());
+    if (pm) RenderPaneDividers(pm->GetRootPane());
 
     // Render search bar and highlights
     RenderSearchBar(kStartX, kCharWidth, kLineHeight);
@@ -681,12 +721,13 @@ void Application::OnWindowResize(int width, int height) {
     m_minimized = (width == 0 || height == 0);
 
     if (!m_minimized && m_renderer) {
-        // Check if any pane's tab is using alt buffer (TUI app running)
+        UI::PaneManager* pm = GetActivePaneManager();
+        // Check if any pane's session is using alt buffer (TUI app running)
         std::vector<UI::Pane*> leaves;
-        m_paneManager.GetAllLeafPanes(leaves);
+        if (pm) pm->GetAllLeafPanes(leaves);
         bool anyAltBuffer = std::any_of(leaves.begin(), leaves.end(),
             [](UI::Pane* pane) {
-                auto* buf = pane && pane->GetTab() ? pane->GetTab()->GetScreenBuffer() : nullptr;
+                auto* buf = pane && pane->GetSession() ? pane->GetSession()->GetScreenBuffer() : nullptr;
                 return buf && buf->IsUsingAlternativeBuffer();
             });
 
@@ -701,23 +742,24 @@ void Application::OnWindowResize(int width, int height) {
         // Update pane layout and resize buffers immediately
         UpdatePaneLayout();
         for (UI::Pane* pane : leaves) {
-            if (!pane || !pane->GetTab()) continue;
+            if (!pane || !pane->GetSession()) continue;
             const UI::PaneRect& bounds = pane->GetBounds();
             int cols = std::max(20, bounds.width / kCharWidth);
             int rows = std::max(5, bounds.height / kLineHeight);
-            pane->GetTab()->ResizeScreenBuffer(cols, rows);
+            pane->GetSession()->Resize(cols, rows);
         }
     }
 }
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
     // Find which pane the mouse is in
-    UI::Pane* pane = const_cast<Application*>(this)->m_paneManager.FindPaneAt(pixelX, pixelY);
+    UI::PaneManager* pm = const_cast<Application*>(this)->GetActivePaneManager();
+    UI::Pane* pane = pm ? pm->FindPaneAt(pixelX, pixelY) : nullptr;
     if (pane && pane->IsLeaf()) {
         const UI::PaneRect& bounds = pane->GetBounds();
         CellPos pos{(pixelX - bounds.x) / kCharWidth, (pixelY - bounds.y) / kLineHeight};
-        if (pane->GetTab() && pane->GetTab()->GetScreenBuffer()) {
-            auto* buf = pane->GetTab()->GetScreenBuffer();
+        if (pane->GetSession() && pane->GetSession()->GetScreenBuffer()) {
+            auto* buf = pane->GetSession()->GetScreenBuffer();
             pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
             pos.y = std::clamp(pos.y, 0, buf->GetRows() - 1);
         }
@@ -752,24 +794,24 @@ void Application::ShowSettings() {
 }
 
 void Application::SplitPane(UI::SplitDirection direction) {
-    UI::Pane* focusedPane = m_paneManager.GetFocusedPane();
-    UI::Tab* currentTab = focusedPane && focusedPane->IsLeaf() ? focusedPane->GetTab() : nullptr;
-    Terminal::ScreenBuffer* buf = currentTab ? currentTab->GetScreenBuffer() : nullptr;
+    UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
+    if (!tab) return;
+
+    UI::TerminalSession* focusedSession = tab->GetFocusedSession();
+    Terminal::ScreenBuffer* buf = focusedSession ? focusedSession->GetScreenBuffer() : nullptr;
     if (!buf) return;
 
-    UI::Tab* newTab = m_tabManager->CreateTab(m_shellCommand, buf->GetCols(), buf->GetRows(),
-                                               m_config->GetTerminal().scrollbackLines);
-    if (newTab && m_paneManager.SplitFocusedPane(direction, newTab)) {
-        // Resize all pane buffers to fit their new bounds
+    // Use Tab's SplitPane which creates the session and splits the pane
+    if (tab->SplitPane(direction, m_shellCommand, buf->GetCols(), buf->GetRows(),
+                       m_config->GetTerminal().scrollbackLines)) {
         ResizeAllPaneBuffers();
     }
 }
 
 void Application::ClosePane() {
-    UI::Tab* tabToClose = m_paneManager.CloseFocusedPane();
-    if (tabToClose) {
-        m_tabManager->CloseTab(tabToClose->GetId());
-        // Resize remaining pane buffers
+    UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
+    if (tab) {
+        tab->ClosePane();
         ResizeAllPaneBuffers();
     }
 }
@@ -777,20 +819,23 @@ void Application::ClosePane() {
 void Application::UpdatePaneLayout() {
     if (!m_window) return;
     int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? kTabBarHeight : 0;
-    m_paneManager.UpdateLayout(m_window->GetWidth(), m_window->GetHeight(), tabBar);
+    if (auto* pm = GetActivePaneManager()) {
+        pm->UpdateLayout(m_window->GetWidth(), m_window->GetHeight(), tabBar);
+    }
 }
 
 void Application::ResizeAllPaneBuffers() {
     UpdatePaneLayout();
     std::vector<UI::Pane*> leaves;
-    m_paneManager.GetAllLeafPanes(leaves);
+    if (auto* pm = GetActivePaneManager()) {
+        pm->GetAllLeafPanes(leaves);
+    }
     for (UI::Pane* pane : leaves) {
-        if (!pane || !pane->GetTab()) continue;
+        if (!pane || !pane->GetSession()) continue;
         const UI::PaneRect& bounds = pane->GetBounds();
         int cols = std::max(20, bounds.width / kCharWidth);
         int rows = std::max(5, bounds.height / kLineHeight);
-        pane->GetTab()->ResizeScreenBuffer(cols, rows);
-        pane->GetTab()->ResizeConPTY(cols, rows);
+        pane->GetSession()->Resize(cols, rows);
     }
 }
 

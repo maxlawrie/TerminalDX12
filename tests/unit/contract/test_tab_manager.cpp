@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include <thread>
 #include <chrono>
 #include <atomic>
@@ -72,7 +73,7 @@ protected:
             lastActiveTab = tab;
         });
 
-        manager->SetProcessExitCallback([this](int tabId, int exitCode) {
+        manager->SetProcessExitCallback([this](int tabId, int /*sessionId*/, int exitCode) {
             processExitCount++;
             lastExitTabId = tabId;
             lastExitCode = exitCode;
@@ -123,7 +124,7 @@ TEST_F(TabManagerTest, CreateFirstTab) {
 
     // Then: Tab should be created and active
     ASSERT_NE(tab, nullptr);
-    EXPECT_TRUE(tab->IsRunning());
+    EXPECT_TRUE(tab->HasRunningSessions());
     EXPECT_EQ(manager->GetTabCount(), 1);
     EXPECT_TRUE(manager->HasTabs());
     EXPECT_EQ(manager->GetActiveTabIndex(), 0);
@@ -163,18 +164,20 @@ TEST_F(TabManagerTest, TabsHaveUniqueIds) {
     EXPECT_NE(tab1->GetId(), tab3->GetId());
 }
 
-TEST_F(TabManagerTest, TabCreationCallbackFires) {
+TEST_F(TabManagerTest, SessionCreatedCallbackFires) {
     // Given: A TabManager with callbacks set up
-    Tab* createdTab = nullptr;
-    manager->SetTabCreatedCallback([&createdTab](Tab* tab) {
-        createdTab = tab;
+    TerminalSession* createdSession = nullptr;
+    manager->SetSessionCreatedCallback([&createdSession](TerminalSession* session) {
+        createdSession = session;
     });
 
     // When: Creating a tab
     Tab* tab = CreateTabAndWait();
 
-    // Then: The callback should have been called with the new tab
-    EXPECT_EQ(createdTab, tab);
+    // Then: The callback should have been called with the initial session
+    EXPECT_NE(createdSession, nullptr);
+    // The created session should be the same as the tab's focused session
+    EXPECT_EQ(createdSession, tab->GetFocusedSession());
 }
 
 TEST_F(TabManagerTest, TabChangedCallbackFiresOnCreate) {
@@ -343,7 +346,10 @@ TEST_F(TabManagerTest, SwitchingClearsActivityIndicator) {
     Tab* tab2 = CreateTabAndWait();
     ASSERT_NE(tab1, nullptr);
     ASSERT_NE(tab2, nullptr);
-    tab2->SetActivity(true);
+    // Set activity on the focused session of tab2
+    auto* session = tab2->GetFocusedSession();
+    ASSERT_NE(session, nullptr);
+    session->SetActivity(true);
     EXPECT_TRUE(tab2->HasActivity());
 
     // When: Switching to tab2
@@ -532,13 +538,15 @@ TEST_F(TabManagerTest, TabActivityIndicator) {
     tab->ClearActivity();
     EXPECT_FALSE(tab->HasActivity());
 
-    // When: Setting activity
-    tab->SetActivity(true);
+    // When: Setting activity on the focused session
+    auto* session = tab->GetFocusedSession();
+    ASSERT_NE(session, nullptr);
+    session->SetActivity(true);
 
-    // Then: Activity flag should be set
+    // Then: Tab's activity flag should reflect session activity
     EXPECT_TRUE(tab->HasActivity());
 
-    // When: Clearing activity
+    // When: Clearing activity on tab (clears all sessions)
     tab->ClearActivity();
 
     // Then: Activity flag should be cleared
@@ -555,7 +563,7 @@ TEST_F(TabManagerTest, RapidTabCreationAndDeletion) {
     for (int i = 0; i < 5; i++) {
         Tab* tab = CreateTabAndWait();
         ASSERT_NE(tab, nullptr);
-        EXPECT_TRUE(tab->IsRunning());
+        EXPECT_TRUE(tab->HasRunningSessions());
     }
 
     EXPECT_EQ(manager->GetTabCount(), 5);
@@ -573,8 +581,10 @@ TEST_F(TabManagerTest, TabHasScreenBuffer) {
     Tab* tab = CreateTabAndWait();
     ASSERT_NE(tab, nullptr);
 
-    // Then: Should have a screen buffer
-    EXPECT_NE(tab->GetScreenBuffer(), nullptr);
+    // Then: The focused session should have a screen buffer
+    auto* session = tab->GetFocusedSession();
+    ASSERT_NE(session, nullptr);
+    EXPECT_NE(session->GetScreenBuffer(), nullptr);
 }
 
 TEST_F(TabManagerTest, TabHasVTParser) {
@@ -582,8 +592,10 @@ TEST_F(TabManagerTest, TabHasVTParser) {
     Tab* tab = CreateTabAndWait();
     ASSERT_NE(tab, nullptr);
 
-    // Then: Should have a VT parser
-    EXPECT_NE(tab->GetVTParser(), nullptr);
+    // Then: The focused session should have a VT parser
+    auto* session = tab->GetFocusedSession();
+    ASSERT_NE(session, nullptr);
+    EXPECT_NE(session->GetVTParser(), nullptr);
 }
 
 TEST_F(TabManagerTest, TabHasTerminalSession) {
@@ -591,8 +603,10 @@ TEST_F(TabManagerTest, TabHasTerminalSession) {
     Tab* tab = CreateTabAndWait();
     ASSERT_NE(tab, nullptr);
 
-    // Then: Should have a terminal session
-    EXPECT_NE(tab->GetTerminal(), nullptr);
+    // Then: The focused session should have a ConPTY terminal
+    auto* session = tab->GetFocusedSession();
+    ASSERT_NE(session, nullptr);
+    EXPECT_NE(session->GetTerminal(), nullptr);
 }
 
 } // namespace TerminalDX12::UI::Tests

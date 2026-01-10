@@ -1,147 +1,126 @@
 #include "ui/Tab.h"
-#include "terminal/ScreenBuffer.h"
-#include "terminal/VTStateMachine.h"
-#include "pty/ConPtySession.h"
+#include "ui/TerminalSession.h"
 #include <spdlog/spdlog.h>
+#include <algorithm>
 
 namespace TerminalDX12::UI {
 
-Tab::Tab(int id, int cols, int rows, int scrollbackLines)
+Tab::Tab(int id)
     : m_id(id)
-    , m_cols(cols)
-    , m_rows(rows)
-    , m_title(L"Terminal")
+    , m_title(L"Tab " + std::to_wstring(id))
 {
-    // Create screen buffer
-    m_screenBuffer = std::make_unique<Terminal::ScreenBuffer>(cols, rows, scrollbackLines);
-
-    // Create VT parser
-    m_vtParser = std::make_unique<Terminal::VTStateMachine>(m_screenBuffer.get());
-
-    // Create terminal session
-    m_terminal = std::make_unique<Pty::ConPtySession>();
-
-    spdlog::debug("Tab {} created: {}x{}", id, cols, rows);
+    spdlog::debug("Tab {} created", id);
 }
 
 Tab::~Tab() {
-    Stop();
+    // Stop all sessions
+    for (auto& session : m_sessions) {
+        if (session) {
+            session->Stop();
+        }
+    }
     spdlog::debug("Tab {} destroyed", m_id);
 }
 
-bool Tab::Start(const std::wstring& shell) {
-    if (!m_terminal) {
-        return false;
+bool Tab::HasActivity() const {
+    for (const auto& session : m_sessions) {
+        if (session && session->HasActivity()) {
+            return true;
+        }
     }
+    return false;
+}
 
-    // Set output callback to process VT sequences
-    m_terminal->SetOutputCallback([this](const char* data, size_t size) {
-        // Parse VT sequences
-        if (m_vtParser) {
-            m_vtParser->ProcessInput(data, size);
+void Tab::ClearActivity() {
+    for (auto& session : m_sessions) {
+        if (session) {
+            session->ClearActivity();
         }
+    }
+}
 
-        // Mark activity for background tabs
-        m_hasActivity = true;
-
-        // Forward to external callback if set
-        if (m_outputCallback) {
-            m_outputCallback(data, size);
-        }
-    });
-
-    // Wire up response callback for device queries
-    m_vtParser->SetResponseCallback([this](const std::string& response) {
-        if (m_terminal && m_terminal->IsRunning()) {
-            m_terminal->WriteInput(response.c_str(), response.size());
-        }
-    });
+TerminalSession* Tab::CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines) {
+    int sessionId = m_nextSessionId++;
+    auto session = std::make_unique<TerminalSession>(sessionId, cols, rows, scrollbackLines);
 
     // Wire up process exit callback
-    m_terminal->SetProcessExitCallback([this](int exitCode) {
-        spdlog::info("Tab {}: Process exited with code {}", m_id, exitCode);
+    session->SetProcessExitCallback([this, sessionId](int exitCode) {
+        spdlog::info("Tab {}: Session {} exited with code {}", m_id, sessionId, exitCode);
         if (m_processExitCallback) {
-            m_processExitCallback(exitCode);
+            m_processExitCallback(sessionId, exitCode);
         }
     });
 
+    // Allow external configuration (clipboard callbacks, etc.)
+    if (m_sessionCreatedCallback) {
+        m_sessionCreatedCallback(session.get());
+    }
+
     // Start the shell
-    if (!m_terminal->Start(shell, m_cols, m_rows)) {
-        spdlog::error("Tab {}: Failed to start shell: {}", m_id,
+    if (!session->Start(shell)) {
+        spdlog::error("Tab {}: Failed to start session with shell: {}", m_id,
                       std::string(shell.begin(), shell.end()));
-        return false;
+        return nullptr;
     }
 
-    // Set title to shell name
-    size_t pos = shell.find_last_of(L"\\/");
-    m_title = (pos != std::wstring::npos) ? shell.substr(pos + 1) : shell;
-
-    spdlog::info("Tab {}: Started shell: {}", m_id,
-                 std::string(shell.begin(), shell.end()));
-    return true;
-}
-
-void Tab::Stop() {
-    if (m_terminal) {
-        m_terminal->Stop();
+    // Update tab title from first session's title
+    if (m_sessions.empty()) {
+        m_title = session->GetTitle();
     }
-}
 
-bool Tab::IsRunning() const {
-    return m_terminal && m_terminal->IsRunning();
-}
+    TerminalSession* ptr = session.get();
+    m_sessions.push_back(std::move(session));
 
-void Tab::WriteInput(const char* data, size_t size) {
-    if (m_terminal && m_terminal->IsRunning()) {
-        m_terminal->WriteInput(data, size);
+    // If this is the first session, initialize the pane manager
+    if (m_sessions.size() == 1) {
+        m_paneManager.Initialize(ptr);
     }
+
+    spdlog::info("Tab {}: Created session {} ({}x{})", m_id, sessionId, cols, rows);
+    return ptr;
 }
 
-void Tab::SetOutputCallback(std::function<void(const char*, size_t)> callback) {
-    m_outputCallback = callback;
+Pane* Tab::SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines) {
+    // Create a new session for the split
+    TerminalSession* newSession = CreateSession(shell, cols, rows, scrollbackLines);
+    if (!newSession) {
+        return nullptr;
+    }
+
+    // Split the focused pane with the new session
+    return m_paneManager.SplitFocusedPane(direction, newSession);
 }
 
-void Tab::SetProcessExitCallback(std::function<void(int)> callback) {
-    m_processExitCallback = callback;
-}
-
-void Tab::SetClipboardReadCallback(std::function<std::string()> callback) {
-    if (m_vtParser) {
-        m_vtParser->SetClipboardReadCallback(callback);
+void Tab::ClosePane() {
+    TerminalSession* sessionToClose = m_paneManager.CloseFocusedPane();
+    if (sessionToClose) {
+        RemoveSession(sessionToClose);
     }
 }
 
-void Tab::SetClipboardWriteCallback(std::function<void(const std::string&)> callback) {
-    if (m_vtParser) {
-        m_vtParser->SetClipboardWriteCallback(callback);
+TerminalSession* Tab::GetFocusedSession() {
+    Pane* focusedPane = m_paneManager.GetFocusedPane();
+    if (focusedPane && focusedPane->IsLeaf()) {
+        return focusedPane->GetSession();
     }
+    return nullptr;
 }
 
-void Tab::Resize(int cols, int rows) {
-    m_cols = cols;
-    m_rows = rows;
-
-    if (m_screenBuffer) {
-        m_screenBuffer->Resize(cols, rows);
-    }
-
-    if (m_terminal && m_terminal->IsRunning()) {
-        m_terminal->Resize(cols, rows);
-    }
+bool Tab::HasRunningSessions() const {
+    return std::any_of(m_sessions.begin(), m_sessions.end(),
+        [](const auto& session) { return session && session->IsRunning(); });
 }
 
-void Tab::ResizeScreenBuffer(int cols, int rows) {
-    m_cols = cols;
-    m_rows = rows;
-    
-    if (m_screenBuffer) {
-        m_screenBuffer->Resize(cols, rows);
-    }
-}
+void Tab::RemoveSession(TerminalSession* session) {
+    if (!session) return;
 
-void Tab::ResizeConPTY(int cols, int rows) {
-    if (m_terminal && m_terminal->IsRunning()) {
-        m_terminal->Resize(cols, rows);
+    auto it = std::find_if(m_sessions.begin(), m_sessions.end(),
+        [session](const auto& s) { return s.get() == session; });
+
+    if (it != m_sessions.end()) {
+        (*it)->Stop();
+        m_sessions.erase(it);
+        spdlog::debug("Tab {}: Removed session, {} sessions remaining", m_id, m_sessions.size());
     }
 }
 

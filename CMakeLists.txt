@@ -57,6 +57,7 @@ set(TERMINAL_SOURCES
 
 set(UI_SOURCES
     src/ui/Tab.cpp
+    src/ui/TerminalSession.cpp
     src/ui/TabManager.cpp
     src/ui/Pane.cpp
     src/ui/SettingsDialog.cpp

@@ -121,6 +121,9 @@ public:
     /// @brief Set callback for closing pane
     void SetClosePaneCallback(std::function<void()> callback) { m_onClosePane = std::move(callback); }
 
+    /// @brief Set callback for creating new tab
+    void SetNewTabCallback(std::function<void()> callback) { m_onNewTab = std::move(callback); }
+
     /// @brief Set whether multiple panes exist (for enabling/disabling close option)
     void SetHasMultiplePanes(std::function<bool()> callback) { m_hasMultiplePanes = std::move(callback); }
 
@@ -129,6 +132,7 @@ private:
     std::function<void()> m_onSplitHorizontal;
     std::function<void()> m_onSplitVertical;
     std::function<void()> m_onClosePane;
+    std::function<void()> m_onNewTab;
     std::function<bool()> m_hasMultiplePanes;
     SelectionPos m_selectionStart{0, 0};
     SelectionPos m_selectionEnd{0, 0};

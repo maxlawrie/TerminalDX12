@@ -15,17 +15,16 @@ namespace TerminalDX12::Rendering {
 
 namespace TerminalDX12::UI {
 
-class TabManager;
-class Tab;
+class TerminalSession;
 
-/// @brief Manages terminal panes (splits) within the application
+/// @brief Manages terminal panes (splits) within a tab
 class PaneManager {
 public:
     PaneManager() = default;
 
-    /// @brief Initialize with a root pane from an initial tab
-    /// @param initialTab The tab for the root pane
-    void Initialize(Tab* initialTab);
+    /// @brief Initialize with a root pane from an initial session
+    /// @param initialSession The terminal session for the root pane
+    void Initialize(TerminalSession* initialSession);
 
     /// @brief Get the root pane
     Pane* GetRootPane() const { return m_rootPane.get(); }
@@ -44,14 +43,13 @@ public:
 
     /// @brief Split the focused pane in the given direction
     /// @param direction The split direction
-    /// @param newTab The tab for the new pane
+    /// @param newSession The terminal session for the new pane
     /// @return The newly created pane, or nullptr on failure
-    Pane* SplitFocusedPane(SplitDirection direction, Tab* newTab);
+    Pane* SplitFocusedPane(SplitDirection direction, TerminalSession* newSession);
 
     /// @brief Close the focused pane
-    /// @param tabManager TabManager to close the associated tab
-    /// @return The tab that was closed (to allow TabManager to clean it up), or nullptr
-    Tab* CloseFocusedPane();
+    /// @return The session that was closed (to allow cleanup), or nullptr
+    TerminalSession* CloseFocusedPane();
 
     /// @brief Focus the next pane (circular)
     void FocusNextPane();

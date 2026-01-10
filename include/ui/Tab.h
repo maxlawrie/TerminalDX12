@@ -1,86 +1,88 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 #include <string>
 #include <functional>
+#include "ui/PaneManager.h"
 
-namespace TerminalDX12 {
+namespace TerminalDX12::UI {
 
-namespace Pty { class ConPtySession; }
-namespace Terminal {
-    class ScreenBuffer;
-    class VTStateMachine;
-}
+class TerminalSession;
 
-namespace UI {
-
-// Represents a single terminal tab with its own shell session
+/// @brief Represents a top-level tab containing a pane tree of terminal sessions
 class Tab {
 public:
-    Tab(int id, int cols, int rows, int scrollbackLines = 10000);
+    Tab(int id);
     ~Tab();
 
-    // Start the shell process
-    bool Start(const std::wstring& shell);
-    void Stop();
-
-    // Check if tab is running
-    bool IsRunning() const;
-
-    // Get tab ID
+    /// @brief Get tab ID
     int GetId() const { return m_id; }
 
-    // Tab title (from shell or OSC sequence)
+    /// @brief Get/set tab title
     const std::wstring& GetTitle() const { return m_title; }
     void SetTitle(const std::wstring& title) { m_title = title; }
 
-    // Activity indicator
-    bool HasActivity() const { return m_hasActivity; }
-    void SetActivity(bool activity) { m_hasActivity = activity; }
-    void ClearActivity() { m_hasActivity = false; }
+    /// @brief Activity indicator (any session in this tab has activity)
+    bool HasActivity() const;
+    void ClearActivity();
 
-    // Access terminal components
-    Terminal::ScreenBuffer* GetScreenBuffer() { return m_screenBuffer.get(); }
-    Terminal::VTStateMachine* GetVTParser() { return m_vtParser.get(); }
-    Pty::ConPtySession* GetTerminal() { return m_terminal.get(); }
+    /// @brief Get the pane manager for this tab
+    PaneManager& GetPaneManager() { return m_paneManager; }
+    const PaneManager& GetPaneManager() const { return m_paneManager; }
 
-    // Write input to the shell
-    void WriteInput(const char* data, size_t size);
+    /// @brief Create a new terminal session and add it to this tab
+    /// @param shell Shell command to run
+    /// @param cols Terminal columns
+    /// @param rows Terminal rows
+    /// @param scrollbackLines Scrollback buffer size
+    /// @return The created session, or nullptr on failure
+    TerminalSession* CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
 
-    // Set output callback (called when shell produces output)
-    void SetOutputCallback(std::function<void(const char*, size_t)> callback);
+    /// @brief Split the focused pane with a new session
+    /// @param direction Split direction
+    /// @param shell Shell command for the new session
+    /// @param cols Terminal columns
+    /// @param rows Terminal rows
+    /// @param scrollbackLines Scrollback buffer size
+    /// @return The new pane, or nullptr on failure
+    Pane* SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
 
-    // Set process exit callback (called when shell process exits)
-    void SetProcessExitCallback(std::function<void(int exitCode)> callback);
+    /// @brief Close the focused pane
+    void ClosePane();
 
-    // Set clipboard callbacks for OSC 52
-    void SetClipboardReadCallback(std::function<std::string()> callback);
-    void SetClipboardWriteCallback(std::function<void(const std::string&)> callback);
+    /// @brief Get the focused terminal session
+    TerminalSession* GetFocusedSession();
 
-    // Resize the terminal
-    void Resize(int cols, int rows);
+    /// @brief Check if any sessions are running
+    bool HasRunningSessions() const;
 
-    // Resize only screen buffer (for immediate visual feedback)
-    void ResizeScreenBuffer(int cols, int rows);
+    /// @brief Get all sessions in this tab
+    const std::vector<std::unique_ptr<TerminalSession>>& GetSessions() const { return m_sessions; }
 
-    // Resize only ConPTY (deferred to prevent scroll)
-    void ResizeConPTY(int cols, int rows);
+    /// @brief Set callback for when a session's process exits
+    void SetProcessExitCallback(std::function<void(int sessionId, int exitCode)> callback) {
+        m_processExitCallback = callback;
+    }
+
+    /// @brief Set callback for configuring new sessions (clipboard, etc.)
+    void SetSessionCreatedCallback(std::function<void(TerminalSession*)> callback) {
+        m_sessionCreatedCallback = callback;
+    }
 
 private:
     int m_id;
-    int m_cols;
-    int m_rows;
-
     std::wstring m_title;
-    bool m_hasActivity = false;
+    int m_nextSessionId = 1;
 
-    std::unique_ptr<Terminal::ScreenBuffer> m_screenBuffer;
-    std::unique_ptr<Terminal::VTStateMachine> m_vtParser;
-    std::unique_ptr<Pty::ConPtySession> m_terminal;
+    PaneManager m_paneManager;
+    std::vector<std::unique_ptr<TerminalSession>> m_sessions;
 
-    std::function<void(const char*, size_t)> m_outputCallback;
-    std::function<void(int)> m_processExitCallback;
+    std::function<void(int, int)> m_processExitCallback;
+    std::function<void(TerminalSession*)> m_sessionCreatedCallback;
+
+    /// @brief Remove a session by pointer (called when pane is closed)
+    void RemoveSession(TerminalSession* session);
 };
 
-} // namespace UI
-} // namespace TerminalDX12
+} // namespace TerminalDX12::UI

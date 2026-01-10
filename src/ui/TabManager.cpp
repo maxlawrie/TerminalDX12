@@ -1,5 +1,6 @@
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
@@ -15,18 +16,27 @@ TabManager::~TabManager() {
 Tab* TabManager::CreateTab(const std::wstring& shell, int cols, int rows, int scrollbackLines) {
     int tabId = m_nextTabId++;
 
-    auto tab = std::make_unique<Tab>(tabId, cols, rows, scrollbackLines);
+    auto tab = std::make_unique<Tab>(tabId);
 
-    // Set up process exit callback before starting
-    tab->SetProcessExitCallback([this, tabId](int exitCode) {
-        spdlog::info("TabManager: Tab {} process exited with code {}", tabId, exitCode);
+    // Set up process exit callback for sessions in this tab
+    tab->SetProcessExitCallback([this, tabId](int sessionId, int exitCode) {
+        spdlog::info("TabManager: Tab {} session {} process exited with code {}", tabId, sessionId, exitCode);
         if (m_processExitCallback) {
-            m_processExitCallback(tabId, exitCode);
+            m_processExitCallback(tabId, sessionId, exitCode);
         }
     });
 
-    if (!tab->Start(shell)) {
-        spdlog::error("TabManager: Failed to create tab {}", tabId);
+    // Set up session created callback for configuring OSC 52, etc.
+    tab->SetSessionCreatedCallback([this](TerminalSession* session) {
+        if (m_sessionCreatedCallback) {
+            m_sessionCreatedCallback(session);
+        }
+    });
+
+    // Create the initial session in the tab
+    TerminalSession* initialSession = tab->CreateSession(shell, cols, rows, scrollbackLines);
+    if (!initialSession) {
+        spdlog::error("TabManager: Failed to create initial session for tab {}", tabId);
         return nullptr;
     }
 
@@ -39,11 +49,6 @@ Tab* TabManager::CreateTab(const std::wstring& shell, int cols, int rows, int sc
     }
 
     spdlog::info("TabManager: Created tab {} (total: {})", tabId, m_tabs.size());
-
-    // Notify tab created callback (for configuring OSC 52 callbacks, etc.)
-    if (m_tabCreatedCallback) {
-        m_tabCreatedCallback(tabPtr);
-    }
 
     // Notify listeners
     if (m_tabChangedCallback) {
@@ -66,10 +71,7 @@ void TabManager::CloseTab(int tabId) {
 
     int closedIndex = static_cast<int>(std::distance(m_tabs.begin(), it));
 
-    // Stop the tab
-    (*it)->Stop();
-
-    // Remove the tab
+    // Remove the tab (destructor will stop all sessions)
     m_tabs.erase(it);
 
     spdlog::info("TabManager: Closed tab {} (remaining: {})", tabId, m_tabs.size());

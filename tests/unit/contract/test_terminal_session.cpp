@@ -1,13 +1,13 @@
 /**
- * @file test_tab.cpp
- * @brief Contract tests for Tab class
+ * @file test_terminal_session.cpp
+ * @brief Contract tests for TerminalSession class
  *
- * These are contract tests that verify Tab behavior with real ConPTY sessions.
+ * These are contract tests that verify TerminalSession behavior with real ConPTY sessions.
  * They require Windows 10 1809+ and create actual shell processes.
  */
 
 #include <gtest/gtest.h>
-#include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"
 #include "pty/ConPtySession.h"
@@ -27,9 +27,9 @@ constexpr int TEST_SCROLLBACK = 1000;
 const std::wstring TEST_SHELL = L"cmd.exe";
 
 /**
- * @brief Test fixture for Tab tests
+ * @brief Test fixture for TerminalSession tests
  */
-class TabTest : public ::testing::Test {
+class TerminalSessionTest : public ::testing::Test {
 protected:
     void SetUp() override {
         outputReceived = false;
@@ -39,16 +39,16 @@ protected:
     }
 
     void TearDown() override {
-        // Ensure tab is stopped
-        if (tab && tab->IsRunning()) {
-            tab->Stop();
+        // Ensure session is stopped
+        if (session && session->IsRunning()) {
+            session->Stop();
             std::this_thread::sleep_for(100ms);
         }
     }
 
-    // Helper to create and start a tab
-    std::unique_ptr<Tab> CreateAndStartTab(int id = 1) {
-        auto t = std::make_unique<Tab>(id, TEST_COLS, TEST_ROWS, TEST_SCROLLBACK);
+    // Helper to create and start a session
+    std::unique_ptr<TerminalSession> CreateAndStartSession(int id = 1) {
+        auto t = std::make_unique<TerminalSession>(id, TEST_COLS, TEST_ROWS, TEST_SCROLLBACK);
 
         t->SetOutputCallback([this](const char* data, size_t size) {
             outputReceived = true;
@@ -67,7 +67,7 @@ protected:
         return t;
     }
 
-    std::unique_ptr<Tab> tab;
+    std::unique_ptr<TerminalSession> session;
     std::atomic<bool> outputReceived{false};
     std::atomic<bool> exitCodeReceived{false};
     std::atomic<int> lastExitCode{-999};
@@ -79,14 +79,14 @@ protected:
 // ============================================================================
 
 /**
- * CONTRACT: Tab constructor creates all components
+ * CONTRACT: TerminalSession constructor creates all components
  *
  * Given: Valid dimensions
- * When: Tab is constructed
+ * When: TerminalSession is constructed
  * Then: ScreenBuffer, VTParser, and Terminal are created
  */
-TEST_F(TabTest, Constructor_CreatesAllComponents) {
-    Tab t(1, TEST_COLS, TEST_ROWS, TEST_SCROLLBACK);
+TEST_F(TerminalSessionTest, Constructor_CreatesAllComponents) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS, TEST_SCROLLBACK);
 
     EXPECT_NE(nullptr, t.GetScreenBuffer());
     EXPECT_NE(nullptr, t.GetVTParser());
@@ -94,16 +94,16 @@ TEST_F(TabTest, Constructor_CreatesAllComponents) {
 }
 
 /**
- * CONTRACT: Tab constructor sets correct ID
+ * CONTRACT: TerminalSession constructor sets correct ID
  *
  * Given: An ID value
- * When: Tab is constructed
+ * When: TerminalSession is constructed
  * Then: GetId returns that ID
  */
-TEST_F(TabTest, Constructor_SetsId) {
-    Tab t1(1, TEST_COLS, TEST_ROWS);
-    Tab t2(42, TEST_COLS, TEST_ROWS);
-    Tab t3(999, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Constructor_SetsId) {
+    TerminalSession t1(1, TEST_COLS, TEST_ROWS);
+    TerminalSession t2(42, TEST_COLS, TEST_ROWS);
+    TerminalSession t3(999, TEST_COLS, TEST_ROWS);
 
     EXPECT_EQ(1, t1.GetId());
     EXPECT_EQ(42, t2.GetId());
@@ -111,53 +111,53 @@ TEST_F(TabTest, Constructor_SetsId) {
 }
 
 /**
- * CONTRACT: Tab constructor sets default title
+ * CONTRACT: TerminalSession constructor sets default title
  *
  * Given: No title specified
- * When: Tab is constructed
+ * When: TerminalSession is constructed
  * Then: Title is "Terminal"
  */
-TEST_F(TabTest, Constructor_SetsDefaultTitle) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Constructor_SetsDefaultTitle) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     EXPECT_EQ(L"Terminal", t.GetTitle());
 }
 
 /**
- * CONTRACT: Tab constructor initializes without activity
+ * CONTRACT: TerminalSession constructor initializes without activity
  *
- * Given: New tab
- * When: Tab is constructed
+ * Given: New session
+ * When: TerminalSession is constructed
  * Then: HasActivity returns false
  */
-TEST_F(TabTest, Constructor_NoInitialActivity) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Constructor_NoInitialActivity) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     EXPECT_FALSE(t.HasActivity());
 }
 
 /**
- * CONTRACT: Tab is not running before Start
+ * CONTRACT: TerminalSession is not running before Start
  *
- * Given: New tab
- * When: Tab is constructed but not started
+ * Given: New session
+ * When: TerminalSession is constructed but not started
  * Then: IsRunning returns false
  */
-TEST_F(TabTest, Constructor_NotRunning) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Constructor_NotRunning) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     EXPECT_FALSE(t.IsRunning());
 }
 
 /**
- * CONTRACT: Tab constructor respects custom scrollback
+ * CONTRACT: TerminalSession constructor respects custom scrollback
  *
  * Given: Custom scrollback lines
- * When: Tab is constructed
+ * When: TerminalSession is constructed
  * Then: ScreenBuffer is created (scrollback is internal)
  */
-TEST_F(TabTest, Constructor_CustomScrollback) {
-    Tab t(1, TEST_COLS, TEST_ROWS, 5000);
+TEST_F(TerminalSessionTest, Constructor_CustomScrollback) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS, 5000);
 
     auto* buffer = t.GetScreenBuffer();
     ASSERT_NE(nullptr, buffer);
@@ -177,8 +177,8 @@ TEST_F(TabTest, Constructor_CustomScrollback) {
  * When: Start is called
  * Then: Returns true and IsRunning becomes true
  */
-TEST_F(TabTest, Start_LaunchesShell) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Start_LaunchesShell) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     bool result = t.Start(TEST_SHELL);
     std::this_thread::sleep_for(100ms);
@@ -196,8 +196,8 @@ TEST_F(TabTest, Start_LaunchesShell) {
  * When: Start is called
  * Then: Title is set to executable name
  */
-TEST_F(TabTest, Start_SetsTitleFromShell) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Start_SetsTitleFromShell) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     t.Start(TEST_SHELL);
     std::this_thread::sleep_for(100ms);
@@ -214,8 +214,8 @@ TEST_F(TabTest, Start_SetsTitleFromShell) {
  * When: Start is called
  * Then: Title is just the filename
  */
-TEST_F(TabTest, Start_ExtractsFilenameForTitle) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Start_ExtractsFilenameForTitle) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     t.Start(L"C:\\Windows\\System32\\cmd.exe");
     std::this_thread::sleep_for(100ms);
@@ -228,12 +228,12 @@ TEST_F(TabTest, Start_ExtractsFilenameForTitle) {
 /**
  * CONTRACT: Stop terminates shell process
  *
- * Given: Running tab
+ * Given: Running session
  * When: Stop is called
  * Then: IsRunning becomes false
  */
-TEST_F(TabTest, Stop_TerminatesShell) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Stop_TerminatesShell) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
     t.Start(TEST_SHELL);
     std::this_thread::sleep_for(100ms);
     ASSERT_TRUE(t.IsRunning());
@@ -247,12 +247,12 @@ TEST_F(TabTest, Stop_TerminatesShell) {
 /**
  * CONTRACT: Stop is safe to call multiple times
  *
- * Given: Tab (running or stopped)
+ * Given: TerminalSession (running or stopped)
  * When: Stop is called multiple times
  * Then: No crash or error
  */
-TEST_F(TabTest, Stop_SafeToCallMultipleTimes) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Stop_SafeToCallMultipleTimes) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
     t.Start(TEST_SHELL);
     std::this_thread::sleep_for(100ms);
 
@@ -264,14 +264,14 @@ TEST_F(TabTest, Stop_SafeToCallMultipleTimes) {
 }
 
 /**
- * CONTRACT: Stop is safe on unstarted tab
+ * CONTRACT: Stop is safe on unstarted session
  *
- * Given: Tab that was never started
+ * Given: TerminalSession that was never started
  * When: Stop is called
  * Then: No crash or error
  */
-TEST_F(TabTest, Stop_SafeOnUnstartedTab) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Stop_SafeOnUnstartedTab) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     EXPECT_NO_THROW(t.Stop());
     EXPECT_FALSE(t.IsRunning());
@@ -284,12 +284,12 @@ TEST_F(TabTest, Stop_SafeOnUnstartedTab) {
 /**
  * CONTRACT: SetTitle changes the title
  *
- * Given: A tab
+ * Given: A session
  * When: SetTitle is called
  * Then: GetTitle returns new title
  */
-TEST_F(TabTest, SetTitle_ChangesTitle) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, SetTitle_ChangesTitle) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     t.SetTitle(L"Custom Title");
 
@@ -299,12 +299,12 @@ TEST_F(TabTest, SetTitle_ChangesTitle) {
 /**
  * CONTRACT: Title can contain Unicode
  *
- * Given: A tab
+ * Given: A session
  * When: SetTitle is called with Unicode
  * Then: GetTitle returns Unicode title correctly
  */
-TEST_F(TabTest, SetTitle_SupportsUnicode) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, SetTitle_SupportsUnicode) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     t.SetTitle(L"Terminal 日本語");
 
@@ -314,12 +314,12 @@ TEST_F(TabTest, SetTitle_SupportsUnicode) {
 /**
  * CONTRACT: Title can be empty
  *
- * Given: A tab
+ * Given: A session
  * When: SetTitle is called with empty string
  * Then: GetTitle returns empty string
  */
-TEST_F(TabTest, SetTitle_AllowsEmpty) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, SetTitle_AllowsEmpty) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
     t.SetTitle(L"Something");
 
     t.SetTitle(L"");
@@ -334,12 +334,12 @@ TEST_F(TabTest, SetTitle_AllowsEmpty) {
 /**
  * CONTRACT: SetActivity changes activity state
  *
- * Given: A tab
+ * Given: A session
  * When: SetActivity is called with true
  * Then: HasActivity returns true
  */
-TEST_F(TabTest, SetActivity_ChangesState) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, SetActivity_ChangesState) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
     ASSERT_FALSE(t.HasActivity());
 
     t.SetActivity(true);
@@ -350,12 +350,12 @@ TEST_F(TabTest, SetActivity_ChangesState) {
 /**
  * CONTRACT: ClearActivity resets activity
  *
- * Given: A tab with activity
+ * Given: A session with activity
  * When: ClearActivity is called
  * Then: HasActivity returns false
  */
-TEST_F(TabTest, ClearActivity_ResetsActivity) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, ClearActivity_ResetsActivity) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
     t.SetActivity(true);
     ASSERT_TRUE(t.HasActivity());
 
@@ -367,22 +367,22 @@ TEST_F(TabTest, ClearActivity_ResetsActivity) {
 /**
  * CONTRACT: Shell output sets activity flag
  *
- * Given: A running tab
+ * Given: A running session
  * When: Shell produces output
  * Then: HasActivity becomes true
  */
-TEST_F(TabTest, ShellOutput_SetsActivity) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, ShellOutput_SetsActivity) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
-    tab->ClearActivity();
-    ASSERT_FALSE(tab->HasActivity());
+    session->ClearActivity();
+    ASSERT_FALSE(session->HasActivity());
 
     // Send command to generate output
-    tab->WriteInput("echo test\r\n", 11);
+    session->WriteInput("echo test\r\n", 11);
     std::this_thread::sleep_for(200ms);
 
-    EXPECT_TRUE(tab->HasActivity());
+    EXPECT_TRUE(session->HasActivity());
 }
 
 // ============================================================================
@@ -392,13 +392,13 @@ TEST_F(TabTest, ShellOutput_SetsActivity) {
 /**
  * CONTRACT: Output callback receives shell output
  *
- * Given: A running tab with output callback
+ * Given: A running session with output callback
  * When: Shell produces output
  * Then: Callback is invoked with output data
  */
-TEST_F(TabTest, OutputCallback_ReceivesOutput) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, OutputCallback_ReceivesOutput) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
     // Wait for initial shell prompt
     std::this_thread::sleep_for(200ms);
@@ -410,16 +410,16 @@ TEST_F(TabTest, OutputCallback_ReceivesOutput) {
 /**
  * CONTRACT: Output callback receives command echo
  *
- * Given: A running tab with output callback
+ * Given: A running session with output callback
  * When: Input is written
  * Then: Callback receives echoed input
  */
-TEST_F(TabTest, OutputCallback_ReceivesEcho) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, OutputCallback_ReceivesEcho) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
     outputData.clear();
 
-    tab->WriteInput("echo hello\r\n", 12);
+    session->WriteInput("echo hello\r\n", 12);
     std::this_thread::sleep_for(300ms);
 
     EXPECT_NE(std::string::npos, outputData.find("hello"));
@@ -432,16 +432,16 @@ TEST_F(TabTest, OutputCallback_ReceivesEcho) {
 /**
  * CONTRACT: Process exit callback fires when shell exits
  *
- * Given: A running tab with exit callback
+ * Given: A running session with exit callback
  * When: Shell process exits
  * Then: Callback is invoked with exit code
  */
-TEST_F(TabTest, ProcessExitCallback_FiresOnExit) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, ProcessExitCallback_FiresOnExit) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
     // Exit the shell
-    tab->WriteInput("exit\r\n", 6);
+    session->WriteInput("exit\r\n", 6);
 
     // Wait for exit
     for (int i = 0; i < 20 && !exitCodeReceived; i++) {
@@ -455,16 +455,16 @@ TEST_F(TabTest, ProcessExitCallback_FiresOnExit) {
 /**
  * CONTRACT: Process exit callback receives non-zero exit code
  *
- * Given: A running tab with exit callback
+ * Given: A running session with exit callback
  * When: Shell exits with error code
  * Then: Callback receives that code
  */
-TEST_F(TabTest, ProcessExitCallback_ReceivesErrorCode) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, ProcessExitCallback_ReceivesErrorCode) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
     // Exit with error code
-    tab->WriteInput("exit /b 42\r\n", 12);
+    session->WriteInput("exit /b 42\r\n", 12);
 
     // Wait for exit
     for (int i = 0; i < 20 && !exitCodeReceived; i++) {
@@ -482,17 +482,17 @@ TEST_F(TabTest, ProcessExitCallback_ReceivesErrorCode) {
 /**
  * CONTRACT: WriteInput sends data to shell
  *
- * Given: A running tab
+ * Given: A running session
  * When: WriteInput is called
  * Then: Shell receives and processes input
  */
-TEST_F(TabTest, WriteInput_SendsToShell) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, WriteInput_SendsToShell) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
     outputData.clear();
 
     // Write a command
-    tab->WriteInput("echo WriteInputTest\r\n", 21);
+    session->WriteInput("echo WriteInputTest\r\n", 21);
     std::this_thread::sleep_for(300ms);
 
     EXPECT_NE(std::string::npos, outputData.find("WriteInputTest"));
@@ -501,12 +501,12 @@ TEST_F(TabTest, WriteInput_SendsToShell) {
 /**
  * CONTRACT: WriteInput is safe when not running
  *
- * Given: A tab that is not running
+ * Given: A session that is not running
  * When: WriteInput is called
  * Then: No crash (data is silently ignored)
  */
-TEST_F(TabTest, WriteInput_SafeWhenNotRunning) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, WriteInput_SafeWhenNotRunning) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     EXPECT_NO_THROW(t.WriteInput("test", 4));
 }
@@ -514,15 +514,15 @@ TEST_F(TabTest, WriteInput_SafeWhenNotRunning) {
 /**
  * CONTRACT: WriteInput handles empty data
  *
- * Given: A running tab
+ * Given: A running session
  * When: WriteInput is called with empty data
  * Then: No crash or error
  */
-TEST_F(TabTest, WriteInput_HandlesEmptyData) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, WriteInput_HandlesEmptyData) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
-    EXPECT_NO_THROW(tab->WriteInput("", 0));
+    EXPECT_NO_THROW(session->WriteInput("", 0));
 }
 
 // ============================================================================
@@ -532,12 +532,12 @@ TEST_F(TabTest, WriteInput_HandlesEmptyData) {
 /**
  * CONTRACT: Resize updates screen buffer dimensions
  *
- * Given: A tab
+ * Given: A session
  * When: Resize is called
  * Then: ScreenBuffer has new dimensions
  */
-TEST_F(TabTest, Resize_UpdatesScreenBuffer) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, Resize_UpdatesScreenBuffer) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     t.Resize(120, 40);
 
@@ -548,19 +548,19 @@ TEST_F(TabTest, Resize_UpdatesScreenBuffer) {
 }
 
 /**
- * CONTRACT: Resize works on running tab
+ * CONTRACT: Resize works on running session
  *
- * Given: A running tab
+ * Given: A running session
  * When: Resize is called
  * Then: Both buffer and ConPTY are resized
  */
-TEST_F(TabTest, Resize_WorksOnRunningTab) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, Resize_WorksOnRunningTab) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
-    EXPECT_NO_THROW(tab->Resize(100, 30));
+    EXPECT_NO_THROW(session->Resize(100, 30));
 
-    auto* buffer = tab->GetScreenBuffer();
+    auto* buffer = session->GetScreenBuffer();
     EXPECT_EQ(100, buffer->GetCols());
     EXPECT_EQ(30, buffer->GetRows());
 }
@@ -568,12 +568,12 @@ TEST_F(TabTest, Resize_WorksOnRunningTab) {
 /**
  * CONTRACT: ResizeScreenBuffer only updates buffer
  *
- * Given: A tab
+ * Given: A session
  * When: ResizeScreenBuffer is called
  * Then: ScreenBuffer dimensions change
  */
-TEST_F(TabTest, ResizeScreenBuffer_UpdatesOnlyBuffer) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, ResizeScreenBuffer_UpdatesOnlyBuffer) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     t.ResizeScreenBuffer(100, 30);
 
@@ -583,14 +583,14 @@ TEST_F(TabTest, ResizeScreenBuffer_UpdatesOnlyBuffer) {
 }
 
 /**
- * CONTRACT: ResizeConPTY is safe on non-running tab
+ * CONTRACT: ResizeConPTY is safe on non-running session
  *
- * Given: A tab that is not running
+ * Given: A session that is not running
  * When: ResizeConPTY is called
  * Then: No crash (operation is no-op)
  */
-TEST_F(TabTest, ResizeConPTY_SafeWhenNotRunning) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, ResizeConPTY_SafeWhenNotRunning) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     EXPECT_NO_THROW(t.ResizeConPTY(100, 30));
 }
@@ -602,12 +602,12 @@ TEST_F(TabTest, ResizeConPTY_SafeWhenNotRunning) {
 /**
  * CONTRACT: GetScreenBuffer returns valid buffer
  *
- * Given: A tab
+ * Given: A session
  * When: GetScreenBuffer is called
  * Then: Returns non-null pointer with correct dimensions
  */
-TEST_F(TabTest, GetScreenBuffer_ReturnsValidBuffer) {
-    Tab t(1, 100, 50, 2000);
+TEST_F(TerminalSessionTest, GetScreenBuffer_ReturnsValidBuffer) {
+    TerminalSession t(1, 100, 50, 2000);
 
     auto* buffer = t.GetScreenBuffer();
 
@@ -619,12 +619,12 @@ TEST_F(TabTest, GetScreenBuffer_ReturnsValidBuffer) {
 /**
  * CONTRACT: GetVTParser returns valid parser
  *
- * Given: A tab
+ * Given: A session
  * When: GetVTParser is called
  * Then: Returns non-null pointer
  */
-TEST_F(TabTest, GetVTParser_ReturnsValidParser) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, GetVTParser_ReturnsValidParser) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     auto* parser = t.GetVTParser();
 
@@ -634,12 +634,12 @@ TEST_F(TabTest, GetVTParser_ReturnsValidParser) {
 /**
  * CONTRACT: GetTerminal returns valid session
  *
- * Given: A tab
+ * Given: A session
  * When: GetTerminal is called
  * Then: Returns non-null pointer
  */
-TEST_F(TabTest, GetTerminal_ReturnsValidSession) {
-    Tab t(1, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, GetTerminal_ReturnsValidSession) {
+    TerminalSession t(1, TEST_COLS, TEST_ROWS);
 
     auto* terminal = t.GetTerminal();
 
@@ -653,20 +653,20 @@ TEST_F(TabTest, GetTerminal_ReturnsValidSession) {
 /**
  * CONTRACT: Shell output is parsed by VT parser
  *
- * Given: A running tab
+ * Given: A running session
  * When: Shell produces output
  * Then: VT parser processes it into screen buffer
  */
-TEST_F(TabTest, VTParser_ProcessesShellOutput) {
-    tab = CreateAndStartTab();
-    ASSERT_TRUE(tab->IsRunning());
+TEST_F(TerminalSessionTest, VTParser_ProcessesShellOutput) {
+    session = CreateAndStartSession();
+    ASSERT_TRUE(session->IsRunning());
 
     // Send a command that produces predictable output
-    tab->WriteInput("echo VTParserTest\r\n", 19);
+    session->WriteInput("echo VTParserTest\r\n", 19);
     std::this_thread::sleep_for(300ms);
 
     // Check that text appears in screen buffer
-    auto* buffer = tab->GetScreenBuffer();
+    auto* buffer = session->GetScreenBuffer();
     bool found = false;
 
     for (int row = 0; row < buffer->GetRows(); row++) {
@@ -693,20 +693,20 @@ TEST_F(TabTest, VTParser_ProcessesShellOutput) {
 /**
  * CONTRACT: Destructor stops running shell
  *
- * Given: A running tab
- * When: Tab is destroyed
+ * Given: A running session
+ * When: TerminalSession is destroyed
  * Then: Shell is stopped cleanly
  */
-TEST_F(TabTest, Destructor_StopsShell) {
+TEST_F(TerminalSessionTest, Destructor_StopsShell) {
     bool destroyed = false;
 
     {
-        auto t = std::make_unique<Tab>(1, TEST_COLS, TEST_ROWS);
+        auto t = std::make_unique<TerminalSession>(1, TEST_COLS, TEST_ROWS);
         t->Start(TEST_SHELL);
         std::this_thread::sleep_for(100ms);
         ASSERT_TRUE(t->IsRunning());
 
-        // Tab destructor called here
+        // TerminalSession destructor called here
     }
 
     // If we get here without crashing, destructor worked
@@ -715,17 +715,17 @@ TEST_F(TabTest, Destructor_StopsShell) {
 }
 
 /**
- * CONTRACT: Destructor is safe on unstarted tab
+ * CONTRACT: Destructor is safe on unstarted session
  *
- * Given: A tab that was never started
- * When: Tab is destroyed
+ * Given: A session that was never started
+ * When: TerminalSession is destroyed
  * Then: No crash or error
  */
-TEST_F(TabTest, Destructor_SafeOnUnstartedTab) {
+TEST_F(TerminalSessionTest, Destructor_SafeOnUnstartedTab) {
     bool destroyed = false;
 
     {
-        Tab t(1, TEST_COLS, TEST_ROWS);
+        TerminalSession t(1, TEST_COLS, TEST_ROWS);
         // Never started - destructor called here
     }
 
@@ -738,14 +738,14 @@ TEST_F(TabTest, Destructor_SafeOnUnstartedTab) {
 // ============================================================================
 
 /**
- * CONTRACT: Tab handles minimum dimensions
+ * CONTRACT: TerminalSession handles minimum dimensions
  *
  * Given: Very small dimensions
- * When: Tab is created
- * Then: Tab works correctly
+ * When: TerminalSession is created
+ * Then: TerminalSession works correctly
  */
-TEST_F(TabTest, EdgeCase_MinimumDimensions) {
-    Tab t(1, 1, 1, 1);
+TEST_F(TerminalSessionTest, EdgeCase_MinimumDimensions) {
+    TerminalSession t(1, 1, 1, 1);
 
     EXPECT_NE(nullptr, t.GetScreenBuffer());
     EXPECT_EQ(1, t.GetScreenBuffer()->GetCols());
@@ -753,14 +753,14 @@ TEST_F(TabTest, EdgeCase_MinimumDimensions) {
 }
 
 /**
- * CONTRACT: Tab handles large dimensions
+ * CONTRACT: TerminalSession handles large dimensions
  *
  * Given: Large dimensions
- * When: Tab is created
- * Then: Tab works correctly
+ * When: TerminalSession is created
+ * Then: TerminalSession works correctly
  */
-TEST_F(TabTest, EdgeCase_LargeDimensions) {
-    Tab t(1, 500, 200, 100000);
+TEST_F(TerminalSessionTest, EdgeCase_LargeDimensions) {
+    TerminalSession t(1, 500, 200, 100000);
 
     EXPECT_NE(nullptr, t.GetScreenBuffer());
     EXPECT_EQ(500, t.GetScreenBuffer()->GetCols());
@@ -774,10 +774,10 @@ TEST_F(TabTest, EdgeCase_LargeDimensions) {
  * When: All are started
  * Then: All run independently
  */
-TEST_F(TabTest, EdgeCase_MultipleTabs) {
-    Tab t1(1, TEST_COLS, TEST_ROWS);
-    Tab t2(2, TEST_COLS, TEST_ROWS);
-    Tab t3(3, TEST_COLS, TEST_ROWS);
+TEST_F(TerminalSessionTest, EdgeCase_MultipleTabs) {
+    TerminalSession t1(1, TEST_COLS, TEST_ROWS);
+    TerminalSession t2(2, TEST_COLS, TEST_ROWS);
+    TerminalSession t3(3, TEST_COLS, TEST_ROWS);
 
     EXPECT_TRUE(t1.Start(TEST_SHELL));
     EXPECT_TRUE(t2.Start(TEST_SHELL));

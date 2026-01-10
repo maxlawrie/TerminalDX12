@@ -1,14 +1,14 @@
 #include "ui/PaneManager.h"
-#include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include "terminal/ScreenBuffer.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
 namespace TerminalDX12::UI {
 
-void PaneManager::Initialize(Tab* initialTab) {
-    if (initialTab) {
-        m_rootPane = std::make_unique<Pane>(initialTab);
+void PaneManager::Initialize(TerminalSession* initialSession) {
+    if (initialSession) {
+        m_rootPane = std::make_unique<Pane>(initialSession);
         m_focusedPane = m_rootPane.get();
     }
 }
@@ -20,19 +20,19 @@ void PaneManager::ToggleZoom() {
     }
 }
 
-Pane* PaneManager::SplitFocusedPane(SplitDirection direction, Tab* newTab) {
+Pane* PaneManager::SplitFocusedPane(SplitDirection direction, TerminalSession* newSession) {
     if (!m_focusedPane || !m_focusedPane->IsLeaf()) {
         spdlog::warn("Cannot split: no focused leaf pane");
         return nullptr;
     }
 
-    if (!newTab) {
-        spdlog::error("Cannot split: no tab provided");
+    if (!newSession) {
+        spdlog::error("Cannot split: no session provided");
         return nullptr;
     }
 
     // Split the focused pane
-    Pane* newPane = m_focusedPane->Split(direction, newTab);
+    Pane* newPane = m_focusedPane->Split(direction, newSession);
     if (newPane) {
         // Focus the new pane
         m_focusedPane = newPane;
@@ -42,7 +42,7 @@ Pane* PaneManager::SplitFocusedPane(SplitDirection direction, Tab* newTab) {
     return newPane;
 }
 
-Tab* PaneManager::CloseFocusedPane() {
+TerminalSession* PaneManager::CloseFocusedPane() {
     if (!m_focusedPane || !m_rootPane) {
         return nullptr;
     }
@@ -61,8 +61,8 @@ Tab* PaneManager::CloseFocusedPane() {
         return nullptr;
     }
 
-    // Get the tab from the pane we're closing
-    Tab* tabToClose = m_focusedPane->GetTab();
+    // Get the session from the pane we're closing
+    TerminalSession* sessionToClose = m_focusedPane->GetSession();
 
     // Close the child in the parent (this restructures the tree and invalidates pointers)
     if (parent->CloseChild(m_focusedPane)) {
@@ -72,7 +72,7 @@ Tab* PaneManager::CloseFocusedPane() {
         m_focusedPane = leaves.empty() ? nullptr : leaves[0];
 
         spdlog::info("Closed pane, {} panes remaining", leaves.size());
-        return tabToClose;
+        return sessionToClose;
     }
 
     return nullptr;
@@ -139,26 +139,26 @@ void PaneManager::UpdateLayout(int width, int height, int tabBarHeight) {
     // If zoomed, only the focused pane gets the full space
     if (m_paneZoomed && m_focusedPane && m_focusedPane->IsLeaf()) {
         m_focusedPane->SetBounds(availableSpace);
-        if (m_focusedPane->GetTab() && m_focusedPane->GetTab()->GetScreenBuffer()) {
+        if (m_focusedPane->GetSession() && m_focusedPane->GetSession()->GetScreenBuffer()) {
             int cols = std::max(10, availableSpace.width / charWidth);
             int rows = std::max(5, availableSpace.height / lineHeight);
-            m_focusedPane->GetTab()->Resize(cols, rows);
+            m_focusedPane->GetSession()->Resize(cols, rows);
         }
         return;
     }
 
     m_rootPane->CalculateLayout(availableSpace);
 
-    // Resize all panes' tabs to fit their new bounds
+    // Resize all panes' sessions to fit their new bounds
     std::vector<Pane*> leaves;
     m_rootPane->GetAllLeafPanes(leaves);
 
     for (Pane* pane : leaves) {
-        if (pane->GetTab() && pane->GetTab()->GetScreenBuffer()) {
+        if (pane->GetSession() && pane->GetSession()->GetScreenBuffer()) {
             const PaneRect& bounds = pane->GetBounds();
             int cols = std::max(10, bounds.width / charWidth);
             int rows = std::max(5, bounds.height / lineHeight);
-            pane->GetTab()->Resize(cols, rows);
+            pane->GetSession()->Resize(cols, rows);
         }
     }
 }

@@ -14,7 +14,6 @@
 #include <Windows.h>
 #include "ui/SearchManager.h"
 #include "ui/SelectionManager.h"
-#include "ui/PaneManager.h"
 #include "ui/InputHandler.h"
 #include "ui/MouseHandler.h"
 
@@ -35,6 +34,7 @@ namespace UI {
     class TabManager;
     class Tab;
     class Pane;
+    class TerminalSession;
     class SearchManager;
     class SelectionManager;
     class PaneManager;
@@ -127,7 +127,8 @@ private:
     // Settings dialog
     void ShowSettings();
 
-    // Pane management
+    // Pane management (delegates to active tab's PaneManager)
+    UI::PaneManager* GetActivePaneManager();
     void SplitPane(UI::SplitDirection direction);
     void ClosePane();
     void UpdatePaneLayout();
@@ -138,9 +139,6 @@ private:
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
     std::unique_ptr<UI::TabManager> m_tabManager;
-
-    // Pane manager
-    UI::PaneManager m_paneManager;
 
     // Helper accessors for active tab's components
     Terminal::ScreenBuffer* GetActiveScreenBuffer();

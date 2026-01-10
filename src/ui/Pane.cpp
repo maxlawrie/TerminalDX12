@@ -1,12 +1,12 @@
 #include "ui/Pane.h"
-#include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
 namespace TerminalDX12::UI {
 
-Pane::Pane(Tab* tab)
-    : m_tab(tab)
+Pane::Pane(TerminalSession* session)
+    : m_session(session)
     , m_splitDirection(SplitDirection::None)
 {
 }
@@ -55,17 +55,17 @@ void Pane::CalculateLayout(const PaneRect& availableSpace) {
     if (m_secondChild) m_secondChild->CalculateLayout(secondRect);
 }
 
-Pane* Pane::FindPaneWithTab(Tab* tab) {
+Pane* Pane::FindPaneWithSession(TerminalSession* session) {
     if (IsLeaf()) {
-        return (m_tab == tab) ? this : nullptr;
+        return (m_session == session) ? this : nullptr;
     }
 
     if (m_firstChild) {
-        Pane* found = m_firstChild->FindPaneWithTab(tab);
+        Pane* found = m_firstChild->FindPaneWithSession(session);
         if (found) return found;
     }
     if (m_secondChild) {
-        Pane* found = m_secondChild->FindPaneWithTab(tab);
+        Pane* found = m_secondChild->FindPaneWithSession(session);
         if (found) return found;
     }
 
@@ -203,21 +203,21 @@ Pane* Pane::FindAdjacentPane(Pane* from, SplitDirection direction, bool forward)
     }
 }
 
-Pane* Pane::Split(SplitDirection direction, Tab* newTab) {
+Pane* Pane::Split(SplitDirection direction, TerminalSession* newSession) {
     if (!IsLeaf()) {
         spdlog::warn("Cannot split a non-leaf pane");
         return nullptr;
     }
 
-    // Create a new leaf pane for the new tab
-    auto newPane = std::make_unique<Pane>(newTab);
+    // Create a new leaf pane for the new session
+    auto newPane = std::make_unique<Pane>(newSession);
     Pane* newPanePtr = newPane.get();
 
-    // Create a new leaf pane for the existing tab
-    auto existingPane = std::make_unique<Pane>(m_tab);
+    // Create a new leaf pane for the existing session
+    auto existingPane = std::make_unique<Pane>(m_session);
 
     // Convert this pane to a split pane
-    m_tab = nullptr;
+    m_session = nullptr;
     m_splitDirection = direction;
     m_firstChild = std::move(existingPane);
     m_secondChild = std::move(newPane);
@@ -255,7 +255,7 @@ bool Pane::CloseChild(Pane* childToClose) {
 
     // Promote the remaining child
     if (paneToKeep->IsLeaf()) {
-        m_tab = paneToKeep->m_tab;
+        m_session = paneToKeep->m_session;
         m_splitDirection = SplitDirection::None;
         m_firstChild.reset();
         m_secondChild.reset();
