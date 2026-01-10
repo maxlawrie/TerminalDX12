@@ -453,42 +453,35 @@ void Application::RenderTabBar(int charWidth) {
         const auto& tab = tabs[i];
         bool active = (static_cast<int>(i) == activeIndex);
         bool hasActivity = !active && tab->HasActivity();
-        std::string title = WStringToAscii(tab->GetTitle(), 15);
 
-        // Build session names string (blue text)
+        // Build session names string
         std::string sessionNames;
         const auto& sessions = tab->GetSessions();
         for (size_t j = 0; j < sessions.size(); ++j) {
             if (j > 0) sessionNames += ", ";
-            sessionNames += WStringToAscii(sessions[j]->GetTitle(), 10);
+            sessionNames += WStringToAscii(sessions[j]->GetTitle(), 12);
         }
+        if (sessionNames.empty()) sessionNames = "Terminal";
 
-        // Calculate tab width based on longer of title or session names
-        int titleLen = static_cast<int>(title.length() * charWidth) + 20;
-        int sessionsLen = static_cast<int>(sessionNames.length() * charWidth * 0.7f) + 20;
-        float tabWidth = static_cast<float>(std::max(100, std::max(titleLen, sessionsLen)));
+        // Calculate tab width based on session names
+        int sessionsLen = static_cast<int>(sessionNames.length() * charWidth) + 30;
+        float tabWidth = static_cast<float>(std::max(100, sessionsLen));
 
         // Tab background
         float bg = active ? 0.3f : 0.2f;
         m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(kTabBarHeight - 6),
                                bg, bg, active ? 0.35f : 0.2f, 1.0f);
 
-        // Activity indicator
-        float textX = tabX + 5.0f;
+        // Activity indicator and session names (blue)
+        float textX = tabX + 8.0f;
         if (hasActivity) {
-            m_renderer->RenderText("â", textX, 4.0f, 1.0f, 0.6f, 0.0f, 1.0f);
+            m_renderer->RenderText("â", textX, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
             textX += 12.0f;
         }
 
-        // Tab title (red)
-        m_renderer->RenderText(title.c_str(), textX, 4.0f,
-                               active ? 1.0f : 0.8f, active ? 0.3f : 0.2f, active ? 0.3f : 0.2f, 1.0f);
-
-        // Session names (blue) - below title
-        if (!sessionNames.empty()) {
-            m_renderer->RenderText(sessionNames.c_str(), tabX + 5.0f, 16.0f,
-                                   active ? 0.4f : 0.3f, active ? 0.6f : 0.5f, active ? 1.0f : 0.8f, 1.0f);
-        }
+        // Session names in blue
+        m_renderer->RenderText(sessionNames.c_str(), textX, 8.0f,
+                               active ? 0.4f : 0.3f, active ? 0.7f : 0.5f, active ? 1.0f : 0.8f, 1.0f);
 
         // Tab separator
         m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10), 0.4f, 0.4f, 0.4f, 1.0f);
