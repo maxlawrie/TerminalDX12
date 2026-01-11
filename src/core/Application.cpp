@@ -58,32 +58,11 @@ Application::~Application() {
     s_instance = nullptr;
 }
 
-bool Application::Initialize(const std::wstring& shell) {
-    // Load configuration
-    m_config = std::make_unique<Config>();
-    m_config->LoadDefault();
-    m_config->CreateDefaultIfMissing();
+// =============================================================================
+// Callback setup helpers
+// =============================================================================
 
-    for (const auto& warning : m_config->GetWarnings()) {
-        spdlog::warn("Config: {}", warning);
-    }
-
-    m_shellCommand = shell.empty() ? m_config->GetTerminal().shell : shell;
-
-    // Create window
-    m_window = std::make_unique<Window>();
-
-    WindowDesc windowDesc;
-    windowDesc.width = 1220;
-    windowDesc.height = 795;
-    windowDesc.title = L"TerminalDX12 - GPU-Accelerated Terminal Emulator";
-    windowDesc.resizable = true;
-
-    if (!m_window->Create(windowDesc)) {
-        return false;
-    }
-
-    // Setup window callbacks
+void Application::SetupWindowCallbacks() {
     m_window->OnResize = [this](int width, int height) {
         OnWindowResize(width, height);
     };
@@ -121,6 +100,206 @@ bool Application::Initialize(const std::wstring& shell) {
     m_window->OnPaint = [this]() {
         Render();
     };
+}
+
+void Application::SetupTabManagerCallbacks() {
+    // OSC 52 clipboard access
+    m_tabManager->SetSessionCreatedCallback([this](UI::TerminalSession* session) {
+        if (session) {
+            session->SetClipboardReadCallback([this]() {
+                HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+                return m_selectionManager.GetClipboardText(hwnd);
+            });
+            session->SetClipboardWriteCallback([this](const std::string& text) {
+                HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+                m_selectionManager.SetClipboardText(text, hwnd);
+            });
+        }
+    });
+
+    // Process exit callback
+    m_tabManager->SetProcessExitCallback([this](int tabId, int sessionId, int exitCode) {
+        spdlog::info("Process in tab {} session {} exited with code {}", tabId, sessionId, exitCode);
+        const auto& tabs = m_tabManager->GetTabs();
+        bool anyRunning = std::any_of(tabs.begin(), tabs.end(),
+            [](const auto& tab) { return tab && tab->HasRunningSessions(); });
+        if (!anyRunning) {
+            spdlog::info("All shell processes have exited, closing window");
+            m_running = false;
+        }
+    });
+}
+
+UI::InputHandlerCallbacks Application::BuildInputCallbacks() {
+    UI::InputHandlerCallbacks cb;
+
+    cb.onShowSettings = [this]() { ShowSettings(); };
+
+    cb.onNewWindow = [this]() {
+        wchar_t exePath[MAX_PATH];
+        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
+            STARTUPINFOW si = {};
+            si.cb = sizeof(si);
+            PROCESS_INFORMATION pi = {};
+            std::wstring cmdLine = exePath;
+            if (!m_shellCommand.empty() && m_shellCommand != L"powershell.exe") {
+                cmdLine += L" \"" + m_shellCommand + L"\"";
+            }
+            if (CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr,
+                              FALSE, 0, nullptr, nullptr, &si, &pi)) {
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                spdlog::info("Launched new window");
+            } else {
+                spdlog::error("Failed to launch new window: {}", GetLastError());
+            }
+        }
+    };
+
+    cb.onQuit = [this]() { m_running = false; };
+
+    cb.onNewTab = [this]() {
+        if (m_tabManager) {
+            int cols = 80, rows = 24;
+            if (auto* tab = m_tabManager->GetActiveTab()) {
+                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
+                    cols = session->GetScreenBuffer()->GetCols();
+                    rows = session->GetScreenBuffer()->GetRows();
+                }
+            }
+            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
+            UpdatePaneLayout();
+            ResizeAllPaneBuffers();
+        }
+    };
+
+    cb.onCloseTab = [this]() {
+        if (m_tabManager && m_tabManager->GetTabCount() > 1) {
+            m_tabManager->CloseActiveTab();
+            UpdatePaneLayout();
+            ResizeAllPaneBuffers();
+        }
+    };
+
+    cb.onNextTab = [this]() { if (m_tabManager) m_tabManager->NextTab(); };
+    cb.onPreviousTab = [this]() { if (m_tabManager) m_tabManager->PreviousTab(); };
+
+    cb.onSwitchToTab = [this](int tabIndex) {
+        if (m_tabManager && tabIndex < static_cast<int>(m_tabManager->GetTabs().size())) {
+            m_tabManager->SwitchToTab(m_tabManager->GetTabs()[tabIndex]->GetId());
+        }
+    };
+
+    cb.onSplitPane = [this](UI::SplitDirection dir) { SplitPane(dir); };
+    cb.onClosePane = [this]() { ClosePane(); };
+    cb.onToggleZoom = [this]() { if (auto* pm = GetActivePaneManager()) { pm->ToggleZoom(); UpdatePaneLayout(); } };
+    cb.onFocusNextPane = [this]() { if (auto* pm = GetActivePaneManager()) pm->FocusNextPane(); };
+    cb.onFocusPreviousPane = [this]() { if (auto* pm = GetActivePaneManager()) pm->FocusPreviousPane(); };
+
+    cb.onOpenSearch = [this]() { m_searchManager.Open(); };
+    cb.onCloseSearch = [this]() { m_searchManager.Close(); };
+    cb.onSearchNext = [this]() { m_searchManager.NextMatch(); };
+    cb.onSearchPrevious = [this]() { m_searchManager.PreviousMatch(); };
+    cb.onUpdateSearchResults = [this]() { m_searchManager.UpdateResults(GetActiveScreenBuffer()); };
+
+    cb.onCopySelection = [this]() { CopySelectionToClipboard(); };
+    cb.onPaste = [this]() { PasteFromClipboard(); };
+    cb.onUpdatePaneLayout = [this]() { UpdatePaneLayout(); };
+
+    cb.getActiveTerminal = [this]() { return GetActiveTerminal(); };
+    cb.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
+    cb.getTabCount = [this]() { return m_tabManager ? m_tabManager->GetTabCount() : 0; };
+    cb.hasMultiplePanes = [this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); };
+    cb.getShellCommand = [this]() -> const std::wstring& { return m_shellCommand; };
+    cb.getVTParser = [this]() { return GetActiveVTParser(); };
+
+    return cb;
+}
+
+void Application::SetupSelectionCallbacks() {
+    m_selectionManager.SetSettingsCallback([this]() { ShowSettings(); });
+    m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
+    m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
+    m_selectionManager.SetClosePaneCallback([this]() { ClosePane(); });
+    m_selectionManager.SetNewTabCallback([this]() {
+        if (m_tabManager) {
+            int cols = 80, rows = 24;
+            if (auto* tab = m_tabManager->GetActiveTab()) {
+                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
+                    cols = session->GetScreenBuffer()->GetCols();
+                    rows = session->GetScreenBuffer()->GetRows();
+                }
+            }
+            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
+        }
+    });
+    m_selectionManager.SetHasMultiplePanes([this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); });
+}
+
+UI::MouseHandlerCallbacks Application::BuildMouseCallbacks() {
+    UI::MouseHandlerCallbacks cb;
+
+    cb.onPaste = [this]() { PasteFromClipboard(); };
+    cb.onOpenUrl = [](const std::string& url) { UI::UrlHelper::OpenUrl(url); };
+
+    cb.onShowContextMenu = [this](int x, int y) {
+        HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
+        m_selectionManager.ShowContextMenu(x, y, hwnd, GetActiveScreenBuffer(), GetActiveTerminal());
+    };
+
+    cb.onSwitchToTab = [this](int tabId) {
+        if (m_tabManager) m_tabManager->SwitchToTab(tabId);
+    };
+
+    cb.getActiveTerminal = [this]() { return GetActiveTerminal(); };
+    cb.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
+    cb.getActiveVTParser = [this]() { return GetActiveVTParser(); };
+    cb.getWindowHandle = [this]() { return m_window ? m_window->GetHandle() : nullptr; };
+
+    cb.setCursor = [this](HCURSOR cursor) {
+        if (m_window) m_window->SetCursor(cursor);
+    };
+
+    cb.onDividerResized = [this]() {
+        UpdatePaneLayout();
+        ResizeAllPaneBuffers();
+    };
+
+    cb.getPaneManager = [this]() { return GetActivePaneManager(); };
+
+    return cb;
+}
+
+// =============================================================================
+// Initialize
+// =============================================================================
+
+bool Application::Initialize(const std::wstring& shell) {
+    // Load configuration
+    m_config = std::make_unique<Config>();
+    m_config->LoadDefault();
+    m_config->CreateDefaultIfMissing();
+
+    for (const auto& warning : m_config->GetWarnings()) {
+        spdlog::warn("Config: {}", warning);
+    }
+
+    m_shellCommand = shell.empty() ? m_config->GetTerminal().shell : shell;
+
+    // Create window
+    m_window = std::make_unique<Window>();
+
+    WindowDesc windowDesc;
+    windowDesc.width = 1220;
+    windowDesc.height = 795;
+    windowDesc.title = L"TerminalDX12 - GPU-Accelerated Terminal Emulator";
+    windowDesc.resizable = true;
+
+    if (!m_window->Create(windowDesc)) {
+        return false;
+    }
+
+    SetupWindowCallbacks();
 
     // Create DirectX 12 renderer
     m_renderer = std::make_unique<Rendering::DX12Renderer>();
@@ -138,34 +317,9 @@ bool Application::Initialize(const std::wstring& shell) {
     }
     UpdateFontMetrics();
 
-    // Create tab manager
+    // Create tab manager and setup callbacks
     m_tabManager = std::make_unique<UI::TabManager>();
-
-    // Set session created callback for OSC 52 clipboard access
-    m_tabManager->SetSessionCreatedCallback([this](UI::TerminalSession* session) {
-        if (session) {
-            session->SetClipboardReadCallback([this]() {
-                HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-                return m_selectionManager.GetClipboardText(hwnd);
-            });
-            session->SetClipboardWriteCallback([this](const std::string& text) {
-                HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-                m_selectionManager.SetClipboardText(text, hwnd);
-            });
-        }
-    });
-
-    // Set process exit callback
-    m_tabManager->SetProcessExitCallback([this](int tabId, int sessionId, int exitCode) {
-        spdlog::info("Process in tab {} session {} exited with code {}", tabId, sessionId, exitCode);
-        const auto& tabs = m_tabManager->GetTabs();
-        bool anyRunning = std::any_of(tabs.begin(), tabs.end(),
-            [](const auto& tab) { return tab && tab->HasRunningSessions(); });
-        if (!anyRunning) {
-            spdlog::info("All shell processes have exited, closing window");
-            m_running = false;
-        }
-    });
+    SetupTabManagerCallbacks();
 
     // Calculate terminal size and create initial tab
     int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
@@ -187,130 +341,16 @@ bool Application::Initialize(const std::wstring& shell) {
         spdlog::info("Window opacity set to {}%", static_cast<int>(opacity * 100));
     }
 
-    // Create input handler with callbacks
-    UI::InputHandlerCallbacks inputCallbacks;
-    inputCallbacks.onShowSettings = [this]() { ShowSettings(); };
-    inputCallbacks.onNewWindow = [this]() {
-        wchar_t exePath[MAX_PATH];
-        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
-            STARTUPINFOW si = {};
-            si.cb = sizeof(si);
-            PROCESS_INFORMATION pi = {};
-            std::wstring cmdLine = exePath;
-            if (!m_shellCommand.empty() && m_shellCommand != L"powershell.exe") {
-                cmdLine += L" \"" + m_shellCommand + L"\"";
-            }
-            if (CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr,
-                              FALSE, 0, nullptr, nullptr, &si, &pi)) {
-                CloseHandle(pi.hThread);
-                CloseHandle(pi.hProcess);
-                spdlog::info("Launched new window");
-            } else {
-                spdlog::error("Failed to launch new window: {}", GetLastError());
-            }
-        }
-    };
-    inputCallbacks.onQuit = [this]() { m_running = false; };
-    inputCallbacks.onNewTab = [this]() {
-        if (m_tabManager) {
-            int cols = 80, rows = 24;
-            if (auto* tab = m_tabManager->GetActiveTab()) {
-                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
-                    cols = session->GetScreenBuffer()->GetCols();
-                    rows = session->GetScreenBuffer()->GetRows();
-                }
-            }
-            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
-            UpdatePaneLayout();
-            ResizeAllPaneBuffers();
-        }
-    };
-    inputCallbacks.onCloseTab = [this]() {
-        if (m_tabManager && m_tabManager->GetTabCount() > 1) {
-            m_tabManager->CloseActiveTab();
-            UpdatePaneLayout();
-            ResizeAllPaneBuffers();
-        }
-    };
-    inputCallbacks.onNextTab = [this]() {
-        if (m_tabManager) m_tabManager->NextTab();
-    };
-    inputCallbacks.onPreviousTab = [this]() {
-        if (m_tabManager) m_tabManager->PreviousTab();
-    };
-    inputCallbacks.onSwitchToTab = [this](int tabIndex) {
-        if (m_tabManager && tabIndex < static_cast<int>(m_tabManager->GetTabs().size())) {
-            m_tabManager->SwitchToTab(m_tabManager->GetTabs()[tabIndex]->GetId());
-        }
-    };
-    inputCallbacks.onSplitPane = [this](UI::SplitDirection dir) { SplitPane(dir); };
-    inputCallbacks.onClosePane = [this]() { ClosePane(); };
-    inputCallbacks.onToggleZoom = [this]() { if (auto* pm = GetActivePaneManager()) { pm->ToggleZoom(); UpdatePaneLayout(); } };
-    inputCallbacks.onFocusNextPane = [this]() { if (auto* pm = GetActivePaneManager()) pm->FocusNextPane(); };
-    inputCallbacks.onFocusPreviousPane = [this]() { if (auto* pm = GetActivePaneManager()) pm->FocusPreviousPane(); };
-    inputCallbacks.onOpenSearch = [this]() { m_searchManager.Open(); };
-    inputCallbacks.onCloseSearch = [this]() { m_searchManager.Close(); };
-    inputCallbacks.onSearchNext = [this]() { m_searchManager.NextMatch(); };
-    inputCallbacks.onSearchPrevious = [this]() { m_searchManager.PreviousMatch(); };
-    inputCallbacks.onUpdateSearchResults = [this]() { m_searchManager.UpdateResults(GetActiveScreenBuffer()); };
-    inputCallbacks.onCopySelection = [this]() { CopySelectionToClipboard(); };
-    inputCallbacks.onPaste = [this]() { PasteFromClipboard(); };
-    inputCallbacks.onUpdatePaneLayout = [this]() { UpdatePaneLayout(); };
-    inputCallbacks.getActiveTerminal = [this]() { return GetActiveTerminal(); };
-    inputCallbacks.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
-    inputCallbacks.getTabCount = [this]() { return m_tabManager ? m_tabManager->GetTabCount() : 0; };
-    inputCallbacks.hasMultiplePanes = [this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); };
-    inputCallbacks.getShellCommand = [this]() -> const std::wstring& { return m_shellCommand; };
-    inputCallbacks.getVTParser = [this]() { return GetActiveVTParser(); };
-
+    // Create input handler
     m_inputHandler = std::make_unique<UI::InputHandler>(
-        std::move(inputCallbacks), m_searchManager, m_selectionManager);
+        BuildInputCallbacks(), m_searchManager, m_selectionManager);
 
-    // Set up context menu callbacks
-    m_selectionManager.SetSettingsCallback([this]() { ShowSettings(); });
-    m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
-    m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
-    m_selectionManager.SetClosePaneCallback([this]() { ClosePane(); });
-    m_selectionManager.SetNewTabCallback([this]() {
-        if (m_tabManager) {
-            int cols = 80, rows = 24;
-            if (auto* tab = m_tabManager->GetActiveTab()) {
-                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
-                    cols = session->GetScreenBuffer()->GetCols();
-                    rows = session->GetScreenBuffer()->GetRows();
-                }
-            }
-            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
-        }
-    });
-    m_selectionManager.SetHasMultiplePanes([this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); });
+    // Setup context menu callbacks
+    SetupSelectionCallbacks();
 
-    // Create mouse handler with callbacks
-    UI::MouseHandlerCallbacks mouseCallbacks;
-    mouseCallbacks.onPaste = [this]() { PasteFromClipboard(); };
-    mouseCallbacks.onOpenUrl = [](const std::string& url) { UI::UrlHelper::OpenUrl(url); };
-    mouseCallbacks.onShowContextMenu = [this](int x, int y) {
-        HWND hwnd = m_window ? m_window->GetHandle() : nullptr;
-        m_selectionManager.ShowContextMenu(x, y, hwnd, GetActiveScreenBuffer(), GetActiveTerminal());
-    };
-    mouseCallbacks.onSwitchToTab = [this](int tabId) {
-        if (m_tabManager) m_tabManager->SwitchToTab(tabId);
-    };
-    mouseCallbacks.getActiveTerminal = [this]() { return GetActiveTerminal(); };
-    mouseCallbacks.getActiveScreenBuffer = [this]() { return GetActiveScreenBuffer(); };
-    mouseCallbacks.getActiveVTParser = [this]() { return GetActiveVTParser(); };
-    mouseCallbacks.getWindowHandle = [this]() { return m_window ? m_window->GetHandle() : nullptr; };
-    mouseCallbacks.setCursor = [this](HCURSOR cursor) {
-        if (m_window) m_window->SetCursor(cursor);
-    };
-    mouseCallbacks.onDividerResized = [this]() {
-        UpdatePaneLayout();
-        ResizeAllPaneBuffers();
-    };
-    mouseCallbacks.getPaneManager = [this]() { return GetActivePaneManager(); };
-
+    // Create mouse handler
     m_mouseHandler = std::make_unique<UI::MouseHandler>(
-        std::move(mouseCallbacks), m_selectionManager, m_tabManager.get());
+        BuildMouseCallbacks(), m_selectionManager, m_tabManager.get());
 
     m_mouseHandler->SetScreenToCellConverter([this](int x, int y) -> UI::CellPos {
         int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;

@@ -88,6 +88,13 @@ private:
     void UpdatePaneLayout();
     void ResizeAllPaneBuffers();
 
+    // Callback setup helpers (simplifies Initialize)
+    void SetupWindowCallbacks();
+    void SetupTabManagerCallbacks();
+    UI::InputHandlerCallbacks BuildInputCallbacks();
+    void SetupSelectionCallbacks();
+    UI::MouseHandlerCallbacks BuildMouseCallbacks();
+
     std::unique_ptr<Config> m_config;
     std::unique_ptr<Window> m_window;
     std::unique_ptr<Rendering::DX12Renderer> m_renderer;
