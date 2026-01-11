@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include "terminal/ITerminalView.h"
 
 namespace TerminalDX12::Terminal {
 
@@ -135,18 +136,18 @@ struct Cell {
 };
 
 // Terminal screen buffer with scrollback
-class ScreenBuffer {
+class ScreenBuffer : public ITerminalView {
 public:
     ScreenBuffer(int cols = 80, int rows = 24, int scrollbackLines = 10000);
     ~ScreenBuffer();
 
     // Size management
     void Resize(int cols, int rows);
-    int GetCols() const { return m_cols; }
-    int GetRows() const { return m_rows; }
+    int GetCols() const override { return m_cols; }
+    int GetRows() const override { return m_rows; }
 
     // Thread-safe dimension access - use this when iterating
-    void GetDimensions(int& cols, int& rows) const {
+    void GetDimensions(int& cols, int& rows) const override {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         cols = m_cols;
         rows = m_rows;
@@ -155,10 +156,10 @@ public:
     // Cursor operations
     void SetCursorPos(int x, int y);
     void GetCursorPos(int& x, int& y) const { x = m_cursorX; y = m_cursorY; }
-    int GetCursorX() const { return m_cursorX; }
-    int GetCursorY() const { return m_cursorY; }
+    int GetCursorX() const override { return m_cursorX; }
+    int GetCursorY() const override { return m_cursorY; }
     void SetCursorVisible(bool visible) { m_cursorVisible = visible; }
-    bool IsCursorVisible() const { return m_cursorVisible; }
+    bool IsCursorVisible() const override { return m_cursorVisible; }
 
     // Write operations
     void WriteChar(char32_t ch);
@@ -169,7 +170,7 @@ public:
     void ScrollUp(int lines = 1);
     void ScrollDown(int lines = 1);
     void ScrollToBottom();
-    int GetScrollOffset() const { return m_scrollOffset; }
+    int GetScrollOffset() const override { return m_scrollOffset; }
     void SetScrollOffset(int offset);
 
     // Scroll region support (DECSTBM)
@@ -196,19 +197,19 @@ public:
 
     // Get cell accounting for scrollback offset
     // Returns by value to prevent dangling references during resize
-    Cell GetCellWithScrollback(int x, int y) const;
+    Cell GetCellWithScrollback(int x, int y) const override;
 
     // Get visible buffer (accounts for scrollback)
     const std::vector<Cell>& GetBuffer() const { return m_buffer; }
 
     // Dirty tracking
-    bool IsDirty() const { return m_dirty; }
-    void ClearDirty() { m_dirty = false; }
+    bool IsDirty() const override { return m_dirty; }
+    void ClearDirty() override { m_dirty = false; }
     void MarkDirty() { m_dirty = true; }
 
     // Alternative screen buffer (for apps like vim)
     void UseAlternativeBuffer(bool use);
-    bool IsUsingAlternativeBuffer() const { return m_useAltBuffer; }
+    bool IsUsingAlternativeBuffer() const override { return m_useAltBuffer; }
 
     // OSC 133 shell integration
     void MarkPromptStart();
@@ -231,12 +232,12 @@ public:
     // Hyperlink management (OSC 8)
     uint16_t AddHyperlink(const std::string& url, const std::string& id = "");
     void ClearCurrentHyperlink();
-    const Hyperlink* GetHyperlink(uint16_t id) const;
+    const Hyperlink* GetHyperlink(uint16_t id) const override;
     uint16_t GetCurrentHyperlinkId() const { return m_currentHyperlinkId; }
 
     // Palette management (OSC 4)
     void SetPaletteColor(int index, uint8_t r, uint8_t g, uint8_t b);
-    const PaletteColor& GetPaletteColor(int index) const;
+    const PaletteColor& GetPaletteColor(int index) const override;
     bool IsPaletteColorModified(int index) const;
     void ResetPaletteColor(int index);
     void ResetAllPaletteColors();

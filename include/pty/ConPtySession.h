@@ -6,11 +6,12 @@
 #include <thread>
 #include <atomic>
 #include <vector>
+#include "pty/IPtySession.h"
 
 namespace TerminalDX12 {
 namespace Pty {
 
-class ConPtySession {
+class ConPtySession : public IPtySession {
 public:
     ConPtySession();
     ~ConPtySession();
@@ -22,17 +23,17 @@ public:
     using ProcessExitCallback = std::function<void(int exitCode)>;
 
     // Initialize and start the pseudoconsole session
-    bool Start(const std::wstring& commandline, int cols, int rows);
+    bool Start(const std::wstring& commandline, int cols, int rows) override;
 
     // Stop the session and cleanup
-    void Stop();
+    void Stop() override;
 
     // Write input to the terminal
-    bool WriteInput(const char* data, size_t size);
-    bool WriteInput(const std::string& data);
+    bool WriteInput(const char* data, size_t size) override;
+    bool WriteInput(const std::string& data) override;
 
     // Resize the terminal
-    bool Resize(int cols, int rows);
+    bool Resize(int cols, int rows) override;
 
     // Set callback for terminal output
     void SetOutputCallback(OutputCallback callback);
@@ -41,7 +42,7 @@ public:
     void SetProcessExitCallback(ProcessExitCallback callback);
 
     // Check if session is running
-    bool IsRunning() const { return m_running; }
+    bool IsRunning() const override { return m_running; }
 
 private:
     // Thread functions for async I/O
