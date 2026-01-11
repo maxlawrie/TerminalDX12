@@ -164,6 +164,7 @@ bool Application::Initialize(const std::wstring& shell) {
 
     m_window->OnMouseMove = [this](int x, int y) {
         if (m_mouseHandler) m_mouseHandler->OnMouseMove(x, y);
+        UpdateTabTooltip(x, y);
     };
 
     // Paint handler for live resize
@@ -515,6 +516,58 @@ void Application::RenderTabBar(int charWidth) {
         // Tab separator
         m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10), 0.4f, 0.4f, 0.4f, 1.0f);
         tabX += tabWidth + 5.0f;
+    }
+}
+
+void Application::UpdateTabTooltip(int x, int y) {
+    // Only show tooltips when we have multiple tabs and mouse is in tab bar
+    if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= kTabBarHeight) {
+        // spdlog::debug("UpdateTabTooltip: outside tab bar y={} >= {}", y, kTabBarHeight);
+        if (m_hoveredTabId != -1) {
+            m_window->HideTooltip();
+            m_hoveredTabId = -1;
+        }
+        return;
+    }
+
+    // Find which tab is at this position (matching RenderTabBar width calculation)
+    float tabX = 5.0f;
+    int foundTabId = -1;
+    std::wstring tooltipText;
+    
+    for (const auto& tab : m_tabManager->GetTabs()) {
+        // Calculate tab width using initials
+        std::string sessionNames;
+        const auto& sessions = tab->GetSessions();
+        for (size_t j = 0; j < sessions.size(); ++j) {
+            if (j > 0) sessionNames += "|";
+            sessionNames += GetInitials(sessions[j]->GetTitle());
+        }
+        if (sessionNames.empty()) sessionNames = "T";
+        
+        int sessionsLen = static_cast<int>(sessionNames.length() * m_charWidth) + 30;
+        float tabWidth = static_cast<float>(std::max(100, sessionsLen));
+        
+        if (x >= tabX && x < tabX + tabWidth) {
+            foundTabId = tab->GetId();
+            // Build full names for tooltip
+            for (size_t j = 0; j < sessions.size(); ++j) {
+                if (j > 0) tooltipText += L", ";
+                tooltipText += sessions[j]->GetTitle();
+            }
+            if (tooltipText.empty()) tooltipText = L"Terminal";
+            break;
+        }
+        tabX += tabWidth + 5.0f;
+    }
+    
+    if (foundTabId != m_hoveredTabId) {
+        m_hoveredTabId = foundTabId;
+        if (foundTabId != -1) {
+            m_window->ShowTooltip(x, y, tooltipText);
+        } else {
+            m_window->HideTooltip();
+        }
     }
 }
 

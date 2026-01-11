@@ -9,6 +9,7 @@
 #pragma once
 
 #include <Windows.h>
+#include <commctrl.h>
 #include <functional>
 #include <string>
 
@@ -82,6 +83,8 @@ public:
     void SetTitle(const std::wstring& title);
     void SetOpacity(float opacity);  // 0.0 = transparent, 1.0 = opaque
     void SetCursor(HCURSOR cursor);  // Set the current cursor
+    void ShowTooltip(int x, int y, const std::wstring& text);
+    void HideTooltip();
 
     // Event callbacks
     std::function<void(UINT key, bool isDown)> OnKeyEvent;
@@ -106,6 +109,7 @@ private:
     float m_dpiScale;
     bool m_isResizing;
     HCURSOR m_cursor;
+    HWND m_tooltip;
 
     static constexpr const wchar_t* WINDOW_CLASS_NAME = L"TerminalDX12WindowClass";
 };
