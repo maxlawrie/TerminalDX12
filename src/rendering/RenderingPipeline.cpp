@@ -11,6 +11,7 @@
 #include "ui/SelectionManager.h"
 #include <algorithm>
 #include <chrono>
+#include <spdlog/spdlog.h>
 
 namespace {
 

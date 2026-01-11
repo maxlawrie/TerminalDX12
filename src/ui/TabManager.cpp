@@ -43,12 +43,10 @@ Tab* TabManager::CreateTab(const std::wstring& shell, int cols, int rows, int sc
     Tab* tabPtr = tab.get();
     m_tabs.push_back(std::move(tab));
 
-    // If this is the first tab, make it active
-    if (m_activeTabIndex < 0) {
-        m_activeTabIndex = 0;
-    }
+    // Switch to the new tab (standard terminal behavior)
+    m_activeTabIndex = static_cast<int>(m_tabs.size()) - 1;
 
-    spdlog::info("TabManager: Created tab {} (total: {})", tabId, m_tabs.size());
+    spdlog::info("TabManager: Created tab {} (total: {}, now active)", tabId, m_tabs.size());
 
     // Notify listeners
     if (m_tabChangedCallback) {

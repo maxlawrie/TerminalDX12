@@ -104,10 +104,11 @@ TEST_F(ConfigTest, KeyBindingToString) {
 }
 
 // Config loading tests
-TEST_F(ConfigTest, LoadDefault_NoFile) {
+TEST_F(ConfigTest, LoadFromNonExistentFile_UsesDefaults) {
     Config config;
     // Should use defaults when file doesn't exist
-    EXPECT_TRUE(config.LoadDefault());
+    std::wstring nonExistentPath = (testDir / "nonexistent.json").wstring();
+    EXPECT_TRUE(config.Load(nonExistentPath));
     EXPECT_EQ(config.GetFont().family, "Consolas");
     EXPECT_EQ(config.GetFont().size, 16);
     EXPECT_EQ(config.GetTerminal().scrollbackLines, 10000);

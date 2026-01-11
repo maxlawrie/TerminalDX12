@@ -158,20 +158,7 @@ UI::InputHandlerCallbacks Application::BuildInputCallbacks() {
 
     cb.onQuit = [this]() { m_running = false; };
 
-    cb.onNewTab = [this]() {
-        if (m_tabManager) {
-            int cols = 80, rows = 24;
-            if (auto* tab = m_tabManager->GetActiveTab()) {
-                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
-                    cols = session->GetScreenBuffer()->GetCols();
-                    rows = session->GetScreenBuffer()->GetRows();
-                }
-            }
-            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
-            UpdatePaneLayout();
-            ResizeAllPaneBuffers();
-        }
-    };
+    cb.onNewTab = [this]() { CreateNewTab(); };
 
     cb.onCloseTab = [this]() {
         if (m_tabManager && m_tabManager->GetTabCount() > 1) {
@@ -221,18 +208,7 @@ void Application::SetupSelectionCallbacks() {
     m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
     m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
     m_selectionManager.SetClosePaneCallback([this]() { ClosePane(); });
-    m_selectionManager.SetNewTabCallback([this]() {
-        if (m_tabManager) {
-            int cols = 80, rows = 24;
-            if (auto* tab = m_tabManager->GetActiveTab()) {
-                if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
-                    cols = session->GetScreenBuffer()->GetCols();
-                    rows = session->GetScreenBuffer()->GetRows();
-                }
-            }
-            m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
-        }
-    });
+    m_selectionManager.SetNewTabCallback([this]() { CreateNewTab(); });
     m_selectionManager.SetHasMultiplePanes([this]() { auto* pm = GetActivePaneManager(); return pm && pm->HasMultiplePanes(); });
 }
 
@@ -601,6 +577,21 @@ void Application::ReloadFontSettings() {
     }
 }
 
+void Application::CreateNewTab() {
+    if (!m_tabManager) return;
+
+    int cols = 80, rows = 24;
+    if (auto* tab = m_tabManager->GetActiveTab()) {
+        if (auto* session = tab->GetFocusedSession(); session && session->GetScreenBuffer()) {
+            cols = session->GetScreenBuffer()->GetCols();
+            rows = session->GetScreenBuffer()->GetRows();
+        }
+    }
+    m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
+    UpdatePaneLayout();
+    ResizeAllPaneBuffers();
+}
+
 void Application::SplitPane(UI::SplitDirection direction) {
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
     if (!tab) return;
@@ -624,10 +615,15 @@ void Application::ClosePane() {
 }
 
 void Application::UpdatePaneLayout() {
-    if (!m_window) return;
-    int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? LayoutCalculator::kTabBarHeight : 0;
-    if (auto* pm = GetActivePaneManager()) {
-        pm->UpdateLayout(m_window->GetWidth(), m_window->GetHeight(), tabBar);
+    if (!m_window || !m_tabManager) return;
+    int tabCount = m_tabManager->GetTabCount();
+    int tabBar = (tabCount > 1) ? LayoutCalculator::kTabBarHeight : 0;
+    int width = m_window->GetWidth();
+    int height = m_window->GetHeight();
+
+    // Update ALL tabs' pane layouts - important when tab bar visibility changes
+    for (const auto& tab : m_tabManager->GetTabs()) {
+        tab->GetPaneManager().UpdateLayout(width, height, tabBar);
     }
 }
 

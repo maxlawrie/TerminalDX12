@@ -81,7 +81,8 @@ private:
     // Settings dialog
     void ShowSettings();
 
-    // Pane management (delegates to active tab's PaneManager)
+    // Tab and pane management
+    void CreateNewTab();
     UI::PaneManager* GetActivePaneManager();
     void SplitPane(UI::SplitDirection direction);
     void ClosePane();
