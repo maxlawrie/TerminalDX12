@@ -12,6 +12,8 @@
 #include <string>
 #include <utility>
 #include <Windows.h>
+#include "core/LayoutCalculator.h"
+#include "core/ResizeManager.h"
 #include "ui/SearchManager.h"
 #include "ui/SelectionManager.h"
 #include "ui/InputHandler.h"
@@ -49,65 +51,20 @@ namespace Core {
 /**
  * @class Application
  * @brief Main application class managing the terminal emulator lifecycle
- *
- * Application is the central coordinator for TerminalDX12. It manages:
- * - Window creation and event handling
- * - DirectX 12 rendering pipeline
- * - Terminal emulation via ConPTY
- * - Text selection and clipboard operations
- * - Mouse and keyboard input processing
- * - Tab management for multiple terminal sessions
- *
- * @note This class follows a singleton pattern accessible via Get()
- *
- * @example
- * @code
- * Core::Application app;
- * if (!app.Initialize(L"powershell.exe")) {
- *     return EXIT_FAILURE;
- * }
- * return app.Run();
- * @endcode
  */
 class Application {
 public:
     Application();
     ~Application();
 
-    /**
-     * @brief Initialize the terminal application
-     * @param shell Path to the shell executable (default: powershell.exe)
-     * @return true if initialization succeeded, false on error
-     */
     [[nodiscard]] bool Initialize(const std::wstring& shell = L"powershell.exe");
-
-    /**
-     * @brief Run the main application loop
-     * @return Exit code (0 for success)
-     */
     int Run();
-
-    /**
-     * @brief Clean up resources and prepare for exit
-     */
     void Shutdown();
 
     static Application& Get() { return *s_instance; }
     Window* GetWindow() { return m_window.get(); }
 
 private:
-    // Layout constants (shared with RenderingPipeline)
-    static constexpr int kStartX = 10;
-    static constexpr int kPadding = 10;
-    static constexpr int kTabBarHeight = 30;
-
-    // Font metrics (updated from renderer)
-    int m_charWidth = 10;
-    int m_lineHeight = 25;
-
-    // Tab tooltip tracking
-    int m_hoveredTabId = -1;
-
     // Font/settings reload
     void ReloadFontSettings();
     void UpdateFontMetrics();
@@ -118,14 +75,8 @@ private:
     void UpdateTabTooltip(int x, int y);
 
     // Selection helpers
-    struct CellPos { int x, y; };
-    CellPos ScreenToCell(int pixelX, int pixelY) const;
     void CopySelectionToClipboard();
     void PasteFromClipboard();
-
-    // Terminal layout helpers
-    int GetTerminalStartY() const;
-    std::pair<int, int> CalculateTerminalSize(int width, int height) const;
 
     // Settings dialog
     void ShowSettings();
@@ -143,6 +94,10 @@ private:
     std::unique_ptr<Rendering::RenderingPipeline> m_renderingPipeline;
     std::unique_ptr<UI::TabManager> m_tabManager;
 
+    // Layout and resize management
+    LayoutCalculator m_layoutCalc;
+    ResizeManager m_resizeManager;
+
     // Helper accessors for active tab's components
     Terminal::ScreenBuffer* GetActiveScreenBuffer();
     Terminal::VTStateMachine* GetActiveVTParser();
@@ -152,12 +107,8 @@ private:
     bool m_minimized;
     std::wstring m_shellCommand;
 
-    // Pending resize - defer to start of next frame
-    bool m_pendingResize = false;
-    bool m_pendingConPTYResize = false;
-    int m_pendingWidth = 0;
-    int m_pendingHeight = 0;
-    int m_resizeStabilizeFrames = 0;
+    // Tab tooltip tracking
+    int m_hoveredTabId = -1;
 
     // Selection manager
     UI::SelectionManager m_selectionManager;

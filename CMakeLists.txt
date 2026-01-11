@@ -33,6 +33,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 set(CORE_SOURCES
     src/core/Application.cpp
     src/core/Config.cpp
+    src/core/LayoutCalculator.cpp
+    src/core/ResizeManager.cpp
     src/core/Window.cpp
 )
 

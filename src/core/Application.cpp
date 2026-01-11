@@ -168,7 +168,8 @@ bool Application::Initialize(const std::wstring& shell) {
     });
 
     // Calculate terminal size and create initial tab
-    auto [termCols, termRows] = CalculateTerminalSize(windowDesc.width, windowDesc.height);
+    int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
+    auto [termCols, termRows] = m_layoutCalc.CalculateTerminalSize(windowDesc.width, windowDesc.height, tabCount);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
 
     UI::Tab* initialTab = m_tabManager->CreateTab(m_shellCommand, termCols, termRows, scrollbackLines);
@@ -312,7 +313,8 @@ bool Application::Initialize(const std::wstring& shell) {
         std::move(mouseCallbacks), m_selectionManager, m_tabManager.get());
 
     m_mouseHandler->SetScreenToCellConverter([this](int x, int y) -> UI::CellPos {
-        CellPos pos = ScreenToCell(x, y);
+        int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
+        auto pos = m_layoutCalc.ScreenToCell(x, y, GetActivePaneManager(), GetActiveScreenBuffer(), tabCount);
         return {pos.x, pos.y};
     });
 
@@ -320,7 +322,7 @@ bool Application::Initialize(const std::wstring& shell) {
         return UI::UrlHelper::DetectUrlAt(GetActiveScreenBuffer(), cellX, cellY);
     });
 
-    m_mouseHandler->SetCharWidth(m_charWidth);
+    m_mouseHandler->SetCharWidth(m_layoutCalc.GetCharWidth());
 
     m_window->Show();
     m_running = true;
@@ -363,20 +365,6 @@ Pty::ConPtySession* Application::GetActiveTerminal() {
     return session ? session->GetTerminal() : nullptr;
 }
 
-int Application::GetTerminalStartY() const {
-    int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
-    return (tabCount > 1) ? kTabBarHeight + 5 : kPadding;
-}
-
-std::pair<int, int> Application::CalculateTerminalSize(int width, int height) const {
-    int startY = GetTerminalStartY();
-    int availableWidth = width - kStartX - kPadding;
-    int availableHeight = height - startY - kPadding;
-    int cols = std::max(20, availableWidth / m_charWidth);
-    int rows = std::max(5, availableHeight / m_lineHeight);
-    return {cols, rows};
-}
-
 int Application::Run() {
     while (m_running) {
         if (!ProcessMessages()) break;
@@ -400,24 +388,26 @@ void Application::Render() {
         return;
     }
 
-    // Apply any pending resize BEFORE starting the frame
-    if (m_pendingResize) {
-        m_pendingResize = false;
-        m_renderer->Resize(m_pendingWidth, m_pendingHeight);
-        m_pendingConPTYResize = true;
-        return;
+    // Get leaf panes for resize processing
+    std::vector<UI::Pane*> leafPanes;
+    if (auto* pm = GetActivePaneManager()) {
+        pm->GetAllLeafPanes(leafPanes);
     }
 
-    // Resize ConPTY after DX12 has stabilized (one frame later)
-    if (m_pendingConPTYResize) {
-        m_pendingConPTYResize = false;
-        ResizeAllPaneBuffers();
-        m_resizeStabilizeFrames = 2;
-        return;
-    }
+    // Process any pending resize using ResizeManager
+    bool skipFrame = m_resizeManager.ProcessFrame(
+        m_renderer.get(),
+        leafPanes,
+        m_layoutCalc,
+        [](UI::Pane* pane, int cols, int rows) {
+            if (pane && pane->GetSession()) {
+                pane->GetSession()->Resize(cols, rows);
+            }
+        },
+        [this]() { UpdatePaneLayout(); }
+    );
 
-    if (m_resizeStabilizeFrames > 0) {
-        m_resizeStabilizeFrames--;
+    if (skipFrame) {
         return;
     }
 
@@ -428,8 +418,8 @@ void Application::Render() {
     ctx.searchManager = &m_searchManager;
     ctx.selectionManager = &m_selectionManager;
     ctx.config = m_config.get();
-    ctx.charWidth = static_cast<float>(m_charWidth);
-    ctx.lineHeight = static_cast<float>(m_lineHeight);
+    ctx.charWidth = static_cast<float>(m_layoutCalc.GetCharWidth());
+    ctx.lineHeight = static_cast<float>(m_layoutCalc.GetLineHeight());
     ctx.windowWidth = m_window ? m_window->GetWidth() : 800;
     ctx.windowHeight = m_window ? m_window->GetHeight() : 600;
 
@@ -444,7 +434,8 @@ void Application::Render() {
 }
 
 void Application::UpdateTabTooltip(int x, int y) {
-    if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= kTabBarHeight) {
+    int tabBarHeight = LayoutCalculator::kTabBarHeight;
+    if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= tabBarHeight) {
         if (m_hoveredTabId != -1) {
             m_window->HideTooltip();
             m_hoveredTabId = -1;
@@ -455,6 +446,7 @@ void Application::UpdateTabTooltip(int x, int y) {
     float tabX = 5.0f;
     int foundTabId = -1;
     std::wstring tooltipText;
+    int charWidth = m_layoutCalc.GetCharWidth();
 
     for (const auto& tab : m_tabManager->GetTabs()) {
         std::string sessionNames;
@@ -465,7 +457,7 @@ void Application::UpdateTabTooltip(int x, int y) {
         }
         if (sessionNames.empty()) sessionNames = "T";
 
-        int sessionsLen = static_cast<int>(sessionNames.length() * m_charWidth) + 30;
+        int sessionsLen = static_cast<int>(sessionNames.length() * charWidth) + 30;
         float tabWidth = static_cast<float>(std::max(100, sessionsLen));
 
         if (x >= tabX && x < tabX + tabWidth) {
@@ -503,9 +495,7 @@ void Application::OnWindowResize(int width, int height) {
                 return buf && buf->IsUsingAlternativeBuffer();
             });
 
-        m_pendingResize = true;
-        m_pendingWidth = width;
-        m_pendingHeight = height;
+        m_resizeManager.QueueResize(width, height);
 
         if (anyAltBuffer) return;
 
@@ -513,33 +503,11 @@ void Application::OnWindowResize(int width, int height) {
         for (UI::Pane* pane : leaves) {
             if (!pane || !pane->GetSession()) continue;
             const UI::PaneRect& bounds = pane->GetBounds();
-            int cols = std::max(20, bounds.width / m_charWidth);
-            int rows = std::max(5, bounds.height / m_lineHeight);
+            int cols = std::max(20, bounds.width / m_layoutCalc.GetCharWidth());
+            int rows = std::max(5, bounds.height / m_layoutCalc.GetLineHeight());
             pane->GetSession()->Resize(cols, rows);
         }
     }
-}
-
-Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
-    UI::PaneManager* pm = const_cast<Application*>(this)->GetActivePaneManager();
-    UI::Pane* pane = pm ? pm->FindPaneAt(pixelX, pixelY) : nullptr;
-    if (pane && pane->IsLeaf()) {
-        const UI::PaneRect& bounds = pane->GetBounds();
-        CellPos pos{(pixelX - bounds.x) / m_charWidth, (pixelY - bounds.y) / m_lineHeight};
-        if (pane->GetSession() && pane->GetSession()->GetScreenBuffer()) {
-            auto* buf = pane->GetSession()->GetScreenBuffer();
-            pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
-            pos.y = std::clamp(pos.y, 0, buf->GetRows() - 1);
-        }
-        return pos;
-    }
-
-    CellPos pos{(pixelX - kStartX) / m_charWidth, (pixelY - GetTerminalStartY()) / m_lineHeight};
-    if (auto* buf = const_cast<Application*>(this)->GetActiveScreenBuffer()) {
-        pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
-        pos.y = std::clamp(pos.y, 0, buf->GetRows() - 1);
-    }
-    return pos;
 }
 
 void Application::CopySelectionToClipboard() {
@@ -563,10 +531,11 @@ void Application::ShowSettings() {
 
 void Application::UpdateFontMetrics() {
     if (m_renderer) {
-        m_charWidth = m_renderer->GetCharWidth();
-        m_lineHeight = m_renderer->GetLineHeight();
-        spdlog::info("Font metrics updated: charWidth={}, lineHeight={}", m_charWidth, m_lineHeight);
-        if (m_mouseHandler) m_mouseHandler->SetCharWidth(m_charWidth);
+        int charWidth = m_renderer->GetCharWidth();
+        int lineHeight = m_renderer->GetLineHeight();
+        m_layoutCalc.SetFontMetrics(charWidth, lineHeight);
+        spdlog::info("Font metrics updated: charWidth={}, lineHeight={}", charWidth, lineHeight);
+        if (m_mouseHandler) m_mouseHandler->SetCharWidth(charWidth);
     }
 }
 
@@ -616,7 +585,7 @@ void Application::ClosePane() {
 
 void Application::UpdatePaneLayout() {
     if (!m_window) return;
-    int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? kTabBarHeight : 0;
+    int tabBar = (m_tabManager && m_tabManager->GetTabCount() > 1) ? LayoutCalculator::kTabBarHeight : 0;
     if (auto* pm = GetActivePaneManager()) {
         pm->UpdateLayout(m_window->GetWidth(), m_window->GetHeight(), tabBar);
     }
@@ -631,8 +600,8 @@ void Application::ResizeAllPaneBuffers() {
     for (UI::Pane* pane : leaves) {
         if (!pane || !pane->GetSession()) continue;
         const UI::PaneRect& bounds = pane->GetBounds();
-        int cols = std::max(20, bounds.width / m_charWidth);
-        int rows = std::max(5, bounds.height / m_lineHeight);
+        int cols = std::max(20, bounds.width / m_layoutCalc.GetCharWidth());
+        int rows = std::max(5, bounds.height / m_layoutCalc.GetLineHeight());
         pane->GetSession()->Resize(cols, rows);
     }
 }
