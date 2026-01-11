@@ -6,7 +6,7 @@ namespace TerminalDX12 {
 namespace Pty {
 
 ConPtySession::ConPtySession()
-    : m_hPC(INVALID_HANDLE_VALUE)
+    : m_pseudoConsole(INVALID_HANDLE_VALUE)
     , m_hPipeIn(INVALID_HANDLE_VALUE)
     , m_hPipeOut(INVALID_HANDLE_VALUE)
     , m_hPipePtyIn(INVALID_HANDLE_VALUE)
@@ -53,7 +53,7 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
 
     // Create the pseudoconsole
     COORD consoleSize = { static_cast<SHORT>(cols), static_cast<SHORT>(rows) };
-    HRESULT hr = CreatePseudoConsole(consoleSize, m_hPipePtyIn, m_hPipePtyOut, 0, &m_hPC);
+    HRESULT hr = CreatePseudoConsole(consoleSize, m_hPipePtyIn, m_hPipePtyOut, 0, &m_pseudoConsole);
 
     if (FAILED(hr)) {
         spdlog::error("Failed to create pseudoconsole: 0x{:08X}", hr);
@@ -85,7 +85,7 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
     siEx.lpAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(malloc(attrListSize));
     if (!siEx.lpAttributeList) {
         spdlog::error("Failed to allocate attribute list");
-        ClosePseudoConsole(m_hPC);
+        ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
         CloseHandle(m_hPipeOut);
         return false;
@@ -94,7 +94,7 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
     if (!InitializeProcThreadAttributeList(siEx.lpAttributeList, 1, 0, &attrListSize)) {
         spdlog::error("Failed to initialize attribute list: {}", GetLastError());
         free(siEx.lpAttributeList);
-        ClosePseudoConsole(m_hPC);
+        ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
         CloseHandle(m_hPipeOut);
         return false;
@@ -102,11 +102,11 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
 
     // Set the pseudoconsole attribute
     if (!UpdateProcThreadAttribute(siEx.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-                                   m_hPC, sizeof(HPCON), nullptr, nullptr)) {
+                                   m_pseudoConsole, sizeof(HPCON), nullptr, nullptr)) {
         spdlog::error("Failed to update proc thread attribute: {}", GetLastError());
         DeleteProcThreadAttributeList(siEx.lpAttributeList);
         free(siEx.lpAttributeList);
-        ClosePseudoConsole(m_hPC);
+        ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
         CloseHandle(m_hPipeOut);
         return false;
@@ -135,7 +135,7 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
 
     if (!success) {
         spdlog::error("Failed to create process: {}", GetLastError());
-        ClosePseudoConsole(m_hPC);
+        ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
         CloseHandle(m_hPipeOut);
         return false;
@@ -165,9 +165,9 @@ void ConPtySession::Stop() {
 
     // First close the pseudoconsole - this signals the child process to exit
     // and causes ReadFile to return cleanly
-    if (m_hPC != INVALID_HANDLE_VALUE) {
-        ClosePseudoConsole(m_hPC);
-        m_hPC = INVALID_HANDLE_VALUE;
+    if (m_pseudoConsole != INVALID_HANDLE_VALUE) {
+        ClosePseudoConsole(m_pseudoConsole);
+        m_pseudoConsole = INVALID_HANDLE_VALUE;
     }
 
     // Terminate process BEFORE joining threads to unblock ProcessMonitorThread
@@ -227,7 +227,7 @@ bool ConPtySession::WriteInput(const std::string& data) {
 }
 
 bool ConPtySession::Resize(int cols, int rows) {
-    if (!m_running || m_hPC == INVALID_HANDLE_VALUE) {
+    if (!m_running || m_pseudoConsole == INVALID_HANDLE_VALUE) {
         return false;
     }
 
@@ -235,7 +235,7 @@ bool ConPtySession::Resize(int cols, int rows) {
     m_rows = rows;
 
     COORD newSize = { static_cast<SHORT>(cols), static_cast<SHORT>(rows) };
-    HRESULT hr = ResizePseudoConsole(m_hPC, newSize);
+    HRESULT hr = ResizePseudoConsole(m_pseudoConsole, newSize);
 
     if (FAILED(hr)) {
         spdlog::error("Failed to resize pseudoconsole: 0x{:08X}", hr);

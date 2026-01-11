@@ -50,7 +50,7 @@ private:
     void ProcessMonitorThread();
 
     // ConPTY handles
-    HPCON m_hPC;
+    HPCON m_pseudoConsole;
     HANDLE m_hPipeIn;     // Our write end (terminal input)
     HANDLE m_hPipeOut;    // Our read end (terminal output)
     HANDLE m_hPipePtyIn;  // ConPTY read end
