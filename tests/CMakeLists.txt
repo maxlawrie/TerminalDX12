@@ -9,6 +9,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 add_library(TerminalCore STATIC
     ${CMAKE_SOURCE_DIR}/src/core/Config.cpp
+    ${CMAKE_SOURCE_DIR}/src/terminal/ColorPalette.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/ScreenBuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/VTStateMachine.cpp
     ${CMAKE_SOURCE_DIR}/src/terminal/VTStateMachineCSI.cpp

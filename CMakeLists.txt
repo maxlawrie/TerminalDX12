@@ -50,6 +50,7 @@ set(PTY_SOURCES
 )
 
 set(TERMINAL_SOURCES
+    src/terminal/ColorPalette.cpp
     src/terminal/ScreenBuffer.cpp
     src/terminal/VTStateMachine.cpp
     src/terminal/VTStateMachineCSI.cpp

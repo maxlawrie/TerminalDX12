@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <mutex>
 #include "terminal/ITerminalView.h"
+#include "terminal/ColorPalette.h"
 
 namespace TerminalDX12::Terminal {
 
@@ -29,13 +30,7 @@ struct Hyperlink {
     std::string id;      // Optional ID for link grouping
 };
 
-// Color palette entry (OSC 4)
-struct PaletteColor {
-    uint8_t r = 0;
-    uint8_t g = 0;
-    uint8_t b = 0;
-    bool modified = false;  // True if this entry was set via OSC 4
-};
+// PaletteColor defined in ColorPalette.h
 
 // Cell attributes (SGR - Select Graphic Rendition)
 struct CellAttributes {
@@ -303,8 +298,8 @@ private:
     uint16_t m_nextHyperlinkId = 1;       // Next ID to assign (0 = no link)
     uint16_t m_currentHyperlinkId = 0;    // Currently active hyperlink (for new cells)
 
-    // Color palette (OSC 4) - 256 colors
-    PaletteColor m_palette[256];
+    // Color palette (OSC 4)
+    ColorPalette m_palette;
 
     // Thread safety for buffer access
     mutable std::recursive_mutex m_mutex;
