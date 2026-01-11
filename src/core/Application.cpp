@@ -30,6 +30,25 @@ std::string WStringToAscii(const std::wstring& ws, size_t maxLen = 0) {
     }
     return result;
 }
+// Extract initials from a session title (e.g., "PowerShell" -> "PS", "cmd" -> "C")
+std::string GetInitials(const std::wstring& title) {
+    std::string result;
+    bool nextIsInitial = true;
+    for (wchar_t wc : title) {
+        if (wc == L' ' || wc == L'-' || wc == L'_') {
+            nextIsInitial = true;
+        } else if (nextIsInitial && wc < 128 && std::isalpha(static_cast<char>(wc))) {
+            result += static_cast<char>(std::toupper(static_cast<char>(wc)));
+            nextIsInitial = false;
+        }
+    }
+    if (result.empty() && !title.empty()) {
+        for (size_t i = 0; i < std::min((size_t)2, title.length()); ++i) {
+            if (title[i] < 128) result += static_cast<char>(std::toupper(static_cast<char>(title[i])));
+        }
+    }
+    return result;
+}
 
 // Check if codepoint is valid for rendering
 bool IsValidCodepoint(char32_t ch) {
@@ -464,14 +483,14 @@ void Application::RenderTabBar(int charWidth) {
         bool active = (static_cast<int>(i) == activeIndex);
         bool hasActivity = !active && tab->HasActivity();
 
-        // Build session names string
+        // Build session initials string
         std::string sessionNames;
         const auto& sessions = tab->GetSessions();
         for (size_t j = 0; j < sessions.size(); ++j) {
-            if (j > 0) sessionNames += ", ";
-            sessionNames += WStringToAscii(sessions[j]->GetTitle(), 12);
+            if (j > 0) sessionNames += "|";
+            sessionNames += GetInitials(sessions[j]->GetTitle());
         }
-        if (sessionNames.empty()) sessionNames = "Terminal";
+        if (sessionNames.empty()) sessionNames = "T";
 
         // Calculate tab width based on session names
         int sessionsLen = static_cast<int>(sessionNames.length() * charWidth) + 30;

@@ -11,6 +11,28 @@
 #include "pty/ConPtySession.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <cctype>
+
+namespace {
+// Get length of initials from a title (e.g., "PowerShell" -> 2, "cmd" -> 1)
+size_t GetInitialsLength(const std::wstring& title) {
+    size_t len = 0;
+    bool nextIsInitial = true;
+    for (wchar_t wc : title) {
+        if (wc == L' ' || wc == L'-' || wc == L'_') {
+            nextIsInitial = true;
+        } else if (nextIsInitial && wc < 128 && std::isalpha(static_cast<char>(wc))) {
+            len++;
+            nextIsInitial = false;
+        }
+    }
+    // If no initials found, use min of 2 or title length
+    if (len == 0 && !title.empty()) {
+        len = std::min((size_t)2, title.length());
+    }
+    return len;
+}
+}
 
 namespace TerminalDX12::UI {
 
@@ -106,14 +128,14 @@ bool MouseHandler::HandleTabBarClick(int x, int y, int button, bool down) {
     if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= m_tabBarHeight || button != 0 || !down) return false;
     float tabX = 5.0f;
     for (const auto& tab : m_tabManager->GetTabs()) {
-        // Calculate tab width based on session names (matching RenderTabBar)
+        // Calculate tab width based on session initials (matching RenderTabBar)
         size_t sessionNamesLen = 0;
         const auto& sessions = tab->GetSessions();
         for (size_t j = 0; j < sessions.size(); ++j) {
-            if (j > 0) sessionNamesLen += 2;  // ", "
-            sessionNamesLen += std::min(sessions[j]->GetTitle().length(), (size_t)12);
+            if (j > 0) sessionNamesLen += 1;  // "|"
+            sessionNamesLen += GetInitialsLength(sessions[j]->GetTitle());
         }
-        if (sessionNamesLen == 0) sessionNamesLen = 8;  // "Terminal"
+        if (sessionNamesLen == 0) sessionNamesLen = 1;  // "T"
         int sessionsLen = static_cast<int>(sessionNamesLen * m_charWidth) + 30;
         float tw = static_cast<float>(std::max(100, sessionsLen));
         if (x >= tabX && x < tabX + tw) { m_tabManager->SwitchToTab(tab->GetId()); return true; }
