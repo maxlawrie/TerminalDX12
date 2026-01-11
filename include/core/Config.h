@@ -124,16 +124,16 @@ public:
     ~Config() = default;
 
     // Load configuration from file
-    bool Load(const std::wstring& path);
+    [[nodiscard]] bool Load(const std::wstring& path);
 
     // Load from default location (%APPDATA%\TerminalDX12\config.json)
-    bool LoadDefault();
+    [[nodiscard]] bool LoadDefault();
 
     // Save configuration to file
-    bool Save(const std::wstring& path) const;
+    [[nodiscard]] bool Save(const std::wstring& path) const;
 
     // Create default config file if it doesn't exist
-    bool CreateDefaultIfMissing();
+    [[nodiscard]] bool CreateDefaultIfMissing();
 
     // Get configuration path
     static std::wstring GetDefaultConfigPath();

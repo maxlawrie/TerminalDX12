@@ -37,7 +37,7 @@ public:
     /// @param rows Terminal rows
     /// @param scrollbackLines Scrollback buffer size
     /// @return The created session, or nullptr on failure
-    TerminalSession* CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
+    [[nodiscard]] TerminalSession* CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
 
     /// @brief Split the focused pane with a new session
     /// @param direction Split direction
@@ -46,7 +46,7 @@ public:
     /// @param rows Terminal rows
     /// @param scrollbackLines Scrollback buffer size
     /// @return The new pane, or nullptr on failure
-    Pane* SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
+    [[nodiscard]] Pane* SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
 
     /// @brief Close the focused pane
     void ClosePane();
@@ -55,7 +55,7 @@ public:
     TerminalSession* GetFocusedSession();
 
     /// @brief Check if any sessions are running
-    bool HasRunningSessions() const;
+    [[nodiscard]] bool HasRunningSessions() const;
 
     /// @brief Get all sessions in this tab
     const std::vector<std::unique_ptr<TerminalSession>>& GetSessions() const { return m_sessions; }

@@ -414,14 +414,14 @@ void ScreenBuffer::ClearRect(int x, int y, int width, int height) {
 
 const Cell& ScreenBuffer::GetCell(int x, int y) const {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    thread_local Cell emptyCell;
+    static const Cell emptyCell{};
     int idx = ValidCellIndex(x, y);
     return (idx >= 0) ? m_buffer[idx] : emptyCell;
 }
 
 Cell& ScreenBuffer::GetCellMutable(int x, int y) {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    thread_local Cell emptyCell;
+    static Cell emptyCell{};  // Non-const since we return mutable ref (caller won't modify out-of-bounds)
     int idx = ValidCellIndex(x, y);
     if (idx < 0) return emptyCell;
     m_dirty = true;

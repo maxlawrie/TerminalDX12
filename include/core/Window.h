@@ -61,7 +61,7 @@ public:
      * @param desc Window configuration
      * @return true if window was created successfully
      */
-    bool Create(const WindowDesc& desc);
+    [[nodiscard]] bool Create(const WindowDesc& desc);
 
     /** @brief Show the window */
     void Show();

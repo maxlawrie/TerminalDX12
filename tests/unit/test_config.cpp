@@ -301,17 +301,17 @@ TEST_F(ConfigTest, CursorStyles) {
 
     // Test block
     WriteTestConfig("config.json", R"({"terminal": {"cursorStyle": "block"}})");
-    config.Load(configPath);
+    ASSERT_TRUE(config.Load(configPath));
     EXPECT_EQ(config.GetTerminal().cursorStyle, CursorStyle::Block);
 
     // Test underline
     WriteTestConfig("config.json", R"({"terminal": {"cursorStyle": "underline"}})");
-    config.Load(configPath);
+    ASSERT_TRUE(config.Load(configPath));
     EXPECT_EQ(config.GetTerminal().cursorStyle, CursorStyle::Underline);
 
     // Test bar
     WriteTestConfig("config.json", R"({"terminal": {"cursorStyle": "bar"}})");
-    config.Load(configPath);
+    ASSERT_TRUE(config.Load(configPath));
     EXPECT_EQ(config.GetTerminal().cursorStyle, CursorStyle::Bar);
 }
 
@@ -336,12 +336,12 @@ TEST_F(ConfigTest, ScrollbackLimitsClamped) {
 
     // Test negative value
     WriteTestConfig("config.json", R"({"terminal": {"scrollbackLines": -100}})");
-    config.Load(configPath);
+    ASSERT_TRUE(config.Load(configPath));
     EXPECT_EQ(config.GetTerminal().scrollbackLines, 0);
 
     // Test excessive value
     WriteTestConfig("config.json", R"({"terminal": {"scrollbackLines": 999999}})");
-    config.Load(configPath);
+    ASSERT_TRUE(config.Load(configPath));
     EXPECT_EQ(config.GetTerminal().scrollbackLines, 100000);
     EXPECT_FALSE(config.GetWarnings().empty());
 }

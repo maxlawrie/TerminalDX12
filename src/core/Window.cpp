@@ -54,8 +54,9 @@ bool Window::Create(const WindowDesc& desc) {
     wc.lpszClassName = WINDOW_CLASS_NAME;
 
     if (!RegisterClassExW(&wc)) {
-    return false;
-}
+        spdlog::error("Window::Create: Failed to register window class: {}", GetLastError());
+        return false;
+    }
 
     // Calculate window size with DPI
 
@@ -108,8 +109,9 @@ bool Window::Create(const WindowDesc& desc) {
     );
 
     if (!m_hwnd) {
-    return false;
-}
+        spdlog::error("Window::Create: Failed to create window: {}", GetLastError());
+        return false;
+    }
 
     m_width = desc.width;
     m_height = desc.height;

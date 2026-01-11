@@ -130,6 +130,7 @@ bool TextRenderer::CreateInstanceBuffer(ID3D12Device* device) {
 
 void TextRenderer::Clear() {
     m_instances.clear();
+    m_instances.reserve(4096);  // Pre-allocate for typical terminal (~80x50)
 }
 
 void TextRenderer::RenderText(const std::string& text, float x, float y, const XMFLOAT4& color) {

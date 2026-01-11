@@ -47,6 +47,7 @@ DX12Renderer::~DX12Renderer() {
 
 bool DX12Renderer::Initialize(Core::Window* window) {
     if (!window) {
+        spdlog::error("DX12Renderer::Initialize: window is nullptr");
         return false;
     }
 

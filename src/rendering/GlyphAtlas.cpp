@@ -400,7 +400,7 @@ void GlyphAtlas::UploadAtlasIfDirty() {
     const UINT64 uploadPitch = (m_atlasWidth * 4 + 255) & ~255;
     const UINT64 rowPitch = m_atlasWidth * 4;
     for (int y = 0; y < m_atlasHeight; ++y) {
-        memcpy((uint8_t*)pData + y * uploadPitch, m_atlasBuffer.get() + y * rowPitch, rowPitch);
+        memcpy(static_cast<uint8_t*>(pData) + y * uploadPitch, m_atlasBuffer.get() + y * rowPitch, rowPitch);
     }
     m_atlasUploadBuffer->Unmap(0, nullptr);
 

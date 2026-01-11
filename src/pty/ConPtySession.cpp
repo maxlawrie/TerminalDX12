@@ -2,6 +2,18 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 
+namespace {
+// RAII wrapper for PROC_THREAD_ATTRIBUTE_LIST to prevent memory leaks
+struct AttributeListGuard {
+    LPPROC_THREAD_ATTRIBUTE_LIST list = nullptr;
+    bool initialized = false;
+    ~AttributeListGuard() {
+        if (initialized) DeleteProcThreadAttributeList(list);
+        if (list) free(list);
+    }
+};
+}
+
 namespace TerminalDX12 {
 namespace Pty {
 
@@ -78,12 +90,13 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
     siEx.StartupInfo.hStdOutput = nullptr;
     siEx.StartupInfo.hStdError = nullptr;
 
-    // Allocate attribute list
+    // Allocate attribute list with RAII guard
     SIZE_T attrListSize = 0;
     InitializeProcThreadAttributeList(nullptr, 1, 0, &attrListSize);
 
-    siEx.lpAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(malloc(attrListSize));
-    if (!siEx.lpAttributeList) {
+    AttributeListGuard attrGuard;
+    attrGuard.list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(malloc(attrListSize));
+    if (!attrGuard.list) {
         spdlog::error("Failed to allocate attribute list");
         ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
@@ -91,21 +104,20 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
         return false;
     }
 
-    if (!InitializeProcThreadAttributeList(siEx.lpAttributeList, 1, 0, &attrListSize)) {
+    if (!InitializeProcThreadAttributeList(attrGuard.list, 1, 0, &attrListSize)) {
         spdlog::error("Failed to initialize attribute list: {}", GetLastError());
-        free(siEx.lpAttributeList);
         ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
         CloseHandle(m_hPipeOut);
         return false;
     }
+    attrGuard.initialized = true;
+    siEx.lpAttributeList = attrGuard.list;
 
     // Set the pseudoconsole attribute
     if (!UpdateProcThreadAttribute(siEx.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
                                    m_pseudoConsole, sizeof(HPCON), nullptr, nullptr)) {
         spdlog::error("Failed to update proc thread attribute: {}", GetLastError());
-        DeleteProcThreadAttributeList(siEx.lpAttributeList);
-        free(siEx.lpAttributeList);
         ClosePseudoConsole(m_pseudoConsole);
         CloseHandle(m_hPipeIn);
         CloseHandle(m_hPipeOut);
@@ -129,9 +141,7 @@ bool ConPtySession::Start(const std::wstring& commandline, int cols, int rows) {
         &pi                                         // Process information
     );
 
-    // Cleanup attribute list
-    DeleteProcThreadAttributeList(siEx.lpAttributeList);
-    free(siEx.lpAttributeList);
+    // AttributeListGuard automatically cleans up via RAII
 
     if (!success) {
         spdlog::error("Failed to create process: {}", GetLastError());
