@@ -24,6 +24,7 @@ GlyphAtlas::GlyphAtlas()
     , m_ftFace(nullptr)
     , m_fontSize(0)
     , m_lineHeight(0)
+    , m_charWidth(0)
     , m_currentX(0)
     , m_currentY(0)
     , m_currentRowHeight(0)
@@ -105,6 +106,61 @@ void GlyphAtlas::Shutdown() {
     }
 }
 
+bool GlyphAtlas::Reinitialize(const std::string& fontPath, int fontSize) {
+    spdlog::info("Reinitializing GlyphAtlas with font: {}, size: {}", fontPath, fontSize);
+
+    // Clean up existing font resources (but keep D3D12 resources)
+    m_glyphCache.clear();
+
+    if (m_hbFont) {
+        hb_font_destroy(m_hbFont);
+        m_hbFont = nullptr;
+    }
+
+    if (m_ftFace) {
+        FT_Done_Face(m_ftFace);
+        m_ftFace = nullptr;
+    }
+
+    if (m_ftLibrary) {
+        FT_Done_FreeType(m_ftLibrary);
+        m_ftLibrary = nullptr;
+    }
+
+    m_fontSize = fontSize;
+
+    // Reinitialize FreeType with new font
+    if (!InitializeFreeType(fontPath, fontSize)) {
+        spdlog::error("Failed to reinitialize FreeType");
+        return false;
+    }
+
+    // Reinitialize HarfBuzz
+    m_hbFont = hb_ft_font_create(m_ftFace, nullptr);
+    if (!m_hbFont) {
+        spdlog::error("Failed to recreate HarfBuzz font");
+        return false;
+    }
+
+    // Reset atlas packing state
+    m_currentX = 0;
+    m_currentY = 0;
+    m_currentRowHeight = 0;
+
+    // Clear atlas buffer
+    if (m_atlasBuffer) {
+        std::memset(m_atlasBuffer.get(), 0, m_atlasWidth * m_atlasHeight * 4);
+    }
+
+    // Preload glyphs
+    PreloadASCIIGlyphs();
+
+    spdlog::info("GlyphAtlas reinitialized: font size: {}, line height: {}, char width: {}",
+                 m_fontSize, m_lineHeight, m_charWidth);
+
+    return true;
+}
+
 bool GlyphAtlas::InitializeFreeType(const std::string& fontPath, int fontSize) {
     // Initialize FreeType library
     if (FT_Init_FreeType(&m_ftLibrary) != 0) {
@@ -127,8 +183,11 @@ bool GlyphAtlas::InitializeFreeType(const std::string& fontPath, int fontSize) {
     // Calculate line height from font metrics
     m_lineHeight = (m_ftFace->size->metrics.height >> 6);
 
-    spdlog::info("Loaded font: {} (size: {}, line height: {})",
-                 fontPath, fontSize, m_lineHeight);
+    // Calculate character width from max_advance
+    m_charWidth = (m_ftFace->size->metrics.max_advance >> 6);
+
+    spdlog::info("Loaded font: {} (size: {}, line height: {}, char width: {})",
+                 fontPath, fontSize, m_lineHeight, m_charWidth);
 
     return true;
 }

@@ -158,6 +158,13 @@ bool Application::Initialize(const std::wstring& shell) {
         return false;
     }
 
+    // Load font settings from config (renderer starts with defaults)
+    const auto& fontConfig = m_config->GetFont();
+    if (!fontConfig.resolvedPath.empty()) {
+        m_renderer->ReloadFont(fontConfig.resolvedPath, fontConfig.size);
+    }
+    UpdateFontMetrics();
+
     // Create tab manager
     m_tabManager = std::make_unique<UI::TabManager>();
 
@@ -389,8 +396,8 @@ std::pair<int, int> Application::CalculateTerminalSize(int width, int height) co
     int startY = GetTerminalStartY();
     int availableWidth = width - kStartX - kPadding;
     int availableHeight = height - startY - kPadding;
-    int cols = std::max(20, availableWidth / kCharWidth);
-    int rows = std::max(5, availableHeight / kLineHeight);
+    int cols = std::max(20, availableWidth / m_charWidth);
+    int rows = std::max(5, availableHeight / m_lineHeight);
     return {cols, rows};
 }
 
@@ -651,7 +658,7 @@ void Application::Render() {
     m_renderer->ClearText();
 
     // Render tab bar if multiple tabs exist
-    RenderTabBar(kCharWidth);
+    RenderTabBar(m_charWidth);
 
     // Get all leaf panes to render
     std::vector<UI::Pane*> leafPanes;
@@ -679,11 +686,11 @@ void Application::Render() {
         BuildColorPalette(colorPalette, buffer);
 
         // Render terminal content at pane position
-        RenderTerminalContent(buffer, bounds.x, bounds.y, kCharWidth, kLineHeight, colorPalette, pane);
+        RenderTerminalContent(buffer, bounds.x, bounds.y, m_charWidth, m_lineHeight, colorPalette, pane);
 
         // Render cursor only for focused pane
         if (pane == focusedPane) {
-            RenderCursor(buffer, bounds.x, bounds.y, kCharWidth, kLineHeight, cursorR, cursorG, cursorB);
+            RenderCursor(buffer, bounds.x, bounds.y, m_charWidth, m_lineHeight, cursorR, cursorG, cursorB);
         }
 
         // Draw focused pane border if multiple panes
@@ -704,7 +711,7 @@ void Application::Render() {
     if (pm) RenderPaneDividers(pm->GetRootPane());
 
     // Render search bar and highlights
-    RenderSearchBar(kStartX, kCharWidth, kLineHeight);
+    RenderSearchBar(kStartX, m_charWidth, m_lineHeight);
 
     m_renderer->EndFrame();
     m_renderer->Present();
@@ -737,8 +744,8 @@ void Application::OnWindowResize(int width, int height) {
         for (UI::Pane* pane : leaves) {
             if (!pane || !pane->GetSession()) continue;
             const UI::PaneRect& bounds = pane->GetBounds();
-            int cols = std::max(20, bounds.width / kCharWidth);
-            int rows = std::max(5, bounds.height / kLineHeight);
+            int cols = std::max(20, bounds.width / m_charWidth);
+            int rows = std::max(5, bounds.height / m_lineHeight);
             pane->GetSession()->Resize(cols, rows);
         }
     }
@@ -750,7 +757,7 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
     UI::Pane* pane = pm ? pm->FindPaneAt(pixelX, pixelY) : nullptr;
     if (pane && pane->IsLeaf()) {
         const UI::PaneRect& bounds = pane->GetBounds();
-        CellPos pos{(pixelX - bounds.x) / kCharWidth, (pixelY - bounds.y) / kLineHeight};
+        CellPos pos{(pixelX - bounds.x) / m_charWidth, (pixelY - bounds.y) / m_lineHeight};
         if (pane->GetSession() && pane->GetSession()->GetScreenBuffer()) {
             auto* buf = pane->GetSession()->GetScreenBuffer();
             pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
@@ -760,7 +767,7 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
     }
 
     // Fallback to focused pane calculation
-    CellPos pos{(pixelX - kStartX) / kCharWidth, (pixelY - GetTerminalStartY()) / kLineHeight};
+    CellPos pos{(pixelX - kStartX) / m_charWidth, (pixelY - GetTerminalStartY()) / m_lineHeight};
     if (auto* buf = const_cast<Application*>(this)->GetActiveScreenBuffer()) {
         pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
         pos.y = std::clamp(pos.y, 0, buf->GetRows() - 1);
@@ -783,6 +790,40 @@ void Application::PasteFromClipboard() {
 void Application::ShowSettings() {
     if (m_window && m_config) {
         UI::SettingsDialog(m_window->GetHandle(), m_config.get()).Show();
+        // Reload font settings after dialog closes
+        ReloadFontSettings();
+    }
+}
+
+void Application::UpdateFontMetrics() {
+    if (m_renderer) {
+        m_charWidth = m_renderer->GetCharWidth();
+        m_lineHeight = m_renderer->GetLineHeight();
+        spdlog::info("Font metrics updated: charWidth={}, lineHeight={}", m_charWidth, m_lineHeight);
+    }
+}
+
+void Application::ReloadFontSettings() {
+    if (!m_config || !m_renderer) return;
+
+    const auto& font = m_config->GetFont();
+    std::string fontPath = font.resolvedPath;
+
+    // If no resolved path, try to resolve it now
+    if (fontPath.empty()) {
+        fontPath = "C:/Windows/Fonts/consola.ttf";
+    }
+
+    spdlog::info("Reloading font: {} size {}", fontPath, font.size);
+
+    if (m_renderer->ReloadFont(fontPath, font.size)) {
+        UpdateFontMetrics();
+        // Trigger resize to recalculate grid
+        if (m_window) {
+            RECT rect;
+            GetClientRect(m_window->GetHandle(), &rect);
+            OnWindowResize(rect.right - rect.left, rect.bottom - rect.top);
+        }
     }
 }
 
@@ -826,8 +867,8 @@ void Application::ResizeAllPaneBuffers() {
     for (UI::Pane* pane : leaves) {
         if (!pane || !pane->GetSession()) continue;
         const UI::PaneRect& bounds = pane->GetBounds();
-        int cols = std::max(20, bounds.width / kCharWidth);
-        int rows = std::max(5, bounds.height / kLineHeight);
+        int cols = std::max(20, bounds.width / m_charWidth);
+        int rows = std::max(5, bounds.height / m_lineHeight);
         pane->GetSession()->Resize(cols, rows);
     }
 }

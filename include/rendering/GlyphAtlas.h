@@ -95,6 +95,10 @@ public:
     // Get font metrics
     int GetFontSize() const { return m_fontSize; }
     int GetLineHeight() const { return m_lineHeight; }
+    int GetCharWidth() const { return m_charWidth; }
+
+    // Reinitialize with new font settings (for hot reload)
+    [[nodiscard]] bool Reinitialize(const std::string& fontPath, int fontSize);
 
     // Upload atlas to GPU if dirty
     void UploadAtlasIfDirty();
@@ -126,6 +130,7 @@ private:
     // Font properties
     int m_fontSize;
     int m_lineHeight;
+    int m_charWidth;
 
     // Atlas texture properties
     static constexpr int m_atlasWidth = 2048;

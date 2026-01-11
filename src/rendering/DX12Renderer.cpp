@@ -721,5 +721,32 @@ void DX12Renderer::ClearText() {
     }
 }
 
+bool DX12Renderer::ReloadFont(const std::string& fontPath, int fontSize) {
+    if (!m_glyphAtlas) {
+        spdlog::error("Cannot reload font: GlyphAtlas not initialized");
+        return false;
+    }
+
+    // Wait for GPU to finish any pending work
+    WaitForGPU();
+
+    // Reinitialize the glyph atlas with new font settings
+    if (!m_glyphAtlas->Reinitialize(fontPath, fontSize)) {
+        spdlog::error("Failed to reinitialize glyph atlas");
+        return false;
+    }
+
+    spdlog::info("Font reloaded: {} size {}", fontPath, fontSize);
+    return true;
+}
+
+int DX12Renderer::GetCharWidth() const {
+    return m_glyphAtlas ? m_glyphAtlas->GetCharWidth() : 10;
+}
+
+int DX12Renderer::GetLineHeight() const {
+    return m_glyphAtlas ? m_glyphAtlas->GetLineHeight() : 25;
+}
+
 } // namespace Rendering
 } // namespace TerminalDX12

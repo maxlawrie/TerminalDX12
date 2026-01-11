@@ -213,7 +213,7 @@ bool SettingsDialog::Show() {
                 DestroyWindow(hwnd);
                 return 0;
             case WM_DESTROY:
-                PostQuitMessage(0);
+                // Dialog exits via !IsWindow check, not PostQuitMessage
                 return 0;
         }
         return DefWindowProcW(hwnd, msg, wParam, lParam);

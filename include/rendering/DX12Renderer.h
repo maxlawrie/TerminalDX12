@@ -40,6 +40,11 @@ public:
     void RenderRect(float x, float y, float width, float height, float r, float g, float b, float a = 1.0f);
     void ClearText();
 
+    // Font management
+    bool ReloadFont(const std::string& fontPath, int fontSize);
+    int GetCharWidth() const;
+    int GetLineHeight() const;
+
     ID3D12Device* GetDevice() { return m_device.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() { return GetCurrentFrameResource().commandList.Get(); }
 

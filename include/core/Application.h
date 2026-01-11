@@ -94,11 +94,17 @@ public:
 
 private:
     // Layout constants
-    static constexpr int kCharWidth = 10;
-    static constexpr int kLineHeight = 25;
     static constexpr int kStartX = 10;
     static constexpr int kPadding = 10;
     static constexpr int kTabBarHeight = 30;
+
+    // Font metrics (updated from renderer)
+    int m_charWidth = 10;
+    int m_lineHeight = 25;
+
+    // Font/settings reload
+    void ReloadFontSettings();
+    void UpdateFontMetrics();
 
     void OnWindowResize(int width, int height);
     bool ProcessMessages();
