@@ -163,7 +163,6 @@ UI::InputHandlerCallbacks Application::BuildInputCallbacks() {
     cb.onCloseTab = [this]() {
         if (m_tabManager && m_tabManager->GetTabCount() > 1) {
             m_tabManager->CloseActiveTab();
-            UpdatePaneLayout();
             ResizeAllPaneBuffers();
         }
     };
@@ -237,7 +236,6 @@ UI::MouseHandlerCallbacks Application::BuildMouseCallbacks() {
     };
 
     cb.onDividerResized = [this]() {
-        UpdatePaneLayout();
         ResizeAllPaneBuffers();
     };
 
@@ -588,7 +586,6 @@ void Application::CreateNewTab() {
         }
     }
     m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
-    UpdatePaneLayout();
     ResizeAllPaneBuffers();
 }
 
