@@ -268,10 +268,18 @@ bool Application::Initialize(const std::wstring& shell) {
                 }
             }
             m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
+            // Update layout for all tabs when tab bar appears/changes
+            UpdatePaneLayout();
+            ResizeAllPaneBuffers();
         }
     };
     inputCallbacks.onCloseTab = [this]() {
-        if (m_tabManager && m_tabManager->GetTabCount() > 1) m_tabManager->CloseActiveTab();
+        if (m_tabManager && m_tabManager->GetTabCount() > 1) {
+            m_tabManager->CloseActiveTab();
+            // Update layout when tab bar might disappear
+            UpdatePaneLayout();
+            ResizeAllPaneBuffers();
+        }
     };
     inputCallbacks.onNextTab = [this]() {
         if (m_tabManager) m_tabManager->NextTab();
