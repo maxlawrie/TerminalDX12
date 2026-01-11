@@ -4,6 +4,7 @@
 #include "ui/PaneManager.h"
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
+#include "ui/TerminalSession.h"
 #include "ui/Pane.h"
 #include "terminal/ScreenBuffer.h"
 #include "terminal/VTStateMachine.h"
@@ -105,7 +106,16 @@ bool MouseHandler::HandleTabBarClick(int x, int y, int button, bool down) {
     if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= m_tabBarHeight || button != 0 || !down) return false;
     float tabX = 5.0f;
     for (const auto& tab : m_tabManager->GetTabs()) {
-        float tw = (float)std::max(80, std::min((int)tab->GetTitle().length(), 15) * 10 + 20);
+        // Calculate tab width based on session names (matching RenderTabBar)
+        size_t sessionNamesLen = 0;
+        const auto& sessions = tab->GetSessions();
+        for (size_t j = 0; j < sessions.size(); ++j) {
+            if (j > 0) sessionNamesLen += 2;  // ", "
+            sessionNamesLen += std::min(sessions[j]->GetTitle().length(), (size_t)12);
+        }
+        if (sessionNamesLen == 0) sessionNamesLen = 8;  // "Terminal"
+        int sessionsLen = static_cast<int>(sessionNamesLen * m_charWidth) + 30;
+        float tw = static_cast<float>(std::max(100, sessionsLen));
         if (x >= tabX && x < tabX + tw) { m_tabManager->SwitchToTab(tab->GetId()); return true; }
         tabX += tw + 5.0f;
     }

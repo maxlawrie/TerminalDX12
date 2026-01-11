@@ -345,6 +345,9 @@ bool Application::Initialize(const std::wstring& shell) {
         return UI::UrlHelper::DetectUrlAt(GetActiveScreenBuffer(), cellX, cellY);
     });
 
+    // Set initial char width for tab click handling
+    m_mouseHandler->SetCharWidth(m_charWidth);
+
     m_window->Show();
     m_running = true;
 
@@ -800,6 +803,7 @@ void Application::UpdateFontMetrics() {
         m_charWidth = m_renderer->GetCharWidth();
         m_lineHeight = m_renderer->GetLineHeight();
         spdlog::info("Font metrics updated: charWidth={}, lineHeight={}", m_charWidth, m_lineHeight);
+        if (m_mouseHandler) m_mouseHandler->SetCharWidth(m_charWidth);
     }
 }
 

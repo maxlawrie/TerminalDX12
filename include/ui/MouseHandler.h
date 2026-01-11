@@ -50,6 +50,7 @@ public:
     void SetScreenToCellConverter(std::function<CellPos(int, int)> converter);
     void SetUrlDetector(std::function<std::string(int, int)> detector);
     void SetTabBarHeight(int height) { m_tabBarHeight = height; }
+    void SetCharWidth(int width) { m_charWidth = width; }
     bool IsMouseButtonDown() const { return m_mouseButtonDown; }
     int GetLastMouseButton() const { return m_lastMouseButton; }
 
@@ -67,6 +68,7 @@ private:
     std::function<std::string(int, int)> m_detectUrl;
 
     int m_tabBarHeight = 30;
+    int m_charWidth = 10;
     bool m_mouseButtonDown = false;
     int m_lastMouseButton = -1;
 
