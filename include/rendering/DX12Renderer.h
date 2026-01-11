@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rendering/IRenderer.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
@@ -20,30 +21,32 @@ namespace Rendering {
 class GlyphAtlas;
 class TextRenderer;
 
-class DX12Renderer {
+class DX12Renderer : public IRenderer {
 public:
     DX12Renderer();
-    ~DX12Renderer();
+    ~DX12Renderer() override;
 
     [[nodiscard]] bool Initialize(Core::Window* window);
     void Shutdown();
 
-    void BeginFrame();
-    void EndFrame();
-    void Present();
+    // IRenderer interface
+    void BeginFrame() override;
+    void EndFrame() override;
+    void Present() override;
+    void Resize(int width, int height) override;
+    void RenderText(const std::string& text, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) override;
+    void RenderChar(const std::string& ch, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) override;
+    void RenderRect(float x, float y, float width, float height, float r, float g, float b, float a = 1.0f) override;
+    void ClearText() override;
+    int GetGlyphWidth() const override;
+    int GetGlyphHeight() const override;
 
-    void Resize(int width, int height);
-
-    // Text rendering
-    void RenderText(const std::string& text, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f);
-    void RenderChar(const std::string& ch, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f);
-    void RenderRect(float x, float y, float width, float height, float r, float g, float b, float a = 1.0f);
-    void ClearText();
-
-    // Font management
+    // Font management (not part of IRenderer)
     bool ReloadFont(const std::string& fontPath, int fontSize);
-    int GetCharWidth() const;
-    int GetLineHeight() const;
+
+    // Legacy accessors (for backward compatibility, call through to new names)
+    int GetCharWidth() const { return GetGlyphWidth(); }
+    int GetLineHeight() const { return GetGlyphHeight(); }
 
     ID3D12Device* GetDevice() { return m_device.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() { return GetCurrentFrameResource().commandList.Get(); }

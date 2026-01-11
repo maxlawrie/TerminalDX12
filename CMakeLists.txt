@@ -39,6 +39,7 @@ set(CORE_SOURCES
 set(RENDERING_SOURCES
     src/rendering/DX12Renderer.cpp
     src/rendering/GlyphAtlas.cpp
+    src/rendering/RenderingPipeline.cpp
     src/rendering/TextRenderer.cpp
 )
 

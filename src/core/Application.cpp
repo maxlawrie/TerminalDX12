@@ -2,6 +2,7 @@
 #include "core/Config.h"
 #include "core/Window.h"
 #include "rendering/DX12Renderer.h"
+#include "rendering/RenderingPipeline.h"
 #include "ui/TabManager.h"
 #include "ui/Tab.h"
 #include "ui/TerminalSession.h"
@@ -19,17 +20,6 @@
 #include <shellapi.h>
 
 namespace {
-// Convert wstring to ASCII (non-ASCII chars become '?')
-std::string WStringToAscii(const std::wstring& ws, size_t maxLen = 0) {
-    std::string result;
-    for (wchar_t wc : ws) {
-        result += (wc < 128) ? static_cast<char>(wc) : '?';
-    }
-    if (maxLen > 0 && result.length() > maxLen) {
-        result = result.substr(0, maxLen - 3) + "...";
-    }
-    return result;
-}
 // Extract initials from a session title (e.g., "PowerShell" -> "PS", "cmd" -> "C")
 std::string GetInitials(const std::wstring& title) {
     std::string result;
@@ -46,34 +36,6 @@ std::string GetInitials(const std::wstring& title) {
         for (size_t i = 0; i < std::min((size_t)2, title.length()); ++i) {
             if (title[i] < 128) result += static_cast<char>(std::toupper(static_cast<char>(title[i])));
         }
-    }
-    return result;
-}
-
-// Check if codepoint is valid for rendering
-bool IsValidCodepoint(char32_t ch) {
-    return ch <= 0x10FFFF && (ch >= 0x20 || ch == U'\t') &&
-           (ch < 0xD800 || ch > 0xDFFF) && ch < 0xF0000 &&
-           (ch & 0xFFFF) != 0xFFFE && (ch & 0xFFFF) != 0xFFFF;
-}
-
-// Convert a single UTF-32 codepoint to UTF-8 string
-std::string Utf32ToUtf8(char32_t codepoint) {
-    std::string result;
-    if (codepoint < 0x80) {
-        result += static_cast<char>(codepoint);
-    } else if (codepoint < 0x800) {
-        result += static_cast<char>(0xC0 | (codepoint >> 6));
-        result += static_cast<char>(0x80 | (codepoint & 0x3F));
-    } else if (codepoint < 0x10000) {
-        result += static_cast<char>(0xE0 | (codepoint >> 12));
-        result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-        result += static_cast<char>(0x80 | (codepoint & 0x3F));
-    } else if (codepoint < 0x110000) {
-        result += static_cast<char>(0xF0 | (codepoint >> 18));
-        result += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-        result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-        result += static_cast<char>(0x80 | (codepoint & 0x3F));
     }
     return result;
 }
@@ -100,26 +62,20 @@ bool Application::Initialize(const std::wstring& shell) {
     // Load configuration
     m_config = std::make_unique<Config>();
     m_config->LoadDefault();
-    
-    // Create default config file if it doesn't exist
     m_config->CreateDefaultIfMissing();
-    
-    // Log any config warnings
+
     for (const auto& warning : m_config->GetWarnings()) {
         spdlog::warn("Config: {}", warning);
     }
-    
-    // Use shell from command line if provided, otherwise from config
+
     m_shellCommand = shell.empty() ? m_config->GetTerminal().shell : shell;
 
     // Create window
     m_window = std::make_unique<Window>();
 
     WindowDesc windowDesc;
-    // Default size matching Windows Terminal (120 cols x 30 rows)
-    // With charWidth=10, lineHeight=25, padding=20, tabBar=35
-    windowDesc.width = 1220;   // 120*10 + 20 padding
-    windowDesc.height = 795;   // 30*25 + 35 tabBar + 10 padding
+    windowDesc.width = 1220;
+    windowDesc.height = 795;
     windowDesc.title = L"TerminalDX12 - GPU-Accelerated Terminal Emulator";
     windowDesc.resizable = true;
 
@@ -136,7 +92,6 @@ bool Application::Initialize(const std::wstring& shell) {
         m_running = false;
     };
 
-    // Keyboard input handlers
     m_window->OnCharEvent = [this](wchar_t ch) {
         if (m_inputHandler) m_inputHandler->OnChar(ch);
     };
@@ -145,14 +100,10 @@ bool Application::Initialize(const std::wstring& shell) {
         if (m_inputHandler) m_inputHandler->OnKey(key, isDown);
     };
 
-    // Mouse handlers
     m_window->OnMouseWheel = [this](int x, int y, int delta, bool horizontal) {
-        // Try MouseHandler first (for apps with mouse mode enabled)
-        // If it returns false, fall back to local scrollback
         if (m_mouseHandler && m_mouseHandler->OnMouseWheel(x, y, delta, horizontal)) {
             return;
         }
-        // Local scrollback (only for vertical scroll)
         if (!horizontal && m_inputHandler) {
             m_inputHandler->OnMouseWheel(delta);
         }
@@ -167,7 +118,6 @@ bool Application::Initialize(const std::wstring& shell) {
         UpdateTabTooltip(x, y);
     };
 
-    // Paint handler for live resize
     m_window->OnPaint = [this]() {
         Render();
     };
@@ -178,7 +128,10 @@ bool Application::Initialize(const std::wstring& shell) {
         return false;
     }
 
-    // Load font settings from config (renderer starts with defaults)
+    // Create rendering pipeline
+    m_renderingPipeline = std::make_unique<Rendering::RenderingPipeline>();
+
+    // Load font settings from config
     const auto& fontConfig = m_config->GetFont();
     if (!fontConfig.resolvedPath.empty()) {
         m_renderer->ReloadFont(fontConfig.resolvedPath, fontConfig.size);
@@ -202,7 +155,7 @@ bool Application::Initialize(const std::wstring& shell) {
         }
     });
 
-    // Set process exit callback - close window when all processes have exited
+    // Set process exit callback
     m_tabManager->SetProcessExitCallback([this](int tabId, int sessionId, int exitCode) {
         spdlog::info("Process in tab {} session {} exited with code {}", tabId, sessionId, exitCode);
         const auto& tabs = m_tabManager->GetTabs();
@@ -214,11 +167,10 @@ bool Application::Initialize(const std::wstring& shell) {
         }
     });
 
-    // Calculate terminal size based on window dimensions
+    // Calculate terminal size and create initial tab
     auto [termCols, termRows] = CalculateTerminalSize(windowDesc.width, windowDesc.height);
     int scrollbackLines = m_config->GetTerminal().scrollbackLines;
 
-    // Create initial tab
     UI::Tab* initialTab = m_tabManager->CreateTab(m_shellCommand, termCols, termRows, scrollbackLines);
     if (!initialTab) {
         spdlog::warn("Failed to start initial terminal session - continuing without ConPTY");
@@ -268,7 +220,6 @@ bool Application::Initialize(const std::wstring& shell) {
                 }
             }
             m_tabManager->CreateTab(m_shellCommand, cols, rows, m_config->GetTerminal().scrollbackLines);
-            // Update layout for all tabs when tab bar appears/changes
             UpdatePaneLayout();
             ResizeAllPaneBuffers();
         }
@@ -276,7 +227,6 @@ bool Application::Initialize(const std::wstring& shell) {
     inputCallbacks.onCloseTab = [this]() {
         if (m_tabManager && m_tabManager->GetTabCount() > 1) {
             m_tabManager->CloseActiveTab();
-            // Update layout when tab bar might disappear
             UpdatePaneLayout();
             ResizeAllPaneBuffers();
         }
@@ -353,7 +303,6 @@ bool Application::Initialize(const std::wstring& shell) {
         if (m_window) m_window->SetCursor(cursor);
     };
     mouseCallbacks.onDividerResized = [this]() {
-        // Update layout and resize all pane buffers after divider resize
         UpdatePaneLayout();
         ResizeAllPaneBuffers();
     };
@@ -362,18 +311,15 @@ bool Application::Initialize(const std::wstring& shell) {
     m_mouseHandler = std::make_unique<UI::MouseHandler>(
         std::move(mouseCallbacks), m_selectionManager, m_tabManager.get());
 
-    // Set up screen-to-cell converter
     m_mouseHandler->SetScreenToCellConverter([this](int x, int y) -> UI::CellPos {
         CellPos pos = ScreenToCell(x, y);
         return {pos.x, pos.y};
     });
 
-    // Set up URL detector
     m_mouseHandler->SetUrlDetector([this](int cellX, int cellY) {
         return UI::UrlHelper::DetectUrlAt(GetActiveScreenBuffer(), cellX, cellY);
     });
 
-    // Set initial char width for tab click handling
     m_mouseHandler->SetCharWidth(m_charWidth);
 
     m_window->Show();
@@ -383,7 +329,6 @@ bool Application::Initialize(const std::wstring& shell) {
 }
 
 void Application::Shutdown() {
-    // Tab manager will stop all terminal sessions
     m_tabManager.reset();
 
     if (m_renderer) {
@@ -391,6 +336,7 @@ void Application::Shutdown() {
         m_renderer.reset();
     }
 
+    m_renderingPipeline.reset();
     m_window.reset();
 }
 
@@ -399,7 +345,6 @@ UI::PaneManager* Application::GetActivePaneManager() {
     return tab ? &tab->GetPaneManager() : nullptr;
 }
 
-// Helper accessors - use focused pane when available, fallback to active tab
 Terminal::ScreenBuffer* Application::GetActiveScreenBuffer() {
     UI::Tab* tab = m_tabManager ? m_tabManager->GetActiveTab() : nullptr;
     UI::TerminalSession* session = tab ? tab->GetFocusedSession() : nullptr;
@@ -450,272 +395,8 @@ bool Application::ProcessMessages() {
     return true;
 }
 
-void Application::BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer) {
-    const auto& colorConfig = m_config->GetColors();
-    auto setColor = [&](int i, uint8_t r, uint8_t g, uint8_t b) {
-        palette[i][0] = r / 255.0f; palette[i][1] = g / 255.0f; palette[i][2] = b / 255.0f;
-    };
-
-    for (int i = 0; i < 256; ++i) {
-        if (screenBuffer && screenBuffer->IsPaletteColorModified(i)) {
-            const auto& c = screenBuffer->GetPaletteColor(i);
-            setColor(i, c.r, c.g, c.b);
-        } else if (i < 16) {
-            const auto& c = colorConfig.palette[i];
-            setColor(i, c.r, c.g, c.b);
-        } else if (i < 232) {
-            // 6x6x6 color cube
-            int idx = i - 16, r = idx / 36, g = (idx / 6) % 6, b = idx % 6;
-            setColor(i, r ? r * 40 + 55 : 0, g ? g * 40 + 55 : 0, b ? b * 40 + 55 : 0);
-        } else {
-            // Grayscale
-            uint8_t gray = (i - 232) * 10 + 8;
-            setColor(i, gray, gray, gray);
-        }
-    }
-}
-
-void Application::RenderTabBar(int charWidth) {
-    if (!m_tabManager || m_tabManager->GetTabCount() <= 1) return;
-
-    // Render tab bar background
-    m_renderer->RenderRect(0.0f, 0.0f, 2000.0f, static_cast<float>(kTabBarHeight),
-                           0.15f, 0.15f, 0.15f, 1.0f);
-
-    // Render each tab
-    float tabX = 5.0f;
-    int activeIndex = m_tabManager->GetActiveTabIndex();
-    const auto& tabs = m_tabManager->GetTabs();
-
-    for (size_t i = 0; i < tabs.size(); ++i) {
-        const auto& tab = tabs[i];
-        bool active = (static_cast<int>(i) == activeIndex);
-        bool hasActivity = !active && tab->HasActivity();
-
-        // Build session initials string
-        std::string sessionNames;
-        const auto& sessions = tab->GetSessions();
-        for (size_t j = 0; j < sessions.size(); ++j) {
-            if (j > 0) sessionNames += "|";
-            sessionNames += GetInitials(sessions[j]->GetTitle());
-        }
-        if (sessionNames.empty()) sessionNames = "T";
-
-        // Calculate tab width based on session names
-        int sessionsLen = static_cast<int>(sessionNames.length() * charWidth) + 30;
-        float tabWidth = static_cast<float>(std::max(100, sessionsLen));
-
-        // Tab background
-        float bg = active ? 0.3f : 0.2f;
-        m_renderer->RenderRect(tabX, 3.0f, tabWidth, static_cast<float>(kTabBarHeight - 6),
-                               bg, bg, active ? 0.35f : 0.2f, 1.0f);
-
-        // Activity indicator and session names (blue)
-        float textX = tabX + 8.0f;
-        if (hasActivity) {
-            m_renderer->RenderText("â", textX, 8.0f, 1.0f, 0.6f, 0.0f, 1.0f);
-            textX += 12.0f;
-        }
-
-        // Session names in blue
-        m_renderer->RenderText(sessionNames.c_str(), textX, 8.0f,
-                               active ? 0.4f : 0.3f, active ? 0.7f : 0.5f, active ? 1.0f : 0.8f, 1.0f);
-
-        // Tab separator
-        m_renderer->RenderRect(tabX + tabWidth - 1.0f, 5.0f, 1.0f, static_cast<float>(kTabBarHeight - 10), 0.4f, 0.4f, 0.4f, 1.0f);
-        tabX += tabWidth + 5.0f;
-    }
-}
-
-void Application::UpdateTabTooltip(int x, int y) {
-    // Only show tooltips when we have multiple tabs and mouse is in tab bar
-    if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= kTabBarHeight) {
-        // spdlog::debug("UpdateTabTooltip: outside tab bar y={} >= {}", y, kTabBarHeight);
-        if (m_hoveredTabId != -1) {
-            m_window->HideTooltip();
-            m_hoveredTabId = -1;
-        }
-        return;
-    }
-
-    // Find which tab is at this position (matching RenderTabBar width calculation)
-    float tabX = 5.0f;
-    int foundTabId = -1;
-    std::wstring tooltipText;
-    
-    for (const auto& tab : m_tabManager->GetTabs()) {
-        // Calculate tab width using initials
-        std::string sessionNames;
-        const auto& sessions = tab->GetSessions();
-        for (size_t j = 0; j < sessions.size(); ++j) {
-            if (j > 0) sessionNames += "|";
-            sessionNames += GetInitials(sessions[j]->GetTitle());
-        }
-        if (sessionNames.empty()) sessionNames = "T";
-        
-        int sessionsLen = static_cast<int>(sessionNames.length() * m_charWidth) + 30;
-        float tabWidth = static_cast<float>(std::max(100, sessionsLen));
-        
-        if (x >= tabX && x < tabX + tabWidth) {
-            foundTabId = tab->GetId();
-            // Build full names for tooltip
-            for (size_t j = 0; j < sessions.size(); ++j) {
-                if (j > 0) tooltipText += L", ";
-                tooltipText += sessions[j]->GetTitle();
-            }
-            if (tooltipText.empty()) tooltipText = L"Terminal";
-            break;
-        }
-        tabX += tabWidth + 5.0f;
-    }
-    
-    if (foundTabId != m_hoveredTabId) {
-        m_hoveredTabId = foundTabId;
-        if (foundTabId != -1) {
-            m_window->ShowTooltip(x, y, tooltipText);
-        } else {
-            m_window->HideTooltip();
-        }
-    }
-}
-
-void Application::RenderCursor(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
-                               int charWidth, int lineHeight, float cursorR, float cursorG, float cursorB) {
-    int cursorX, cursorY, rows, cols;
-    screenBuffer->GetCursorPos(cursorX, cursorY);
-    screenBuffer->GetDimensions(cols, rows);
-
-    bool visible = screenBuffer->IsCursorVisible() && screenBuffer->GetScrollOffset() == 0 &&
-                   cursorX >= 0 && cursorX < cols && cursorY >= 0 && cursorY < rows;
-    if (!visible) return;
-
-    // Blink every 500ms
-    static auto startTime = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
-    if ((elapsed / 500) % 2 == 0) {
-        m_renderer->RenderText("_", static_cast<float>(startX + cursorX * charWidth),
-                               static_cast<float>(startY + cursorY * lineHeight), cursorR, cursorG, cursorB, 1.0f);
-    }
-}
-
-void Application::RenderSearchBar(int startX, int charWidth, int lineHeight) {
-    if (!m_searchManager.IsActive()) return;
-
-    constexpr int searchBarHeight = 30;
-    int windowHeight = m_window ? m_window->GetHeight() : 720;
-    float searchBarY = static_cast<float>(windowHeight - searchBarHeight);
-
-    // Search bar background
-    m_renderer->RenderRect(0.0f, searchBarY, 2000.0f, static_cast<float>(searchBarHeight),
-                           0.2f, 0.2f, 0.25f, 1.0f);
-
-    // Search label and query
-    m_renderer->RenderText("Search:", 10.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
-    m_renderer->RenderText(WStringToAscii(m_searchManager.GetQuery()).c_str(),
-                           80.0f, searchBarY + 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
-
-    // Search results count
-    char countBuf[64];
-    if (m_searchManager.GetMatches().empty()) {
-        snprintf(countBuf, sizeof(countBuf), "No matches");
-    } else {
-        snprintf(countBuf, sizeof(countBuf), "%d of %d",
-                 m_searchManager.GetCurrentMatchIndex() + 1, static_cast<int>(m_searchManager.GetMatches().size()));
-    }
-    m_renderer->RenderText(countBuf, 400.0f, searchBarY + 5.0f, 0.7f, 0.7f, 0.7f, 1.0f);
-
-    // Instructions
-    m_renderer->RenderText("F3/Enter: Next  Shift+F3: Prev  Esc: Close",
-                           550.0f, searchBarY + 5.0f, 0.5f, 0.5f, 0.5f, 1.0f);
-
-    // Highlight search matches
-    const auto& matches = m_searchManager.GetMatches();
-    if (!matches.empty()) {
-        int termStartY = GetTerminalStartY();
-        int queryLen = static_cast<int>(m_searchManager.GetQuery().length());
-        int currentIdx = m_searchManager.GetCurrentMatchIndex();
-        for (size_t i = 0; i < matches.size(); ++i) {
-            float intensity = (static_cast<int>(i) == currentIdx) ? 0.8f : 0.5f;
-            float alpha = (static_cast<int>(i) == currentIdx) ? 0.6f : 0.4f;
-            for (int j = 0; j < queryLen; ++j) {
-                m_renderer->RenderRect(static_cast<float>(startX + (matches[i].x + j) * charWidth),
-                                       static_cast<float>(termStartY + matches[i].y * lineHeight),
-                                       static_cast<float>(charWidth), static_cast<float>(lineHeight),
-                                       intensity, intensity * 0.75f, 0.0f, alpha);
-            }
-        }
-    }
-}
-
-void Application::RenderTerminalContent(Terminal::ScreenBuffer* screenBuffer, int startX, int startY,
-                                        int charWidth, int lineHeight, const float palette[256][3],
-                                        void* pane) {
-    int rows, cols;
-    screenBuffer->GetDimensions(cols, rows);
-
-    struct RGB { float r, g, b; };
-    auto getColor = [&palette](const Terminal::CellAttributes& attr, bool fg) -> RGB {
-        if (fg ? attr.UsesTrueColorFg() : attr.UsesTrueColorBg())
-            return fg ? RGB{attr.fgR/255.0f, attr.fgG/255.0f, attr.fgB/255.0f}
-                      : RGB{attr.bgR/255.0f, attr.bgG/255.0f, attr.bgB/255.0f};
-        uint8_t idx = (fg ? attr.foreground : attr.background) % 16;
-        return {palette[idx][0], palette[idx][1], palette[idx][2]};
-    };
-
-    // Calculate selection bounds (only if selection is in this pane)
-    bool hasSel = m_selectionManager.HasSelection() && m_selectionManager.GetSelectionPane() == pane;
-    bool rectSel = m_selectionManager.IsRectangleSelection();
-    int selStartY = 0, selEndY = -1, selStartX = 0, selEndX = 0;
-    if (hasSel) {
-        const auto& s = m_selectionManager.GetSelectionStart(), e = m_selectionManager.GetSelectionEnd();
-        selStartY = std::min(s.y, e.y); selEndY = std::max(s.y, e.y);
-        bool sFirst = s.y < e.y || (s.y == e.y && s.x <= e.x);
-        selStartX = rectSel ? std::min(s.x, e.x) : (sFirst ? s.x : e.x);
-        selEndX = rectSel ? std::max(s.x, e.x) : (sFirst ? e.x : s.x);
-    }
-
-    for (int y = 0; y < rows; ++y) {
-        float posY = static_cast<float>(startY + y * lineHeight);
-
-        // Selection highlight
-        if (hasSel && y >= selStartY && y <= selEndY) {
-            int xs = rectSel ? selStartX : (y == selStartY ? selStartX : 0);
-            int xe = rectSel ? selEndX : (y == selEndY ? selEndX : cols - 1);
-            for (int x = xs; x <= xe; ++x)
-                m_renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth), posY, 0.2f, 0.4f, 0.8f, 0.5f);
-        }
-
-        // Background and foreground in single pass
-        for (int x = 0; x < cols; ++x) {
-            auto cell = screenBuffer->GetCellWithScrollback(x, y);
-            float posX = static_cast<float>(startX + x * charWidth);
-            bool inv = cell.attr.IsInverse();
-
-            // Background (inverse: use fg as bg)
-            bool hasBg = inv ? (cell.attr.UsesTrueColorFg() || cell.attr.foreground % 16 != 0)
-                             : (cell.attr.UsesTrueColorBg() || cell.attr.background % 16 != 0);
-            if (hasBg) {
-                auto bg = getColor(cell.attr, inv);
-                m_renderer->RenderText("\xE2\x96\x88", posX, posY, bg.r, bg.g, bg.b, 1.0f);
-            }
-
-            // Foreground text
-            if (cell.ch == U' ' || cell.ch == U'\0' || !IsValidCodepoint(cell.ch)) continue;
-            auto c = getColor(cell.attr, !inv);
-            float r = c.r, g = c.g, b = c.b;
-            if (cell.attr.IsBold() && !cell.attr.UsesTrueColorFg()) { r = std::min(1.0f, r + 0.2f); g = std::min(1.0f, g + 0.2f); b = std::min(1.0f, b + 0.2f); }
-            if (cell.attr.IsDim()) { r *= 0.5f; g *= 0.5f; b *= 0.5f; }
-
-            m_renderer->RenderChar(Utf32ToUtf8(cell.ch), posX, posY, r, g, b, 1.0f);
-            if (cell.attr.IsUnderline())
-                m_renderer->RenderRect(posX, posY + lineHeight - 1, static_cast<float>(charWidth), 3.0f, r, g, b, 1.0f);
-        }
-    }
-}
-
 void Application::Render() {
-    if (!m_renderer) {
+    if (!m_renderer || !m_renderingPipeline) {
         return;
     }
 
@@ -735,69 +416,78 @@ void Application::Render() {
         return;
     }
 
-    if (m_resizeStabilizeFrames > 0) { m_resizeStabilizeFrames--; return; }
+    if (m_resizeStabilizeFrames > 0) {
+        m_resizeStabilizeFrames--;
+        return;
+    }
 
-    m_renderer->BeginFrame();
-    m_renderer->ClearText();
-
-    // Render tab bar if multiple tabs exist
-    RenderTabBar(m_charWidth);
-
-    // Get all leaf panes to render
-    std::vector<UI::Pane*> leafPanes;
-    UI::PaneManager* pm = GetActivePaneManager();
-    if (pm) pm->GetAllLeafPanes(leafPanes);
+    // Build render context
+    Rendering::RenderContext ctx;
+    ctx.renderer = m_renderer.get();
+    ctx.tabManager = m_tabManager.get();
+    ctx.searchManager = &m_searchManager;
+    ctx.selectionManager = &m_selectionManager;
+    ctx.config = m_config.get();
+    ctx.charWidth = static_cast<float>(m_charWidth);
+    ctx.lineHeight = static_cast<float>(m_lineHeight);
+    ctx.windowWidth = m_window ? m_window->GetWidth() : 800;
+    ctx.windowHeight = m_window ? m_window->GetHeight() : 600;
 
     // Cursor color from config
     const auto& colorConfig = m_config->GetColors();
-    float cursorR = colorConfig.cursor.r / 255.0f;
-    float cursorG = colorConfig.cursor.g / 255.0f;
-    float cursorB = colorConfig.cursor.b / 255.0f;
+    ctx.cursorR = colorConfig.cursor.r / 255.0f;
+    ctx.cursorG = colorConfig.cursor.g / 255.0f;
+    ctx.cursorB = colorConfig.cursor.b / 255.0f;
 
-    UI::Pane* focusedPane = pm ? pm->GetFocusedPane() : nullptr;
+    // Delegate to RenderingPipeline
+    m_renderingPipeline->RenderFrame(ctx);
+}
 
-    // Render each pane's terminal content
-    for (UI::Pane* pane : leafPanes) {
-        if (!pane || !pane->GetSession()) continue;
-        Terminal::ScreenBuffer* buffer = pane->GetSession()->GetScreenBuffer();
-        if (!buffer) continue;
-
-        const UI::PaneRect& bounds = pane->GetBounds();
-
-        // Build color palette for this pane's buffer
-        float colorPalette[256][3];
-        BuildColorPalette(colorPalette, buffer);
-
-        // Render terminal content at pane position
-        RenderTerminalContent(buffer, bounds.x, bounds.y, m_charWidth, m_lineHeight, colorPalette, pane);
-
-        // Render cursor only for focused pane
-        if (pane == focusedPane) {
-            RenderCursor(buffer, bounds.x, bounds.y, m_charWidth, m_lineHeight, cursorR, cursorG, cursorB);
+void Application::UpdateTabTooltip(int x, int y) {
+    if (!m_tabManager || m_tabManager->GetTabCount() <= 1 || y >= kTabBarHeight) {
+        if (m_hoveredTabId != -1) {
+            m_window->HideTooltip();
+            m_hoveredTabId = -1;
         }
-
-        // Draw focused pane border if multiple panes
-        if (leafPanes.size() > 1 && pane == focusedPane) {
-            float bx = static_cast<float>(bounds.x);
-            float by = static_cast<float>(bounds.y);
-            float bw = static_cast<float>(bounds.width);
-            float bh = static_cast<float>(bounds.height);
-            // Blue accent border
-            m_renderer->RenderRect(bx, by, bw, 2.0f, 0.3f, 0.5f, 0.9f, 1.0f);           // Top
-            m_renderer->RenderRect(bx, by + bh - 2.0f, bw, 2.0f, 0.3f, 0.5f, 0.9f, 1.0f); // Bottom
-            m_renderer->RenderRect(bx, by, 2.0f, bh, 0.3f, 0.5f, 0.9f, 1.0f);           // Left
-            m_renderer->RenderRect(bx + bw - 2.0f, by, 2.0f, bh, 0.3f, 0.5f, 0.9f, 1.0f); // Right
-        }
+        return;
     }
 
-    // Render pane dividers
-    if (pm) RenderPaneDividers(pm->GetRootPane());
+    float tabX = 5.0f;
+    int foundTabId = -1;
+    std::wstring tooltipText;
 
-    // Render search bar and highlights
-    RenderSearchBar(kStartX, m_charWidth, m_lineHeight);
+    for (const auto& tab : m_tabManager->GetTabs()) {
+        std::string sessionNames;
+        const auto& sessions = tab->GetSessions();
+        for (size_t j = 0; j < sessions.size(); ++j) {
+            if (j > 0) sessionNames += "|";
+            sessionNames += GetInitials(sessions[j]->GetTitle());
+        }
+        if (sessionNames.empty()) sessionNames = "T";
 
-    m_renderer->EndFrame();
-    m_renderer->Present();
+        int sessionsLen = static_cast<int>(sessionNames.length() * m_charWidth) + 30;
+        float tabWidth = static_cast<float>(std::max(100, sessionsLen));
+
+        if (x >= tabX && x < tabX + tabWidth) {
+            foundTabId = tab->GetId();
+            for (size_t j = 0; j < sessions.size(); ++j) {
+                if (j > 0) tooltipText += L", ";
+                tooltipText += sessions[j]->GetTitle();
+            }
+            if (tooltipText.empty()) tooltipText = L"Terminal";
+            break;
+        }
+        tabX += tabWidth + 5.0f;
+    }
+
+    if (foundTabId != m_hoveredTabId) {
+        m_hoveredTabId = foundTabId;
+        if (foundTabId != -1) {
+            m_window->ShowTooltip(x, y, tooltipText);
+        } else {
+            m_window->HideTooltip();
+        }
+    }
 }
 
 void Application::OnWindowResize(int width, int height) {
@@ -805,7 +495,6 @@ void Application::OnWindowResize(int width, int height) {
 
     if (!m_minimized && m_renderer) {
         UI::PaneManager* pm = GetActivePaneManager();
-        // Check if any pane's session is using alt buffer (TUI app running)
         std::vector<UI::Pane*> leaves;
         if (pm) pm->GetAllLeafPanes(leaves);
         bool anyAltBuffer = std::any_of(leaves.begin(), leaves.end(),
@@ -814,15 +503,12 @@ void Application::OnWindowResize(int width, int height) {
                 return buf && buf->IsUsingAlternativeBuffer();
             });
 
-        // Defer DX12 renderer resize to next frame start
         m_pendingResize = true;
         m_pendingWidth = width;
         m_pendingHeight = height;
 
-        // If TUI is running, skip buffer resize (will be handled in Render)
         if (anyAltBuffer) return;
 
-        // Update pane layout and resize buffers immediately
         UpdatePaneLayout();
         for (UI::Pane* pane : leaves) {
             if (!pane || !pane->GetSession()) continue;
@@ -835,7 +521,6 @@ void Application::OnWindowResize(int width, int height) {
 }
 
 Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
-    // Find which pane the mouse is in
     UI::PaneManager* pm = const_cast<Application*>(this)->GetActivePaneManager();
     UI::Pane* pane = pm ? pm->FindPaneAt(pixelX, pixelY) : nullptr;
     if (pane && pane->IsLeaf()) {
@@ -849,7 +534,6 @@ Application::CellPos Application::ScreenToCell(int pixelX, int pixelY) const {
         return pos;
     }
 
-    // Fallback to focused pane calculation
     CellPos pos{(pixelX - kStartX) / m_charWidth, (pixelY - GetTerminalStartY()) / m_lineHeight};
     if (auto* buf = const_cast<Application*>(this)->GetActiveScreenBuffer()) {
         pos.x = std::clamp(pos.x, 0, buf->GetCols() - 1);
@@ -873,7 +557,6 @@ void Application::PasteFromClipboard() {
 void Application::ShowSettings() {
     if (m_window && m_config) {
         UI::SettingsDialog(m_window->GetHandle(), m_config.get()).Show();
-        // Reload font settings after dialog closes
         ReloadFontSettings();
     }
 }
@@ -893,7 +576,6 @@ void Application::ReloadFontSettings() {
     const auto& font = m_config->GetFont();
     std::string fontPath = font.resolvedPath;
 
-    // If no resolved path, try to resolve it now
     if (fontPath.empty()) {
         fontPath = "C:/Windows/Fonts/consola.ttf";
     }
@@ -902,7 +584,6 @@ void Application::ReloadFontSettings() {
 
     if (m_renderer->ReloadFont(fontPath, font.size)) {
         UpdateFontMetrics();
-        // Trigger resize to recalculate grid
         if (m_window) {
             RECT rect;
             GetClientRect(m_window->GetHandle(), &rect);
@@ -919,7 +600,6 @@ void Application::SplitPane(UI::SplitDirection direction) {
     Terminal::ScreenBuffer* buf = focusedSession ? focusedSession->GetScreenBuffer() : nullptr;
     if (!buf) return;
 
-    // Use Tab's SplitPane which creates the session and splits the pane
     if (tab->SplitPane(direction, m_shellCommand, buf->GetCols(), buf->GetRows(),
                        m_config->GetTerminal().scrollbackLines)) {
         ResizeAllPaneBuffers();
@@ -955,29 +635,6 @@ void Application::ResizeAllPaneBuffers() {
         int rows = std::max(5, bounds.height / m_lineHeight);
         pane->GetSession()->Resize(cols, rows);
     }
-}
-
-void Application::RenderPaneDividers(UI::Pane* pane) {
-    if (!pane || pane->IsLeaf()) return;
-
-    const UI::PaneRect& bounds = pane->GetBounds();
-    float splitRatio = pane->GetSplitRatio();
-
-    if (pane->GetSplitDirection() == UI::SplitDirection::Horizontal) {
-        // Vertical divider for left/right split
-        int dividerX = bounds.x + static_cast<int>(bounds.width * splitRatio);
-        m_renderer->RenderRect(static_cast<float>(dividerX - 1), static_cast<float>(bounds.y),
-                               2.0f, static_cast<float>(bounds.height), 0.3f, 0.3f, 0.3f, 1.0f);
-    } else if (pane->GetSplitDirection() == UI::SplitDirection::Vertical) {
-        // Horizontal divider for top/bottom split
-        int dividerY = bounds.y + static_cast<int>(bounds.height * splitRatio);
-        m_renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(dividerY - 1),
-                               static_cast<float>(bounds.width), 2.0f, 0.3f, 0.3f, 0.3f, 1.0f);
-    }
-
-    // Recurse into children
-    RenderPaneDividers(pane->GetFirstChild());
-    RenderPaneDividers(pane->GetSecondChild());
 }
 
 } // namespace Core

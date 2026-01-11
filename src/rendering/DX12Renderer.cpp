@@ -740,11 +740,11 @@ bool DX12Renderer::ReloadFont(const std::string& fontPath, int fontSize) {
     return true;
 }
 
-int DX12Renderer::GetCharWidth() const {
+int DX12Renderer::GetGlyphWidth() const {
     return m_glyphAtlas ? m_glyphAtlas->GetCharWidth() : 10;
 }
 
-int DX12Renderer::GetLineHeight() const {
+int DX12Renderer::GetGlyphHeight() const {
     return m_glyphAtlas ? m_glyphAtlas->GetLineHeight() : 25;
 }
 
