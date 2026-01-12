@@ -1,13 +1,15 @@
 #include "ui/Tab.h"
 #include "ui/TerminalSession.h"
+#include "core/Config.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
 namespace TerminalDX12::UI {
 
-Tab::Tab(int id)
+Tab::Tab(int id, Core::Config* config)
     : m_id(id)
     , m_title(L"Tab " + std::to_wstring(id))
+    , m_config(config)
 {
     spdlog::debug("Tab {} created", id);
 }
@@ -39,9 +41,21 @@ void Tab::ClearActivity() {
     }
 }
 
-TerminalSession* Tab::CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines) {
+TerminalSession* Tab::CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines,
+                                      const std::string& profileName) {
     int sessionId = m_nextSessionId++;
-    auto session = std::make_unique<TerminalSession>(sessionId, cols, rows, scrollbackLines);
+
+    // Resolve profile name (empty = use default profile from config)
+    std::string effectiveProfile = profileName;
+    if (effectiveProfile.empty() && m_config) {
+        effectiveProfile = m_config->GetDefaultProfileName();
+    }
+    if (effectiveProfile.empty()) {
+        effectiveProfile = "Default";
+    }
+
+    auto session = std::make_unique<TerminalSession>(sessionId, cols, rows, scrollbackLines,
+                                                      m_config, effectiveProfile);
 
     // Wire up process exit callback
     session->SetProcessExitCallback([this, sessionId](int exitCode) {
@@ -76,13 +90,14 @@ TerminalSession* Tab::CreateSession(const std::wstring& shell, int cols, int row
         m_paneManager.Initialize(ptr);
     }
 
-    spdlog::info("Tab {}: Created session {} ({}x{})", m_id, sessionId, cols, rows);
+    spdlog::info("Tab {}: Created session {} ({}x{}) with profile '{}'", m_id, sessionId, cols, rows, effectiveProfile);
     return ptr;
 }
 
-Pane* Tab::SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines) {
+Pane* Tab::SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines,
+                      const std::string& profileName) {
     // Create a new session for the split
-    TerminalSession* newSession = CreateSession(shell, cols, rows, scrollbackLines);
+    TerminalSession* newSession = CreateSession(shell, cols, rows, scrollbackLines, profileName);
     if (!newSession) {
         return nullptr;
     }

@@ -80,6 +80,8 @@ private:
 
     // Settings dialog
     void ShowSettings();
+    void ShowPaneSettings();
+    void ShowProfileManager();
 
     // Tab and pane management
     void CreateNewTab();

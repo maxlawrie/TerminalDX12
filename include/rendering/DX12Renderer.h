@@ -36,10 +36,14 @@ public:
     void Resize(int width, int height) override;
     void RenderText(const std::string& text, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) override;
     void RenderChar(const std::string& ch, float x, float y, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) override;
+    void RenderText(const std::string& text, float x, float y, float r, float g, float b, float a, int fontSize) override;
+    void RenderChar(const std::string& ch, float x, float y, float r, float g, float b, float a, int fontSize) override;
     void RenderRect(float x, float y, float width, float height, float r, float g, float b, float a = 1.0f) override;
     void ClearText() override;
     int GetGlyphWidth() const override;
     int GetGlyphHeight() const override;
+    int GetGlyphWidth(int fontSize) const override;
+    int GetGlyphHeight(int fontSize) const override;
 
     // Font management (not part of IRenderer)
     bool ReloadFont(const std::string& fontPath, int fontSize);

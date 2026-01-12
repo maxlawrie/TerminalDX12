@@ -29,12 +29,17 @@ public:
     [[nodiscard]] bool Initialize(ID3D12Device* device, GlyphAtlas* atlas, int screenWidth, int screenHeight);
     void Shutdown();
 
-    // Render text at position
+    // Render text at position (uses default font size)
     void RenderText(const std::string& text, float x, float y, const XMFLOAT4& color);
     void RenderText(const std::u32string& text, float x, float y, const XMFLOAT4& color);
 
+    // Render text at position with specific font size
+    void RenderText(const std::string& text, float x, float y, const XMFLOAT4& color, int fontSize);
+    void RenderText(const std::u32string& text, float x, float y, const XMFLOAT4& color, int fontSize);
+
     // Render single character at exact cell position (for terminal grid rendering)
     void RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color);
+    void RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color, int fontSize);
 
     // Render a solid rectangle (for underlines, cursors, selection highlights, etc.)
     void RenderRect(float x, float y, float width, float height, float r, float g, float b, float a = 1.0f);

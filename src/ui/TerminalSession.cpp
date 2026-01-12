@@ -6,11 +6,14 @@
 
 namespace TerminalDX12::UI {
 
-TerminalSession::TerminalSession(int id, int cols, int rows, int scrollbackLines)
+TerminalSession::TerminalSession(int id, int cols, int rows, int scrollbackLines,
+                                 Core::Config* config, const std::string& profileName)
     : m_id(id)
     , m_cols(cols)
     , m_rows(rows)
     , m_title(L"Terminal")
+    , m_config(config)
+    , m_profileName(profileName)
 {
     // Create screen buffer
     m_screenBuffer = std::make_unique<Terminal::ScreenBuffer>(cols, rows, scrollbackLines);
@@ -21,7 +24,7 @@ TerminalSession::TerminalSession(int id, int cols, int rows, int scrollbackLines
     // Create terminal session
     m_terminal = std::make_unique<Pty::ConPtySession>();
 
-    spdlog::debug("TerminalSession {} created: {}x{}", id, cols, rows);
+    spdlog::debug("TerminalSession {} created: {}x{} with profile '{}'", id, cols, rows, profileName);
 }
 
 TerminalSession::~TerminalSession() {
@@ -143,6 +146,35 @@ void TerminalSession::ResizeConPTY(int cols, int rows) {
     if (m_terminal && m_terminal->IsRunning()) {
         m_terminal->Resize(cols, rows);
     }
+}
+
+void TerminalSession::SetProfileName(const std::string& name) {
+    m_profileName = name;
+    spdlog::debug("TerminalSession {}: Profile changed to '{}'", m_id, name);
+}
+
+const Core::Profile* TerminalSession::GetEffectiveProfile() const {
+    // If there's a local override, use it
+    if (m_profileOverride.has_value()) {
+        return &m_profileOverride.value();
+    }
+
+    // Otherwise, look up the profile from config
+    if (m_config) {
+        return m_config->GetProfile(m_profileName);
+    }
+
+    return nullptr;
+}
+
+void TerminalSession::SetProfileOverride(const Core::Profile& overrides) {
+    m_profileOverride = overrides;
+    spdlog::debug("TerminalSession {}: Profile override set", m_id);
+}
+
+void TerminalSession::ClearProfileOverride() {
+    m_profileOverride.reset();
+    spdlog::debug("TerminalSession {}: Profile override cleared", m_id);
 }
 
 } // namespace TerminalDX12::UI

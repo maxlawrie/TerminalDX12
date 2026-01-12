@@ -31,6 +31,8 @@ enum class SplitDirection;
  */
 struct InputHandlerCallbacks {
     std::function<void()> onShowSettings;
+    std::function<void()> onShowPaneSettings;
+    std::function<void()> onShowProfileManager;
     std::function<void()> onNewWindow;
     std::function<void()> onQuit;
     std::function<void()> onNewTab;

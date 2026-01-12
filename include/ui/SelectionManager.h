@@ -112,6 +112,12 @@ public:
     /// @brief Set callback for opening settings dialog
     void SetSettingsCallback(std::function<void()> callback) { m_onShowSettings = std::move(callback); }
 
+    /// @brief Set callback for opening pane settings dialog
+    void SetPaneSettingsCallback(std::function<void()> callback) { m_onShowPaneSettings = std::move(callback); }
+
+    /// @brief Set callback for opening profile manager dialog
+    void SetProfileManagerCallback(std::function<void()> callback) { m_onShowProfileManager = std::move(callback); }
+
     /// @brief Set callback for splitting pane horizontally
     void SetSplitHorizontalCallback(std::function<void()> callback) { m_onSplitHorizontal = std::move(callback); }
 
@@ -129,6 +135,8 @@ public:
 
 private:
     std::function<void()> m_onShowSettings;
+    std::function<void()> m_onShowPaneSettings;
+    std::function<void()> m_onShowProfileManager;
     std::function<void()> m_onSplitHorizontal;
     std::function<void()> m_onSplitVertical;
     std::function<void()> m_onClosePane;

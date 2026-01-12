@@ -75,11 +75,18 @@ public:
                    const std::string& fontPath, int fontSize);
     void Shutdown();
 
-    // Get or create a glyph in the atlas
+    // Get or create a glyph in the atlas (uses default font size)
     const GlyphInfo* GetGlyph(char32_t codepoint, bool bold = false, bool italic = false);
+
+    // Get or create a glyph at a specific font size (for per-pane fonts)
+    const GlyphInfo* GetGlyph(char32_t codepoint, int fontSize, bool bold = false, bool italic = false);
 
     // Shape text with HarfBuzz for ligature support
     std::vector<ShapedGlyph> ShapeText(const std::u32string& text, bool bold = false, bool italic = false);
+
+    // Get font metrics for a specific size
+    int GetLineHeight(int fontSize) const;
+    int GetCharWidth(int fontSize) const;
 
     // Check if ligatures are enabled
     bool LigaturesEnabled() const { return m_ligaturesEnabled; }
@@ -100,8 +107,8 @@ public:
     // Reinitialize with new font settings (for hot reload)
     [[nodiscard]] bool Reinitialize(const std::string& fontPath, int fontSize);
 
-    // Upload atlas to GPU if dirty
-    void UploadAtlasIfDirty();
+    // Upload atlas to GPU if dirty (pass current frame's command list)
+    void UploadAtlasIfDirty(ID3D12GraphicsCommandList* commandList);
 
     // Preload ASCII glyphs to avoid race conditions during rendering
     void PreloadASCIIGlyphs();
@@ -117,8 +124,11 @@ private:
     [[nodiscard]] bool CreateAtlasTexture(ID3D12Device* device);
     [[nodiscard]] bool CreateAtlasSRV(ID3D12Device* device);
 
-    // Add a glyph to the atlas
-    GlyphInfo* AddGlyphToAtlas(char32_t codepoint, bool bold, bool italic);
+    // Set FreeType face to a specific size and cache metrics
+    void SetFaceSize(int fontSize);
+
+    // Add a glyph to the atlas at specific size
+    GlyphInfo* AddGlyphToAtlas(char32_t codepoint, int fontSize, bool bold, bool italic);
 
     // Upload glyph bitmap to GPU
     void UploadGlyphToGPU(const GlyphInfo& glyph, const unsigned char* bitmap);
@@ -153,6 +163,14 @@ private:
 
     // Glyph cache
     std::unordered_map<GlyphKey, GlyphInfo, GlyphKeyHash> m_glyphCache;
+
+    // Per-size font metrics
+    struct SizeMetrics {
+        int lineHeight;
+        int charWidth;
+    };
+    mutable std::unordered_map<int, SizeMetrics> m_sizeMetrics;
+    int m_currentFaceSize = 0;  // Currently set FreeType face size
 
     // Atlas CPU-side buffer for updates
     std::unique_ptr<uint8_t[]> m_atlasBuffer;

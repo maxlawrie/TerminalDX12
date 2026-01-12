@@ -7,7 +7,10 @@
 namespace TerminalDX12 {
 
 // Forward declarations
-namespace Core { class Config; }
+namespace Core {
+    class Config;
+    struct ColorConfig;
+}
 namespace Terminal { class ScreenBuffer; }
 namespace Rendering { class IRenderer; }
 namespace UI {
@@ -75,21 +78,34 @@ private:
                           const Core::Config* config);
 
     /**
+     * @brief Build the 256-color palette from ColorConfig directly (for per-pane colors)
+     */
+    void BuildColorPalette(float palette[256][3], Terminal::ScreenBuffer* screenBuffer,
+                          const Core::ColorConfig& colorConfig);
+
+    /**
      * @brief Render the tab bar at the top of the window
      */
     void RenderTabBar(const RenderContext& ctx);
 
     /**
      * @brief Render terminal content for a single pane
+     * @param fontSize Font size for this pane (for per-pane font support)
+     * @param charWidth Character width for this pane's font size
+     * @param lineHeight Line height for this pane's font size
      */
     void RenderTerminalContent(const RenderContext& ctx, Terminal::ScreenBuffer* screenBuffer,
-                               int startX, int startY, const float palette[256][3], void* pane);
+                               int startX, int startY, const float palette[256][3], void* pane,
+                               int fontSize, int charWidth, int lineHeight);
 
     /**
      * @brief Render the blinking cursor
+     * @param fontSize Font size for this pane
+     * @param charWidth Character width for this pane's font size
+     * @param lineHeight Line height for this pane's font size
      */
     void RenderCursor(const RenderContext& ctx, Terminal::ScreenBuffer* screenBuffer,
-                      int startX, int startY);
+                      int startX, int startY, int fontSize, int charWidth, int lineHeight);
 
     /**
      * @brief Render the search bar and search match highlights

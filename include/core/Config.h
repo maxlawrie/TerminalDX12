@@ -117,6 +117,20 @@ struct TerminalConfig {
     Osc52Policy osc52Policy = Osc52Policy::WriteOnly;
 };
 
+// Profile: A named collection of settings that can be applied to a pane
+struct Profile {
+    std::string name = "Default";
+    FontConfig font;
+    ColorConfig colors;
+    TerminalConfig terminal;
+
+    Profile() = default;
+    explicit Profile(const std::string& profileName) : name(profileName) {}
+    Profile(const std::string& profileName,
+            const FontConfig& f, const ColorConfig& c, const TerminalConfig& t)
+        : name(profileName), font(f), colors(c), terminal(t) {}
+};
+
 // Main configuration class
 class Config {
 public:
@@ -150,6 +164,16 @@ public:
     KeybindingConfig& GetKeybindingsMut() { return m_keybindings; }
     TerminalConfig& GetTerminalMut() { return m_terminal; }
 
+    // Profile management
+    const Profile* GetProfile(const std::string& name) const;
+    Profile* GetProfileMut(const std::string& name);
+    void AddProfile(const Profile& profile);
+    void RemoveProfile(const std::string& name);
+    std::vector<std::string> GetProfileNames() const;
+    const std::string& GetDefaultProfileName() const { return m_defaultProfile; }
+    void SetDefaultProfileName(const std::string& name) { m_defaultProfile = name; }
+    const Profile& GetDefaultProfile() const;
+
     // Check if config was loaded successfully
     bool IsLoaded() const { return m_loaded; }
 
@@ -165,6 +189,10 @@ private:
     ColorConfig m_colors;
     KeybindingConfig m_keybindings;
     TerminalConfig m_terminal;
+
+    // Profile storage
+    std::unordered_map<std::string, Profile> m_profiles;
+    std::string m_defaultProfile = "Default";
 
     bool m_loaded = false;
     std::vector<std::string> m_warnings;

@@ -65,6 +65,8 @@ set(UI_SOURCES
     src/ui/TabManager.cpp
     src/ui/Pane.cpp
     src/ui/SettingsDialog.cpp
+    src/ui/PaneSettingsDialog.cpp
+    src/ui/ProfileManagerDialog.cpp
     src/ui/FontEnumerator.cpp
     src/ui/SearchManager.cpp
     src/ui/SelectionManager.cpp

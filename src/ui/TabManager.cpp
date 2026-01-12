@@ -16,7 +16,7 @@ TabManager::~TabManager() {
 Tab* TabManager::CreateTab(const std::wstring& shell, int cols, int rows, int scrollbackLines) {
     int tabId = m_nextTabId++;
 
-    auto tab = std::make_unique<Tab>(tabId);
+    auto tab = std::make_unique<Tab>(tabId, m_config);
 
     // Set up process exit callback for sessions in this tab
     tab->SetProcessExitCallback([this, tabId](int sessionId, int exitCode) {

@@ -6,6 +6,10 @@
 #include <functional>
 #include "ui/PaneManager.h"
 
+namespace TerminalDX12::Core {
+    class Config;
+}
+
 namespace TerminalDX12::UI {
 
 class TerminalSession;
@@ -13,7 +17,7 @@ class TerminalSession;
 /// @brief Represents a top-level tab containing a pane tree of terminal sessions
 class Tab {
 public:
-    Tab(int id);
+    Tab(int id, Core::Config* config = nullptr);
     ~Tab();
 
     /// @brief Get tab ID
@@ -36,8 +40,10 @@ public:
     /// @param cols Terminal columns
     /// @param rows Terminal rows
     /// @param scrollbackLines Scrollback buffer size
+    /// @param profileName Profile name to use (empty = use default)
     /// @return The created session, or nullptr on failure
-    [[nodiscard]] TerminalSession* CreateSession(const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
+    [[nodiscard]] TerminalSession* CreateSession(const std::wstring& shell, int cols, int rows,
+                                                  int scrollbackLines = 10000, const std::string& profileName = "");
 
     /// @brief Split the focused pane with a new session
     /// @param direction Split direction
@@ -45,8 +51,10 @@ public:
     /// @param cols Terminal columns
     /// @param rows Terminal rows
     /// @param scrollbackLines Scrollback buffer size
+    /// @param profileName Profile name to use (empty = use default)
     /// @return The new pane, or nullptr on failure
-    [[nodiscard]] Pane* SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows, int scrollbackLines = 10000);
+    [[nodiscard]] Pane* SplitPane(SplitDirection direction, const std::wstring& shell, int cols, int rows,
+                                   int scrollbackLines = 10000, const std::string& profileName = "");
 
     /// @brief Close the focused pane
     void ClosePane();
@@ -74,6 +82,7 @@ private:
     int m_id;
     std::wstring m_title;
     int m_nextSessionId = 1;
+    Core::Config* m_config = nullptr;
 
     PaneManager m_paneManager;
     std::vector<std::unique_ptr<TerminalSession>> m_sessions;

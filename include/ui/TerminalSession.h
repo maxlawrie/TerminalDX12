@@ -1,8 +1,10 @@
 #pragma once
 
+#include "core/Config.h"
 #include <memory>
 #include <string>
 #include <functional>
+#include <optional>
 
 namespace TerminalDX12 {
 
@@ -17,12 +19,21 @@ namespace UI {
 // Represents a single terminal session with its own shell process
 class TerminalSession {
 public:
-    TerminalSession(int id, int cols, int rows, int scrollbackLines = 10000);
+    TerminalSession(int id, int cols, int rows, int scrollbackLines = 10000,
+                    Core::Config* config = nullptr, const std::string& profileName = "Default");
     ~TerminalSession();
 
     // Start the shell process
     bool Start(const std::wstring& shell);
     void Stop();
+
+    // Profile management
+    const std::string& GetProfileName() const { return m_profileName; }
+    void SetProfileName(const std::string& name);
+    const Core::Profile* GetEffectiveProfile() const;
+    bool HasProfileOverride() const { return m_profileOverride.has_value(); }
+    void SetProfileOverride(const Core::Profile& overrides);
+    void ClearProfileOverride();
 
     // Check if session is running
     bool IsRunning() const;
@@ -73,6 +84,11 @@ private:
 
     std::wstring m_title;
     bool m_hasActivity = false;
+
+    // Profile management
+    Core::Config* m_config = nullptr;
+    std::string m_profileName = "Default";
+    std::optional<Core::Profile> m_profileOverride;
 
     std::unique_ptr<Terminal::ScreenBuffer> m_screenBuffer;
     std::unique_ptr<Terminal::VTStateMachine> m_vtParser;

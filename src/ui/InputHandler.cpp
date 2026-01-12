@@ -202,6 +202,22 @@ void InputHandler::SendWin32InputKey(UINT vk, wchar_t unicodeChar, bool keyDown,
 }
 
 bool InputHandler::HandleCtrlShortcuts(UINT key) {
+    // Ctrl+Shift+Comma: Open pane settings
+    if (key == VK_OEM_COMMA && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+        if (m_callbacks.onShowPaneSettings) {
+            m_callbacks.onShowPaneSettings();
+        }
+        return true;
+    }
+
+    // Ctrl+Shift+P: Open profile manager
+    if (key == 'P' && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
+        if (m_callbacks.onShowProfileManager) {
+            m_callbacks.onShowProfileManager();
+        }
+        return true;
+    }
+
     // Ctrl+Comma: Open settings
     if (key == VK_OEM_COMMA) {
         if (m_callbacks.onShowSettings) {

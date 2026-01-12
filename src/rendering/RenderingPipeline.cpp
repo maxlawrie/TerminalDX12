@@ -82,7 +82,12 @@ namespace TerminalDX12::Rendering {
 void RenderingPipeline::BuildColorPalette(float palette[256][3],
                                           Terminal::ScreenBuffer* screenBuffer,
                                           const Core::Config* config) {
-    const auto& colorConfig = config->GetColors();
+    BuildColorPalette(palette, screenBuffer, config->GetColors());
+}
+
+void RenderingPipeline::BuildColorPalette(float palette[256][3],
+                                          Terminal::ScreenBuffer* screenBuffer,
+                                          const Core::ColorConfig& colorConfig) {
     auto setColor = [&](int i, uint8_t r, uint8_t g, uint8_t b) {
         palette[i][0] = r / 255.0f;
         palette[i][1] = g / 255.0f;
@@ -93,6 +98,12 @@ void RenderingPipeline::BuildColorPalette(float palette[256][3],
         if (screenBuffer && screenBuffer->IsPaletteColorModified(i)) {
             const auto& c = screenBuffer->GetPaletteColor(i);
             setColor(i, c.r, c.g, c.b);
+        } else if (i == 0) {
+            // Palette 0 = default background color
+            setColor(i, colorConfig.background.r, colorConfig.background.g, colorConfig.background.b);
+        } else if (i == 7) {
+            // Palette 7 = default foreground color
+            setColor(i, colorConfig.foreground.r, colorConfig.foreground.g, colorConfig.foreground.b);
         } else if (i < 16) {
             const auto& c = colorConfig.palette[i];
             setColor(i, c.r, c.g, c.b);
@@ -166,7 +177,8 @@ void RenderingPipeline::RenderTabBar(const RenderContext& ctx) {
 
 void RenderingPipeline::RenderCursor(const RenderContext& ctx,
                                      Terminal::ScreenBuffer* screenBuffer,
-                                     int startX, int startY) {
+                                     int startX, int startY,
+                                     int fontSize, int charWidth, int lineHeight) {
     int cursorX, cursorY, rows, cols;
     screenBuffer->GetCursorPos(cursorX, cursorY);
     screenBuffer->GetDimensions(cols, rows);
@@ -180,11 +192,9 @@ void RenderingPipeline::RenderCursor(const RenderContext& ctx,
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - startTime).count();
     if ((elapsed / 500) % 2 == 0) {
-        int charWidth = static_cast<int>(ctx.charWidth);
-        int lineHeight = static_cast<int>(ctx.lineHeight);
         ctx.renderer->RenderText("_", static_cast<float>(startX + cursorX * charWidth),
                                  static_cast<float>(startY + cursorY * lineHeight),
-                                 ctx.cursorR, ctx.cursorG, ctx.cursorB, 1.0f);
+                                 ctx.cursorR, ctx.cursorG, ctx.cursorB, 1.0f, fontSize);
     }
 }
 
@@ -245,10 +255,9 @@ void RenderingPipeline::RenderSearchBar(const RenderContext& ctx) {
 void RenderingPipeline::RenderTerminalContent(const RenderContext& ctx,
                                                Terminal::ScreenBuffer* screenBuffer,
                                                int startX, int startY,
-                                               const float palette[256][3], void* pane) {
+                                               const float palette[256][3], void* pane,
+                                               int fontSize, int charWidth, int lineHeight) {
     auto* renderer = ctx.renderer;
-    int charWidth = static_cast<int>(ctx.charWidth);
-    int lineHeight = static_cast<int>(ctx.lineHeight);
 
     int rows, cols;
     screenBuffer->GetDimensions(cols, rows);
@@ -286,7 +295,7 @@ void RenderingPipeline::RenderTerminalContent(const RenderContext& ctx,
             int xe = rectSel ? selEndX : (y == selEndY ? selEndX : cols - 1);
             for (int x = xs; x <= xe; ++x)
                 renderer->RenderText("\xE2\x96\x88", static_cast<float>(startX + x * charWidth),
-                                     posY, 0.2f, 0.4f, 0.8f, 0.5f);
+                                     posY, 0.2f, 0.4f, 0.8f, 0.5f, fontSize);
         }
 
         // Background and foreground in single pass
@@ -300,7 +309,7 @@ void RenderingPipeline::RenderTerminalContent(const RenderContext& ctx,
                              : (cell.attr.UsesTrueColorBg() || cell.attr.background % 16 != 0);
             if (hasBg) {
                 auto bg = getColor(cell.attr, inv);
-                renderer->RenderText("\xE2\x96\x88", posX, posY, bg.r, bg.g, bg.b, 1.0f);
+                renderer->RenderText("\xE2\x96\x88", posX, posY, bg.r, bg.g, bg.b, 1.0f, fontSize);
             }
 
             // Foreground text
@@ -318,7 +327,7 @@ void RenderingPipeline::RenderTerminalContent(const RenderContext& ctx,
                 b *= 0.5f;
             }
 
-            renderer->RenderChar(Utf32ToUtf8(cell.ch), posX, posY, r, g, b, 1.0f);
+            renderer->RenderChar(Utf32ToUtf8(cell.ch), posX, posY, r, g, b, 1.0f, fontSize);
             if (cell.attr.IsUnderline())
                 renderer->RenderRect(posX, posY + lineHeight - 1, static_cast<float>(charWidth),
                                      3.0f, r, g, b, 1.0f);
@@ -390,16 +399,44 @@ void RenderingPipeline::RenderFrame(const RenderContext& ctx) {
 
         const UI::PaneRect& bounds = pane->GetBounds();
 
-        // Build color palette for this pane's buffer
+        // Build color palette for this pane's buffer using profile colors
         float colorPalette[256][3];
-        BuildColorPalette(colorPalette, buffer, ctx.config);
+        const Core::Profile* profile = pane->GetSession()->GetEffectiveProfile();
+
+        // Get font size and metrics for this pane
+        int fontSize = profile ? profile->font.size : ctx.config->GetFont().size;
+        int charWidth = ctx.renderer->GetGlyphWidth(fontSize);
+        int lineHeight = ctx.renderer->GetGlyphHeight(fontSize);
+
+        if (profile) {
+            BuildColorPalette(colorPalette, buffer, profile->colors);
+
+            // Render pane background with profile's background color
+            float bgR = profile->colors.background.r / 255.0f;
+            float bgG = profile->colors.background.g / 255.0f;
+            float bgB = profile->colors.background.b / 255.0f;
+            ctx.renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                                     static_cast<float>(bounds.width), static_cast<float>(bounds.height),
+                                     bgR, bgG, bgB, 1.0f);
+        } else {
+            BuildColorPalette(colorPalette, buffer, ctx.config);
+
+            // Use global background color
+            const auto& bg = ctx.config->GetColors().background;
+            float bgR = bg.r / 255.0f;
+            float bgG = bg.g / 255.0f;
+            float bgB = bg.b / 255.0f;
+            ctx.renderer->RenderRect(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                                     static_cast<float>(bounds.width), static_cast<float>(bounds.height),
+                                     bgR, bgG, bgB, 1.0f);
+        }
 
         // Render terminal content at pane position
-        RenderTerminalContent(ctx, buffer, bounds.x, bounds.y, colorPalette, pane);
+        RenderTerminalContent(ctx, buffer, bounds.x, bounds.y, colorPalette, pane, fontSize, charWidth, lineHeight);
 
         // Render cursor only for focused pane
         if (pane == focusedPane) {
-            RenderCursor(ctx, buffer, bounds.x, bounds.y);
+            RenderCursor(ctx, buffer, bounds.x, bounds.y, fontSize, charWidth, lineHeight);
         }
 
         // Draw focused pane border if multiple panes

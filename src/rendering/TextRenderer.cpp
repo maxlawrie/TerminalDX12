@@ -166,6 +166,41 @@ void TextRenderer::RenderCharAtCell(const std::string& ch, float x, float y, con
     if (glyph) AddGlyphInstance(glyph, x, y, color);
 }
 
+// Font size overloads for per-pane rendering
+void TextRenderer::RenderText(const std::string& text, float x, float y, const XMFLOAT4& color, int fontSize) {
+    std::u32string utf32Text = Utf8ToUtf32(text);
+    RenderText(utf32Text, x, y, color, fontSize);
+}
+
+void TextRenderer::RenderText(const std::u32string& text, float x, float y, const XMFLOAT4& color, int fontSize) {
+    if (!m_atlas) return;
+
+    float currentX = x, currentY = y;
+    int lineHeight = m_atlas->GetLineHeight(fontSize);
+
+    for (char32_t ch : text) {
+        if (ch == U'\n') {
+            currentX = x;
+            currentY += lineHeight;
+            continue;
+        }
+        const GlyphInfo* glyph = m_atlas->GetGlyph(ch, fontSize);
+        if (!glyph) glyph = m_atlas->GetGlyph(U' ', fontSize);
+        if (!glyph) continue;
+
+        AddGlyphInstance(glyph, currentX, currentY, color);
+        currentX += glyph->advance;
+    }
+}
+
+void TextRenderer::RenderCharAtCell(const std::string& ch, float x, float y, const XMFLOAT4& color, int fontSize) {
+    if (!m_atlas) return;
+    std::u32string utf32 = Utf8ToUtf32(ch);
+    if (utf32.empty()) return;
+    const GlyphInfo* glyph = m_atlas->GetGlyph(utf32[0], fontSize);
+    if (glyph) AddGlyphInstance(glyph, x, y, color);
+}
+
 void TextRenderer::AddGlyphInstance(const GlyphInfo* glyph, float x, float y, const XMFLOAT4& color) {
     if (m_instances.size() >= MAX_INSTANCES) return;
     GlyphInstance inst;
@@ -250,8 +285,8 @@ void TextRenderer::UpdateInstanceBuffer() {
 void TextRenderer::Render(ID3D12GraphicsCommandList* commandList) {
     if (m_instances.empty() || !m_rootSignature || !m_pipelineState || !m_atlas) return;
 
-    // Upload atlas to GPU if it has new glyphs
-    m_atlas->UploadAtlasIfDirty();
+    // Upload atlas to GPU if it has new glyphs (use current frame's command list)
+    m_atlas->UploadAtlasIfDirty(commandList);
 
     // Update instance buffer with current data
     UpdateInstanceBuffer();

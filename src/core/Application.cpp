@@ -9,6 +9,8 @@
 #include "ui/Pane.h"
 #include "ui/PaneManager.h"
 #include "ui/SettingsDialog.h"
+#include "ui/PaneSettingsDialog.h"
+#include "ui/ProfileManagerDialog.h"
 #include "ui/UrlHelper.h"
 #include "pty/ConPtySession.h"
 #include "terminal/ScreenBuffer.h"
@@ -135,6 +137,10 @@ UI::InputHandlerCallbacks Application::BuildInputCallbacks() {
 
     cb.onShowSettings = [this]() { ShowSettings(); };
 
+    cb.onShowPaneSettings = [this]() { ShowPaneSettings(); };
+
+    cb.onShowProfileManager = [this]() { ShowProfileManager(); };
+
     cb.onNewWindow = [this]() {
         wchar_t exePath[MAX_PATH];
         if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
@@ -204,6 +210,8 @@ UI::InputHandlerCallbacks Application::BuildInputCallbacks() {
 
 void Application::SetupSelectionCallbacks() {
     m_selectionManager.SetSettingsCallback([this]() { ShowSettings(); });
+    m_selectionManager.SetPaneSettingsCallback([this]() { ShowPaneSettings(); });
+    m_selectionManager.SetProfileManagerCallback([this]() { ShowProfileManager(); });
     m_selectionManager.SetSplitHorizontalCallback([this]() { SplitPane(UI::SplitDirection::Horizontal); });
     m_selectionManager.SetSplitVerticalCallback([this]() { SplitPane(UI::SplitDirection::Vertical); });
     m_selectionManager.SetClosePaneCallback([this]() { ClosePane(); });
@@ -293,6 +301,7 @@ bool Application::Initialize(const std::wstring& shell) {
 
     // Create tab manager and setup callbacks
     m_tabManager = std::make_unique<UI::TabManager>();
+    m_tabManager->SetConfig(m_config.get());
     SetupTabManagerCallbacks();
 
     // Calculate terminal size and create initial tab
@@ -328,7 +337,24 @@ bool Application::Initialize(const std::wstring& shell) {
 
     m_mouseHandler->SetScreenToCellConverter([this](int x, int y) -> UI::CellPos {
         int tabCount = m_tabManager ? m_tabManager->GetTabCount() : 0;
-        auto pos = m_layoutCalc.ScreenToCell(x, y, GetActivePaneManager(), GetActiveScreenBuffer(), tabCount);
+        UI::PaneManager* pm = GetActivePaneManager();
+
+        // Try to find the pane at these coordinates and use per-pane font metrics
+        if (pm) {
+            UI::Pane* pane = pm->FindPaneAt(x, y);
+            if (pane && pane->IsLeaf() && pane->GetSession()) {
+                Terminal::ScreenBuffer* buf = pane->GetSession()->GetScreenBuffer();
+                const Profile* profile = pane->GetSession()->GetEffectiveProfile();
+                int fontSize = profile ? profile->font.size : m_config->GetFont().size;
+                int charWidth = m_renderer->GetGlyphWidth(fontSize);
+                int lineHeight = m_renderer->GetGlyphHeight(fontSize);
+                auto pos = m_layoutCalc.ScreenToCellInPane(x, y, pane->GetBounds(), buf, charWidth, lineHeight);
+                return {pos.x, pos.y};
+            }
+        }
+
+        // Fallback to global calculation
+        auto pos = m_layoutCalc.ScreenToCell(x, y, pm, GetActiveScreenBuffer(), tabCount);
         return {pos.x, pos.y};
     });
 
@@ -540,6 +566,52 @@ void Application::ShowSettings() {
     if (m_window && m_config) {
         UI::SettingsDialog(m_window->GetHandle(), m_config.get()).Show();
         ReloadFontSettings();
+    }
+}
+
+void Application::ShowPaneSettings() {
+    if (!m_window || !m_config || !m_tabManager) return;
+
+    UI::Tab* activeTab = m_tabManager->GetActiveTab();
+    if (!activeTab) return;
+
+    UI::TerminalSession* session = activeTab->GetFocusedSession();
+    if (!session) return;
+
+    UI::PaneSettingsDialog dialog(m_window->GetHandle(), m_config.get(), session);
+    dialog.SetApplyCallback([this]() {
+        // Trigger redraw when settings are applied
+        if (m_window) {
+            InvalidateRect(m_window->GetHandle(), nullptr, FALSE);
+        }
+    });
+
+    if (dialog.Show()) {
+        // Settings changed - trigger full redraw
+        if (m_window) {
+            InvalidateRect(m_window->GetHandle(), nullptr, FALSE);
+        }
+    }
+}
+
+void Application::ShowProfileManager() {
+    if (!m_window || !m_config) return;
+
+    UI::ProfileManagerDialog dialog(m_window->GetHandle(), m_config.get());
+    dialog.SetChangeCallback([this]() {
+        // Reload font settings when profiles change
+        ReloadFontSettings();
+        if (m_window) {
+            InvalidateRect(m_window->GetHandle(), nullptr, FALSE);
+        }
+    });
+
+    if (dialog.Show()) {
+        // Profiles were modified - save and reload
+        ReloadFontSettings();
+        if (m_window) {
+            InvalidateRect(m_window->GetHandle(), nullptr, FALSE);
+        }
     }
 }
 

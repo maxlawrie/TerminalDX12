@@ -284,6 +284,10 @@ bool GlyphAtlas::CreateAtlasSRV(ID3D12Device* device) {
 }
 
 const GlyphInfo* GlyphAtlas::GetGlyph(char32_t codepoint, bool bold, bool italic) {
+    return GetGlyph(codepoint, m_fontSize, bold, italic);
+}
+
+const GlyphInfo* GlyphAtlas::GetGlyph(char32_t codepoint, int fontSize, bool bold, bool italic) {
     // Validate codepoint - must be valid Unicode (0-0x10FFFF)
     // Invalid codepoints can come from uninitialized memory during resize
     if (codepoint > 0x10FFFF || (codepoint < 0x20 && codepoint != U'\t')) {
@@ -291,8 +295,12 @@ const GlyphInfo* GlyphAtlas::GetGlyph(char32_t codepoint, bool bold, bool italic
         codepoint = U' ';
     }
 
+    // Clamp font size to reasonable range
+    if (fontSize < 6) fontSize = 6;
+    if (fontSize > 72) fontSize = 72;
+
     // Check cache
-    GlyphKey key{codepoint, m_fontSize, bold, italic};
+    GlyphKey key{codepoint, fontSize, bold, italic};
     auto it = m_glyphCache.find(key);
 
     if (it != m_glyphCache.end()) {
@@ -300,10 +308,61 @@ const GlyphInfo* GlyphAtlas::GetGlyph(char32_t codepoint, bool bold, bool italic
     }
 
     // Add new glyph to atlas
-    return AddGlyphToAtlas(codepoint, bold, italic);
+    return AddGlyphToAtlas(codepoint, fontSize, bold, italic);
 }
 
-GlyphInfo* GlyphAtlas::AddGlyphToAtlas(char32_t codepoint, bool bold, bool italic) {
+void GlyphAtlas::SetFaceSize(int fontSize) {
+    if (m_currentFaceSize == fontSize) return;
+
+    // Set FreeType face size
+    FT_Set_Pixel_Sizes(m_ftFace, 0, fontSize);
+    m_currentFaceSize = fontSize;
+
+    // Calculate and cache metrics for this size if not already done
+    if (m_sizeMetrics.find(fontSize) == m_sizeMetrics.end()) {
+        SizeMetrics metrics;
+        metrics.lineHeight = m_ftFace->size->metrics.height >> 6;
+        if (metrics.lineHeight < fontSize) {
+            metrics.lineHeight = static_cast<int>(fontSize * 1.2f);
+        }
+
+        // Measure 'M' for char width
+        FT_UInt mIndex = FT_Get_Char_Index(m_ftFace, 'M');
+        if (mIndex && FT_Load_Glyph(m_ftFace, mIndex, FT_LOAD_DEFAULT) == 0) {
+            metrics.charWidth = m_ftFace->glyph->advance.x >> 6;
+        } else {
+            metrics.charWidth = fontSize / 2;
+        }
+
+        m_sizeMetrics[fontSize] = metrics;
+        spdlog::debug("Cached metrics for size {}: lineHeight={}, charWidth={}",
+                      fontSize, metrics.lineHeight, metrics.charWidth);
+    }
+}
+
+int GlyphAtlas::GetLineHeight(int fontSize) const {
+    auto it = m_sizeMetrics.find(fontSize);
+    if (it != m_sizeMetrics.end()) {
+        return it->second.lineHeight;
+    }
+    // If metrics not cached, use default or estimate
+    const_cast<GlyphAtlas*>(this)->SetFaceSize(fontSize);
+    return m_sizeMetrics[fontSize].lineHeight;
+}
+
+int GlyphAtlas::GetCharWidth(int fontSize) const {
+    auto it = m_sizeMetrics.find(fontSize);
+    if (it != m_sizeMetrics.end()) {
+        return it->second.charWidth;
+    }
+    // If metrics not cached, compute them
+    const_cast<GlyphAtlas*>(this)->SetFaceSize(fontSize);
+    return m_sizeMetrics[fontSize].charWidth;
+}
+
+GlyphInfo* GlyphAtlas::AddGlyphToAtlas(char32_t codepoint, int fontSize, bool bold, bool italic) {
+    // Set face to correct size before rendering
+    SetFaceSize(fontSize);
     // Load glyph from FreeType
     FT_UInt glyphIndex = FT_Get_Char_Index(m_ftFace, codepoint);
 
@@ -371,7 +430,7 @@ GlyphInfo* GlyphAtlas::AddGlyphToAtlas(char32_t codepoint, bool bold, bool itali
     m_atlasDirty = true;
 
     // Add to cache
-    GlyphKey key{codepoint, m_fontSize, bold, italic};
+    GlyphKey key{codepoint, fontSize, bold, italic};
     m_glyphCache[key] = glyphInfo;
 
     // Upload to GPU if needed (deferred for now - will upload all at once)
@@ -385,8 +444,8 @@ void GlyphAtlas::UploadGlyphToGPU(const GlyphInfo& glyph, const unsigned char* b
     // Note: Full atlas upload works for now. Region-based updates could improve performance with many glyphs.
 }
 
-void GlyphAtlas::UploadAtlasIfDirty() {
-    if (!m_atlasDirty || !m_commandList || !m_atlasBuffer) {
+void GlyphAtlas::UploadAtlasIfDirty(ID3D12GraphicsCommandList* commandList) {
+    if (!m_atlasDirty || !commandList || !m_atlasBuffer) {
         return;
     }
 
@@ -410,7 +469,7 @@ void GlyphAtlas::UploadAtlasIfDirty() {
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    m_commandList->ResourceBarrier(1, &barrier);
+    commandList->ResourceBarrier(1, &barrier);
 
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
     footprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -421,11 +480,11 @@ void GlyphAtlas::UploadAtlasIfDirty() {
 
     D3D12_TEXTURE_COPY_LOCATION dst = {m_atlasTexture.Get(), D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, {0}};
     D3D12_TEXTURE_COPY_LOCATION src = {m_atlasUploadBuffer.Get(), D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT, {footprint}};
-    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    m_commandList->ResourceBarrier(1, &barrier);
+    commandList->ResourceBarrier(1, &barrier);
 
     m_atlasDirty = false;
 }

@@ -20,11 +20,18 @@ public:
     virtual void EndFrame() = 0;
     virtual void Present() = 0;
 
-    // Text rendering
+    // Text rendering (default font size)
     virtual void RenderText(const std::string& text, float x, float y,
                            float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) = 0;
     virtual void RenderChar(const std::string& ch, float x, float y,
                            float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) = 0;
+
+    // Text rendering with specific font size (for per-pane rendering)
+    virtual void RenderText(const std::string& text, float x, float y,
+                           float r, float g, float b, float a, int fontSize) = 0;
+    virtual void RenderChar(const std::string& ch, float x, float y,
+                           float r, float g, float b, float a, int fontSize) = 0;
+
     virtual void RenderRect(float x, float y, float width, float height,
                            float r, float g, float b, float a = 1.0f) = 0;
     virtual void ClearText() = 0;
@@ -32,6 +39,10 @@ public:
     // Font metrics (renamed to avoid Windows macro conflicts)
     virtual int GetGlyphWidth() const = 0;
     virtual int GetGlyphHeight() const = 0;
+
+    // Font metrics for specific font size (for per-pane rendering)
+    virtual int GetGlyphWidth(int fontSize) const = 0;
+    virtual int GetGlyphHeight(int fontSize) const = 0;
 
     // Resize
     virtual void Resize(int width, int height) = 0;

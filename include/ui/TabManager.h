@@ -5,6 +5,10 @@
 #include <string>
 #include <functional>
 
+namespace TerminalDX12::Core {
+    class Config;
+}
+
 namespace TerminalDX12::UI {
 
 class Tab;
@@ -15,6 +19,9 @@ class TabManager {
 public:
     TabManager();
     ~TabManager();
+
+    /// @brief Set config for profile support
+    void SetConfig(Core::Config* config) { m_config = config; }
 
     /// @brief Create a new tab with an initial terminal session
     /// @param shell Shell command to run
@@ -77,6 +84,7 @@ public:
     }
 
 private:
+    Core::Config* m_config = nullptr;
     std::vector<std::unique_ptr<Tab>> m_tabs;
     int m_activeTabIndex = -1;
     int m_nextTabId = 1;

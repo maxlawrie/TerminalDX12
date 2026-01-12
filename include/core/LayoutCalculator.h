@@ -75,10 +75,16 @@ public:
                          Terminal::ScreenBuffer* fallbackBuffer, int tabCount) const;
 
     /**
-     * @brief Calculate cell position within a pane's bounds
+     * @brief Calculate cell position within a pane's bounds (uses global font metrics)
      */
     CellPos ScreenToCellInPane(int pixelX, int pixelY, const UI::PaneRect& bounds,
                                Terminal::ScreenBuffer* buffer) const;
+
+    /**
+     * @brief Calculate cell position within a pane's bounds (uses specified font metrics)
+     */
+    CellPos ScreenToCellInPane(int pixelX, int pixelY, const UI::PaneRect& bounds,
+                               Terminal::ScreenBuffer* buffer, int charWidth, int lineHeight) const;
 
 private:
     int m_charWidth = 10;

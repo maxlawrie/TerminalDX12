@@ -28,7 +28,14 @@ std::pair<int, int> LayoutCalculator::CalculateTerminalSize(int windowWidth, int
 LayoutCalculator::CellPos LayoutCalculator::ScreenToCellInPane(int pixelX, int pixelY,
                                                                 const UI::PaneRect& bounds,
                                                                 Terminal::ScreenBuffer* buffer) const {
-    CellPos pos{(pixelX - bounds.x) / m_charWidth, (pixelY - bounds.y) / m_lineHeight};
+    return ScreenToCellInPane(pixelX, pixelY, bounds, buffer, m_charWidth, m_lineHeight);
+}
+
+LayoutCalculator::CellPos LayoutCalculator::ScreenToCellInPane(int pixelX, int pixelY,
+                                                                const UI::PaneRect& bounds,
+                                                                Terminal::ScreenBuffer* buffer,
+                                                                int charWidth, int lineHeight) const {
+    CellPos pos{(pixelX - bounds.x) / charWidth, (pixelY - bounds.y) / lineHeight};
     if (buffer) {
         pos.x = std::clamp(pos.x, 0, buffer->GetCols() - 1);
         pos.y = std::clamp(pos.y, 0, buffer->GetRows() - 1);

@@ -319,6 +319,8 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
     constexpr UINT ID_SPLIT_VERTICAL = 6;
     constexpr UINT ID_CLOSE_PANE = 7;
     constexpr UINT ID_SETTINGS = 8;
+    constexpr UINT ID_PANE_SETTINGS = 9;
+    constexpr UINT ID_PROFILE_MANAGER = 10;
 
     // Add menu items
     UINT copyFlags = MF_STRING | (m_hasSelection ? 0 : MF_GRAYED);
@@ -348,6 +350,8 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_SETTINGS, L"Settings...\tCtrl+,");
+    AppendMenuW(hMenu, MF_STRING, ID_PANE_SETTINGS, L"Pane Settings...\tCtrl+Shift+,");
+    AppendMenuW(hMenu, MF_STRING, ID_PROFILE_MANAGER, L"Manage Profiles...\tCtrl+Shift+P");
 
     // Get screen coordinates
     POINT pt = {x, y};
@@ -398,6 +402,16 @@ void SelectionManager::ShowContextMenu(int x, int y, HWND hwnd, Terminal::Screen
         case ID_SETTINGS:
             if (m_onShowSettings) {
                 m_onShowSettings();
+            }
+            break;
+        case ID_PANE_SETTINGS:
+            if (m_onShowPaneSettings) {
+                m_onShowPaneSettings();
+            }
+            break;
+        case ID_PROFILE_MANAGER:
+            if (m_onShowProfileManager) {
+                m_onShowProfileManager();
             }
             break;
     }

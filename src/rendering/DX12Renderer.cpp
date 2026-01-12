@@ -710,6 +710,19 @@ void DX12Renderer::RenderChar(const std::string& ch, float x, float y, float r, 
     }
 }
 
+void DX12Renderer::RenderText(const std::string& text, float x, float y, float r, float g, float b, float a, int fontSize) {
+    if (m_textRenderer) {
+        m_textRenderer->RenderText(text, x, y, DirectX::XMFLOAT4(r, g, b, a), fontSize);
+    }
+}
+
+void DX12Renderer::RenderChar(const std::string& ch, float x, float y, float r, float g, float b, float a, int fontSize) {
+    if (m_textRenderer) {
+        DirectX::XMFLOAT4 color(r, g, b, a);
+        m_textRenderer->RenderCharAtCell(ch, x, y, color, fontSize);
+    }
+}
+
 void DX12Renderer::RenderRect(float x, float y, float width, float height, float r, float g, float b, float a) {
     if (m_textRenderer) {
         m_textRenderer->RenderRect(x, y, width, height, r, g, b, a);
@@ -747,6 +760,14 @@ int DX12Renderer::GetGlyphWidth() const {
 
 int DX12Renderer::GetGlyphHeight() const {
     return m_glyphAtlas ? m_glyphAtlas->GetLineHeight() : 25;
+}
+
+int DX12Renderer::GetGlyphWidth(int fontSize) const {
+    return m_glyphAtlas ? m_glyphAtlas->GetCharWidth(fontSize) : fontSize * 6 / 10;
+}
+
+int DX12Renderer::GetGlyphHeight(int fontSize) const {
+    return m_glyphAtlas ? m_glyphAtlas->GetLineHeight(fontSize) : fontSize + fontSize / 2;
 }
 
 } // namespace Rendering
